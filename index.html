@@ -11,7 +11,17 @@
   <link rel="manifest" href="app-files/manifest.webmanifest" />
   <link rel="stylesheet" href="app-files/styles.css" />
 </head>
-<body>
+<body class="app-loading">
+  <div class="startup-loader" id="startupLoader" role="status" aria-live="polite" aria-label="Preparing Ethereal Handpan">
+    <div class="startup-loader-card">
+      <div class="startup-loader-mark hp-mark" aria-hidden="true"><b></b><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <p class="startup-loader-brand">ETHEREAL HANDPAN</p>
+      <h1>Get ready to play</h1>
+      <p class="startup-loader-status" id="startupLoaderStatus">Tuning your handpan</p>
+      <div class="startup-loader-track" aria-hidden="true"><i id="startupLoaderFill"></i></div>
+      <span class="startup-loader-count" id="startupLoaderCount">Starting...</span>
+    </div>
+  </div>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <div class="brand-row">
@@ -67,9 +77,10 @@
             <span>Tour</span>
           </button>
           <button class="icon-btn help-tour-btn" id="helpBtn" type="button" aria-label="Strokes, keys and notation help" title="Help: strokes, keys and notation"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10.3 5.2 7.6 4.7 4.5 5v12.6c3.1-.3 5.8.2 7.5 1.5 1.7-1.3 4.4-1.8 7.5-1.5V5c-3.1-.3-5.8.2-7.5 1.5z"></path><path d="M12 6.5v12.6"></path></svg></button>
+          <button class="soft-btn compact install-btn" id="installBtn" type="button" aria-label="Install the app" title="Install as an app" hidden><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 19.5h14"></path></svg><span>Install</span></button>
           <button class="soft-btn compact top-new-btn" id="topNewSongBtn" type="button" aria-label="New song" title="New song"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13"></path></svg></button>
-          <button class="soft-btn compact" id="editBtn" aria-label="Edit song">Edit song</button>
-          <button class="soft-btn compact" id="settingsBtn" aria-label="My Handpan">My Handpan</button>
+          <button class="soft-btn compact" id="editBtn" aria-label="Edit song"><svg class="btn-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"></path><path d="M13.5 6.5l4 4"></path></svg><span class="btn-text">Edit song</span></button>
+          <button class="soft-btn compact" id="settingsBtn" aria-label="My Handpan"><svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.1"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg><span class="btn-text">My Handpan</span></button>
           <button class="icon-btn mobile-view-toggle" id="mobileViewToggleBtn" type="button" data-view="radial" aria-label="Switch display to Falling lanes" title="Switch to Falling lanes">
             <svg class="view-mode-icon view-mode-icon-drum" viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="1.8"></circle>
@@ -269,8 +280,8 @@
 
       <div class="form-grid hp-song-grid">
         <label class="song-title-option">Song title<input id="songTitleInput" required maxlength="80" placeholder="My handpan groove" /></label>
-        <label>Tempo (BPM)<input id="songBpmInput" type="number" min="20" max="260" step="1" value="90" required /></label>
-        <label>Beats per bar<select id="songMeterInput">
+        <label>Tempo, BPM<input id="songBpmInput" type="number" inputmode="numeric" min="20" max="260" step="1" value="90" required /></label>
+        <label>Beats<select id="songMeterInput" aria-label="Beats per bar">
           <option value="2">2</option>
           <option value="3">3</option>
           <option value="4" selected>4</option>
@@ -302,6 +313,7 @@
         <div class="compose-drum-wrap">
           <div class="compose-drum" id="composeDrum"></div>
           <div class="rotate-drum-pair compose-rotate" role="group" aria-label="Rotate the handpan">
+            <span class="rotate-label">Rotate</span>
             <button class="rotate-drum-btn" id="composeRotateLeftBtn" type="button" aria-label="Rotate the handpan anticlockwise" title="Rotate anticlockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 12.4a7.6 7.6 0 1 0 2.3-6"></path><path d="M4.4 3.2v4.4h4.4"></path></svg></button>
             <button class="rotate-drum-btn" id="composeRotateRightBtn" type="button" aria-label="Rotate the handpan clockwise" title="Rotate clockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 12.4a7.6 7.6 0 1 1-2.3-6"></path><path d="M19.6 3.2v4.4h-4.4"></path></svg></button>
           </div>
@@ -317,9 +329,12 @@
       <div class="sequence-section">
         <div class="compose-preview-strip" id="composePreviewStrip" hidden></div>
         <div class="sequence-label-row">
-          <label for="sequenceInput">Stroke sequence</label>
+          <label for="sequenceInput">Your song</label>
           <span class="sequence-status" id="sequenceStatus"></span>
+          <button type="button" class="text-mode-btn" id="textModeBtn" aria-pressed="false">Edit as text</button>
         </div>
+        <div class="rhythm-view" id="rhythmView" aria-label="Your song, one box per beat"></div>
+        <p class="rhythm-hint">Each box is one beat. A half-beat stroke takes half a box. <b class="h-L">L</b> left hand, <b class="h-R">R</b> right hand. Tap a stroke to add after it, or × to remove it.</p>
         <textarea id="sequenceInput" rows="6" wrap="soft" spellcheck="false" placeholder="DR TR:0.5 KL:0.5 SR - | 4L+2R 8R -"></textarea>
         <div class="notation-cheats">
           <span><kbd>D</kbd> ding</span><span><kbd>1</kbd>–<kbd>9</kbd> tone fields</span><span><kbd>B1</kbd> <kbd>B2</kbd> bottoms</span><span><kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> tak / ka / slap</span><span><kbd>L</kbd> <kbd>R</kbd> after a stroke = hand (SL / SR = left / right slap)</span><span><kbd>+</kbd> together</span><span><kbd>:0.5</kbd> half beat</span><span><kbd>-</kbd> one beat rest</span><span><kbd>|</kbd> bar</span><span><kbd>#</kbd> comment</span>
@@ -426,7 +441,8 @@
         </section>
         <section>
           <h3>Writing songs</h3>
-          <p><code>4L 8R - | 4L+2R 8R -</code> — space separates strokes, <code>+</code> plays together, <code>L</code>/<code>R</code> picks the hand, <code>:0.5</code> makes a stroke half a beat, <code>-</code> is a one-beat rest, <code>|</code> is a bar line.</p>
+          <p>In New song / Edit song your song is shown as boxes, one box per beat: a half-beat stroke takes half a box, strokes played together are stacked, and the small L / R under each stroke is the hand. Tap the handpan to add strokes, tap a box to add after it, and × to remove it.</p>
+          <p>Prefer typing? <strong>Edit as text</strong> shows the same song as text: <code>4L 8R - | 4L+2R 8R -</code> — space separates strokes, <code>+</code> plays together, <code>L</code>/<code>R</code> picks the hand, <code>:0.5</code> makes a stroke half a beat, <code>-</code> is a one-beat rest, <code>|</code> is a bar line, <code>#</code> starts a section title.</p>
         </section>
       </div>
       <div class="dialog-actions">
@@ -459,6 +475,16 @@
         <button type="button" class="soft-btn" id="resultNextBtn">Next in list</button>
       </div>
       <button type="button" class="result-close" data-close-dialog="resultDialog" aria-label="Close results"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog switch-dialog" id="installDialog">
+    <div class="switch-card install-card">
+      <h2>Install Ethereal Handpan</h2>
+      <p id="installHelpText">Open the browser menu and choose Install app or Add to Home screen.</p>
+      <div class="switch-actions single">
+        <button type="button" class="primary-btn" data-close-dialog="installDialog">Got it</button>
+      </div>
     </div>
   </dialog>
 

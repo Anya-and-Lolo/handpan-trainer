@@ -77,7 +77,7 @@
     'handColorsToggle', 'noteNamesToggle', 'usedLanesToggle', 'helpDialog',
     'resultDialog', 'resultTitle', 'resultSummary', 'resultStats', 'resultHitValue', 'resultAccuracyValue', 'resultStreakValue', 'resultMistakes',
     'resultReplayBtn', 'resultSlowerBtn', 'resultNextBtn', 'resultRecommendation', 'resultRecommendedBtn', 'toast',
-    'tourBtn', 'topNewSongBtn', 'practiceOptions', 'waitToggle', 'micChipBtn', 'stageDock', 'dockLoopBtn', 'dockPlayBtn', 'dockMetronomeBtn', 'speedCycleBtn', 'speedCycleValue', 'songSwitchDialog', 'switchKeepBtn', 'switchChooseBtn', 'composePreviewStrip', 'stageJudge', 'difficultyFilter', 'resultSparkles', 'noteTape', 'noteTapeTrack', 'noteTapeJudge', 'stageSongName',
+    'tourBtn', 'installBtn', 'installDialog', 'installHelpText', 'startupLoader', 'startupLoaderStatus', 'startupLoaderFill', 'startupLoaderCount', 'textModeBtn', 'rhythmView', 'topNewSongBtn', 'practiceOptions', 'waitToggle', 'micChipBtn', 'stageDock', 'dockLoopBtn', 'dockPlayBtn', 'dockMetronomeBtn', 'speedCycleBtn', 'speedCycleValue', 'songSwitchDialog', 'switchKeepBtn', 'switchChooseBtn', 'composePreviewStrip', 'stageJudge', 'difficultyFilter', 'resultSparkles', 'noteTape', 'noteTapeTrack', 'noteTapeJudge', 'stageSongName',
     'tourOverlay', 'tourShadeTop', 'tourShadeRight', 'tourShadeBottom', 'tourShadeLeft', 'tourFocusRing', 'tourCard', 'tourProgress',
     'tourTitle', 'tourText', 'tourSkipBtn', 'tourBackBtn', 'tourNextBtn', 'tourSoundBtn'
   ].forEach(id => { els[id] = $(id); });
@@ -733,7 +733,12 @@
     if (state.parsed) state.parsed.events.forEach(e => e.items.forEach(i => addPad(state.padMap.get(i.pad))));
     state.pads.forEach(addPad);
     ['T', 'K', 'S'].forEach(id => addPad({ id, kind: 'perc', sound: id }));
+    const total = wanted.length + 2;
+    let done = 0;
+    loaderProgress(done, total);
     for (const [key, accent] of [['click:accent', true], ['click:beat', false]]) {
+      done += 1;
+      loaderProgress(done, total);
       if (audio.buffers.has(key)) continue;
       try {
         const buffer = await renderClickSound(accent);
@@ -741,6 +746,8 @@
       } catch (error) { /* live fallback */ }
     }
     for (const { key, pad } of wanted) {
+      done += 1;
+      loaderProgress(done, total);
       try {
         const buffer = pad.kind === 'perc' ? await renderPercSound(pad.sound || pad.id) : await renderToneSound(pad.midi, pad.kind === 'ding');
         if (buffer) audio.buffers.set(key, buffer);
@@ -3532,6 +3539,7 @@
     if (parsed.missing.size) parts.push(`Not on ${SCALES[state.instrument.scale].name}: ${[...parsed.missing].join(', ')}`);
     els.sequenceStatus.textContent = parts.join(' · ') || 'Tap the handpan or type strokes.';
     els.sequenceStatus.dataset.tone = parsed.errors.length ? 'error' : parsed.missing.size ? 'warn' : 'ok';
+    renderRhythmView(parsed);
   }
 
   async function previewEditorSong() {
@@ -3568,11 +3576,11 @@
       chip.style.setProperty('--c', itemColor(event.items[0]));
       return chip;
     }));
-    strip.hidden = !parsed.events.length;
-    const chips = [...strip.children];
+    strip.hidden = true;
+    const chips = parsed.events.map((event, index) => els.rhythmView.querySelector(`[data-event="${index}"]`) || document.createElement('span'));
     editor.previewTimers = parsed.events.map((event, index) => setTimeout(() => {
       chips.forEach((chip, k) => { chip.classList.toggle('now', k === index); chip.classList.toggle('done', k < index); });
-      chips[index]?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+      if (chips[index]?.isConnected) chips[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       event.items.forEach(item => {
         const g = editor.drum?.padEls.get(item.pad);
         if (!g) return;
@@ -3588,6 +3596,200 @@
     (editor.previewTimers || []).forEach(clearTimeout);
     editor.previewTimers = [];
     els.composePreviewStrip.hidden = true;
+    els.rhythmView.querySelectorAll('.now, .done').forEach(cell => cell.classList.remove('now', 'done'));
+  }
+
+  /* ---------- Loading screen ---------- */
+
+  function loaderProgress(done, total) {
+    if (!els.startupLoader || !els.startupLoader.isConnected) return;
+    const percent = total ? Math.max(4, Math.round((done / total) * 100)) : 100;
+    els.startupLoaderFill.style.width = `${percent}%`;
+    els.startupLoaderStatus.textContent = done >= total ? 'Ready to play' : `Tuning your ${SCALES[state.instrument.scale].name}`;
+    els.startupLoaderCount.textContent = done >= total ? 'All notes and sounds ready' : `${done} of ${total} sounds ready`;
+  }
+
+  function revealApp() {
+    if (!els.startupLoader || !els.startupLoader.isConnected) return;
+    loaderProgress(1, 1);
+    setTimeout(() => {
+      document.body.classList.remove('app-loading');
+      els.startupLoader.classList.add('done');
+      setTimeout(() => els.startupLoader.remove(), 320);
+      fitPhoneStage();
+      resizeCanvas();
+    }, 380);
+  }
+
+  /* ---------- Install as an app ---------- */
+
+  const install = { prompt: null };
+
+  function appIsInstalled() {
+    return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+
+  function setupInstallButton() {
+    els.installBtn.hidden = appIsInstalled();
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      install.prompt = event;
+      els.installBtn.hidden = appIsInstalled();
+    });
+    window.addEventListener('appinstalled', () => {
+      install.prompt = null;
+      els.installBtn.hidden = true;
+      showToast('Installed. Find Ethereal Handpan on your home screen.', 'success');
+    });
+    els.installBtn.addEventListener('click', async () => {
+      if (install.prompt) {
+        install.prompt.prompt();
+        try { await install.prompt.userChoice; } catch (error) { /* ignored */ }
+        install.prompt = null;
+        return;
+      }
+      const ua = navigator.userAgent;
+      let text;
+      if (location.protocol === 'file:') text = 'Open the trainer from its website (for example your GitHub Pages link) to install it. A file opened from the computer cannot be installed.';
+      else if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) text = 'On iPhone and iPad: tap the Share button in Safari, then Add to Home Screen.';
+      else if (/Firefox/.test(ua)) text = 'In Firefox: open the ⋮ menu and choose Install (or Add to Home screen).';
+      else if (/SamsungBrowser/.test(ua)) text = 'In Samsung Internet: open the ☰ menu and choose Add page to → Home screen.';
+      else if (/Android/.test(ua)) text = 'Open the ⋮ browser menu and choose Install app or Add to Home screen.';
+      else text = 'Click the install icon at the right end of the address bar, or open the browser menu and choose Install Ethereal Handpan. Safari on Mac: File → Add to Dock.';
+      els.installHelpText.textContent = text;
+      openDialog(els.installDialog);
+    });
+  }
+
+  /* ---------- Song editor: the song as boxes, one per beat ---------- */
+
+  function sequenceTokens(text) {
+    // The same split as parseSequence (comments out, bars on their own), but remembering
+    // where every token sits in the text.
+    const masked = text.replace(/#[^\n]*/g, match => ' '.repeat(match.length));
+    const tokens = [];
+    const pattern = /\||[^\s|]+/g;
+    let match;
+    while ((match = pattern.exec(masked))) tokens.push({ text: match[0], from: match.index, to: match.index + match[0].length });
+    return tokens;
+  }
+
+  function rhythmCells(text, parsed) {
+    let beat = 0;
+    let k = 0;
+    const cells = [];
+    sequenceTokens(text).forEach(token => {
+      if (token.text === '|') { cells.push({ ...token, kind: 'bar', beat, dur: 0 }); return; }
+      const { core, duration } = splitToken(token.text);
+      if (!Number.isFinite(duration)) { cells.push({ ...token, kind: 'error', beat, dur: 0 }); return; }
+      if (core === '-' || core === '0' || core === '.' || core === '') { cells.push({ ...token, kind: 'rest', beat, dur: duration }); beat += duration; return; }
+      const parts = core.split('+').filter(Boolean);
+      if (!parts.length || !parts.every(part => ITEM_PATTERN.test(part))) { cells.push({ ...token, kind: 'error', beat, dur: duration }); beat += duration; return; }
+      cells.push({ ...token, kind: 'stroke', beat, dur: duration, event: parsed.events[k], eventIndex: k });
+      k += 1;
+      beat += duration;
+    });
+    return { cells, total: beat };
+  }
+
+  function renderRhythmView(parsed = editorParsed()) {
+    const view = els.rhythmView;
+    if (!view) return;
+    const text = els.sequenceInput.value;
+    const { cells, total } = rhythmCells(text, parsed);
+    const meter = Math.max(1, Number(els.songMeterInput.value) || 4);
+    const timed = cells.filter(cell => cell.kind !== 'bar' && cell.dur > 0);
+    if (!timed.length) {
+      view.innerHTML = '<p class="rv-empty">Tap the handpan to add strokes. Each box is one beat.</p>';
+      return;
+    }
+    // The smallest grid that fits every stroke: whole, half, third, quarter... beats.
+    const sub = [1, 2, 3, 4, 6, 8, 12].find(n => timed.every(cell => Math.abs(cell.beat * n - Math.round(cell.beat * n)) < 0.02 && Math.abs(cell.dur * n - Math.round(cell.dur * n)) < 0.02)) || 12;
+    // Rows: one per bar; a long stretch without bar lines wraps every bar's worth of beats.
+    const starts = [0];
+    cells.filter(cell => cell.kind === 'bar').forEach(cell => { if (cell.beat > starts[starts.length - 1] + 1e-6 && cell.beat < total - 1e-6) starts.push(cell.beat); });
+    const rows = [];
+    starts.forEach((start, i) => {
+      const end = i + 1 < starts.length ? starts[i + 1] : total;
+      for (let a = start; a < end - 1e-6; a += meter) rows.push({ start: a, end: Math.min(end, a + meter) });
+    });
+    // Comments become little headings above the row where they start.
+    const headings = new Map();
+    const commentPattern = /#([^\n]*)/g;
+    let comment;
+    while ((comment = commentPattern.exec(text))) {
+      const next = cells.find(cell => cell.from > comment.index && cell.kind !== 'bar');
+      if (!next) continue;
+      const row = rows.findIndex(r => next.beat >= r.start - 1e-6 && next.beat < r.end - 1e-6);
+      if (row < 0) continue;
+      headings.set(row, [...(headings.get(row) || []), comment[1].trim()].filter(Boolean));
+    }
+    const caret = els.sequenceInput.selectionEnd;
+    const atEnd = !text.slice(caret).trim();
+    const label = item => state.padMap.get(item.pad)?.label || PERC_INFO[item.pad]?.label || item.pad;
+    const html = rows.map((row, r) => {
+      const beats = Math.max(1, Math.ceil(row.end - row.start - 1e-6));
+      const columns = beats * sub;
+      let inner = '';
+      for (let b = 0; b < beats; b += 1) inner += `<i class="rv-beat" style="grid-column:${b * sub + 1} / span ${sub}" data-n="${(Math.round(row.start + b) % meter) + 1}"></i>`;
+      cells.forEach(cell => {
+        if (cell.kind === 'bar' || cell.dur <= 0) return;
+        if (cell.beat < row.start - 1e-6 || cell.beat >= row.end - 1e-6) return;
+        const col = Math.round((cell.beat - row.start) * sub) + 1;
+        const span = Math.max(1, Math.round(Math.min(cell.dur, row.end - cell.beat) * sub));
+        const narrow = span / sub < 0.5 ? ' narrow' : '';
+        const cursor = !atEnd && cell.to === caret ? ' at-cursor' : '';
+        const pos = `style="grid-column:${col} / span ${span}" data-from="${cell.from}" data-to="${cell.to}"`;
+        if (cell.kind === 'rest') {
+          inner += `<button type="button" class="rv-cell rest${narrow}${cursor}" ${pos} aria-label="Rest">–<span class="rv-del" aria-label="Remove">×</span></button>`;
+        } else if (cell.kind === 'error') {
+          inner += `<button type="button" class="rv-cell error${narrow}${cursor}" ${pos} aria-label="Not understood">?<span class="rv-del" aria-label="Remove">×</span></button>`;
+        } else {
+          const items = cell.event?.items || [];
+          const notes = items.map(item => `<b class="h-${item.hand || 'R'}${item.missing ? ' missing' : ''}">${escapeHtml(label(item))}</b>`).join('');
+          const hands = items.map(item => `<i class="h-${item.hand || 'R'}">${item.hand || ''}</i>`).join('');
+          inner += `<button type="button" class="rv-cell stroke${items.length > 1 ? ' chord' : ''}${narrow}${cursor}" ${pos} data-event="${cell.eventIndex}"><span class="rv-notes">${notes}</span><span class="rv-hands">${hands}</span><span class="rv-del" aria-label="Remove">×</span></button>`;
+        }
+      });
+      const width = Math.min(100, (beats / meter) * 100);
+      const head = (headings.get(r) || []).map(t => `<p class="rv-section">${escapeHtml(t)}</p>`).join('');
+      return `${head}<div class="rv-row"><span class="rv-bar-num">${r + 1}</span><div class="rv-grid" style="grid-template-columns:repeat(${columns}, minmax(0,1fr)); width:${width}%">${inner}</div></div>`;
+    }).join('');
+    view.innerHTML = html;
+  }
+
+  function bindRhythmView() {
+    els.rhythmView.addEventListener('click', event => {
+      const input = els.sequenceInput;
+      const cell = event.target.closest('.rv-cell');
+      if (!cell) {
+        input.selectionStart = input.selectionEnd = input.value.length;
+        renderRhythmView();
+        return;
+      }
+      const from = Number(cell.dataset.from);
+      const to = Number(cell.dataset.to);
+      if (event.target.closest('.rv-del') && cell.classList.contains('at-cursor')) {
+        // Remove this stroke (and one space next to it).
+        const text = input.value;
+        const end = text[to] === ' ' ? to + 1 : to;
+        input.value = text.slice(0, from) + text.slice(end);
+        input.selectionStart = input.selectionEnd = from;
+        updateSequenceStatus();
+        return;
+      }
+      if (cell.classList.contains('at-cursor')) input.selectionStart = input.selectionEnd = input.value.length;
+      else input.selectionStart = input.selectionEnd = to;
+      renderRhythmView();
+    });
+    els.textModeBtn.addEventListener('click', () => {
+      const on = !els.editorDialog.classList.contains('text-mode');
+      els.editorDialog.classList.toggle('text-mode', on);
+      els.textModeBtn.setAttribute('aria-pressed', String(on));
+      els.textModeBtn.textContent = on ? 'Hide text' : 'Edit as text';
+    });
+    ['keyup', 'click', 'select'].forEach(type => els.sequenceInput.addEventListener(type, () => renderRhythmView()));
+    els.songMeterInput.addEventListener('change', () => renderRhythmView());
   }
 
   function saveEditorSong(event) {
@@ -4806,6 +5008,7 @@
     });
 
     bindTourEvents();
+    bindRhythmView();
     els.difficultyFilter.addEventListener('click', event => {
       const chip = event.target.closest('[data-level]');
       if (!chip) return;
@@ -4877,7 +5080,10 @@
     if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
       navigator.serviceWorker.register('service-worker.js').catch(() => {});
     }
-    maybeStartTour();
+    // The tour starts once the loading screen has gone.
+    const ready = audio.rendering ? Promise.race([audio.rendering, new Promise(resolve => setTimeout(resolve, 9000))]) : Promise.resolve();
+    ready.catch(() => {}).then(() => { revealApp(); maybeStartTour(); });
+    setupInstallButton();
     window.__handpanTrainer = { tour, startTour, finishTour, songNow, state, audio, chooseFromStrike, measureCents, parseSequence, buildPads, laneOrder, userHit, setMode, setView, setSpeed, seekTo, startPlayback, pausePlayback, tunerStrike };
   }
 

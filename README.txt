@@ -102,8 +102,11 @@ HOW TO PLAY ALONG
 
 WRITING SONGS
 
-Open New song (or Edit song -> it saves a copy to My songs). Tap the handpan
-to add strokes, or type them:
+Open New song (+) or Edit song -> it saves a copy to My songs. The song is
+shown as boxes, one box per beat: a half-beat stroke takes half a box, strokes
+played together are stacked, and the small L / R under each stroke is the
+hand. Tap the handpan to add strokes, tap a box to add after it, x removes it.
+"Edit as text" shows the same song as text, for typing:
 
   4L 8R - | 4L+2R 8R -
 

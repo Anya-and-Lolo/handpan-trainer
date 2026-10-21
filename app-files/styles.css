@@ -3094,3 +3094,93 @@ body[data-mode="practice"] .practice-options, body[data-mode="wait"] .practice-o
 .switch-card h2 { font-size:20px; margin-bottom:6px; }
 .switch-card p { color:var(--muted); font-size:14px; }
 .switch-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+
+/* ===================== v3: loader, install, header icons, editor rhythm view ===================== */
+/* Loading screen mark: a little handpan (ding and eight fields). */
+.startup-loader-mark.hp-mark b { position:absolute; left:50%; top:50%; width:22px; height:22px; margin:-11px 0 0 -11px; border-radius:50%; border:2px solid #a78bfa; background:rgba(167,139,250,.18); box-shadow:0 0 12px rgba(167,139,250,.5); z-index:1; }
+.startup-loader-mark.hp-mark i { width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%; transform-origin:4.5px 4.5px; background:linear-gradient(#c4b5fd,#7665d8); }
+.startup-loader-mark.hp-mark i:nth-child(2) { transform:rotate(0deg) translateY(-24px); }
+.startup-loader-mark.hp-mark i:nth-child(3) { transform:rotate(45deg) translateY(-24px); background:linear-gradient(#fde68a,#fbbf24); }
+.startup-loader-mark.hp-mark i:nth-child(4) { transform:rotate(90deg) translateY(-24px); }
+.startup-loader-mark.hp-mark i:nth-child(5) { transform:rotate(135deg) translateY(-24px); }
+.startup-loader-mark.hp-mark i:nth-child(6) { transform:rotate(180deg) translateY(-24px); }
+.startup-loader-mark.hp-mark i:nth-child(7) { transform:rotate(225deg) translateY(-24px); }
+.startup-loader-mark.hp-mark i:nth-child(8) { transform:rotate(270deg) translateY(-24px); background:linear-gradient(#bae6fd,#38bdf8); }
+.startup-loader-mark.hp-mark i:nth-child(9) { transform:rotate(315deg) translateY(-24px); }
+.startup-loader-mark.hp-mark { animation:hpMarkSpin 9s linear infinite; }
+@keyframes hpMarkSpin { to { transform:rotate(360deg); } }
+
+/* Header: real icons (centred) instead of text glyphs on small screens, install button. */
+.top-actions .btn-icon { display:none; }
+.install-btn { display:inline-flex; align-items:center; gap:6px; color:var(--accent-2); }
+.install-btn[hidden] { display:none !important; }
+@media (max-width:900px) {
+  .top-actions #editBtn::after, .top-actions #settingsBtn::after { content:none !important; }
+  .top-actions .btn-icon { display:block; }
+  .top-actions .btn-text, .top-actions .install-btn span { display:none; }
+  .top-actions #helpBtn { margin-right:0; }
+  .top-actions .install-btn { color:var(--accent-2); }
+  .top-actions #topNewSongBtn { margin-left:10px; }
+  .top-actions #installBtn[hidden] + #topNewSongBtn { margin-left:10px; }
+}
+
+/* Song editor: title, tempo and beats on one line. */
+.hp-song-grid { grid-template-columns:minmax(0,1.7fr) minmax(0,.85fr) minmax(0,.65fr) !important; gap:8px !important; }
+.hp-song-grid .song-title-option { grid-column:auto !important; }
+.hp-song-grid label { font-size:12px; min-width:0; }
+.hp-song-grid input, .hp-song-grid select { min-width:0; width:100%; }
+/* Bigger fractions on the length buttons. */
+.compose-options .mini-seg button[data-len="0.25"], .compose-options .mini-seg button[data-len="0.5"] { font-size:19px; line-height:1; }
+.compose-options .mini-seg button[data-len="2"] { font-size:15px; }
+/* "Rotate" next to the rotate buttons, like "Chord (+)". */
+.compose-rotate { align-items:center; }
+.compose-rotate .rotate-label { font-size:12px; font-weight:700; color:var(--text); margin-right:4px; }
+
+/* The song as boxes: one box per beat, strokes inside, hands underneath. */
+.sequence-label-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.text-mode-btn { margin-left:auto; border:1px solid var(--line); background:rgba(255,255,255,.04); color:var(--muted); border-radius:999px; padding:5px 11px; font-size:12px; font-weight:750; }
+.text-mode-btn[aria-pressed="true"] { color:#e9d5ff; border-color:rgba(167,139,250,.45); background:rgba(167,139,250,.14); }
+#editorDialog:not(.text-mode) #sequenceInput, #editorDialog:not(.text-mode) .notation-cheats { display:none; }
+#editorDialog.text-mode #sequenceInput { margin-top:10px; }
+.rhythm-view {
+  display:grid; gap:7px; margin-top:8px; padding:10px 10px 10px 6px; border:1px solid var(--line); border-radius:14px;
+  background:rgba(9,14,26,.55); min-height:84px; max-height:min(48vh,440px); overflow-y:auto; overscroll-behavior:contain;
+}
+.rv-empty { color:var(--muted); font-size:13px; text-align:center; padding:18px 8px; }
+.rv-section { margin:6px 0 0 24px; color:#c4b5fd; font-size:12px; font-weight:800; letter-spacing:.03em; }
+.rv-row { display:grid; grid-template-columns:18px minmax(0,1fr); gap:4px; align-items:stretch; }
+.rv-bar-num { color:rgba(148,163,184,.6); font-size:10px; font-weight:800; text-align:right; padding-top:6px; }
+.rv-grid { display:grid; grid-template-rows:minmax(58px,auto); }
+.rv-beat { grid-row:1; position:relative; margin:0 2px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(255,255,255,.025); }
+.rv-beat::before { content:attr(data-n); position:absolute; top:2px; left:5px; color:rgba(148,163,184,.5); font-size:9px; font-weight:800; }
+.rv-cell {
+  grid-row:1; z-index:1; position:relative; min-width:0; margin:5px 3px 4px; padding:7px 1px 4px; border-radius:9px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  border:1px solid transparent; background:transparent; color:inherit; font:inherit; cursor:pointer;
+  transition:transform .1s ease, background .1s ease;
+}
+.rv-cell.stroke { border-color:rgba(167,139,250,.2); background:rgba(167,139,250,.09); }
+.rv-cell.chord { border-color:rgba(94,234,212,.28); }
+.rv-notes { display:flex; flex-direction:column; align-items:center; line-height:1.02; }
+.rv-notes b { font-size:19px; font-weight:850; }
+.rv-notes b.missing { opacity:.4; text-decoration:line-through; }
+.rv-hands { display:flex; gap:3px; font-size:10px; font-weight:850; font-style:normal; line-height:1; }
+.rv-hands i { font-style:normal; }
+.rv-cell.narrow .rv-notes b { font-size:14px; }
+.rv-cell.narrow .rv-hands { font-size:8.5px; }
+.rv-cell.rest { color:rgba(148,163,184,.6); font-size:19px; font-weight:800; }
+.rv-cell.error { color:#fb7185; border-color:rgba(251,113,133,.4); font-size:17px; font-weight:850; }
+.h-L { color:#38bdf8; }
+.h-R { color:#fbbf24; }
+.rv-cell.at-cursor { border-color:#5eead4; box-shadow:0 0 0 1px #5eead4, 0 0 14px rgba(94,234,212,.28); }
+.rv-cell.at-cursor::after { content:""; position:absolute; right:-5px; top:6px; bottom:6px; width:2px; border-radius:2px; background:#5eead4; box-shadow:0 0 8px #5eead4; }
+.rv-del { display:none; position:absolute; top:-9px; right:-7px; width:20px; height:20px; border-radius:50%; background:#fb7185; color:#0b1020; font-size:14px; font-weight:900; line-height:20px; text-align:center; z-index:2; }
+.rv-cell.at-cursor .rv-del { display:block; }
+.rv-cell.now { background:rgba(94,234,212,.24); border-color:#5eead4; transform:scale(1.06); }
+.rv-cell.done { opacity:.6; }
+.rhythm-hint { margin-top:6px; color:var(--muted); font-size:11.5px; line-height:1.45; }
+#editorDialog.text-mode .rhythm-hint { display:none; }
+.switch-actions.single { grid-template-columns:1fr; }
+.install-card p { line-height:1.5; }
+.rv-row { max-width:720px; }
+@media (max-width:760px) { .sequence-label-row .text-mode-btn { margin-left:0; } }
