@@ -51,10 +51,10 @@ Practice       play along in time. Every stroke, from the first note, is
                scored Perfect / Good / Miss, big at the top of the stage and
                on the song tape. The speaker button plays the song quietly
                along with you (or turns it off).
-Wait for note  the notes fly in at your chosen speed and then stop on each
+               Tick "Wait for note" and the notes fly in and then stop on each
                one until you play it (chords wait for every note). Play in
                time and it never stops.
-Tuner          (on its own, right of the play modes) turns on the microphone and shows which note you struck and
+Tuner          turns on the microphone and shows which note you struck and
                how many cents it is from A4 = 440 Hz (median of several
                readings while the note rings).
 
@@ -77,6 +77,11 @@ Demo tour: the first time you open the app, Interstellar plays while the
 handpan slowly drifts round like a saucer in space and a short tour points out
 the controls. Press Tour (next to ?) to watch it again. The sound starts with
 your first tap or click (browsers do not allow sound before that).
+
+On a phone: Play opens the full-screen view (Back or Stop leaves it), the
+Speed button on the stage goes 1x - 0.75x - 0.5x - 0.25x, and tapping the song
+name there lets you pause and pick another song. The screen stays awake while
+you play.
 
 A-B loop: Set A, move on, Set B, then Loop A-B to repeat one section.
 Count-in: one bar of clicks before the song (not used in Wait for note).
@@ -118,7 +123,7 @@ My songs are stored in this browser only. Use Export selected song to keep a
 DEMO SONGS
 
 Interstellar                 120 BPM, 3/4 - transcribed from the D Kurd 10 video
-Minecraft (Sweden)            72 BPM, 4/4 - transcribed from the lidahdrums video
+Minecraft Menu (Sweden)       72 BPM, 4/4 - transcribed from the lidahdrums video
 Carol of the Bells           120 BPM, 3/4 - Leontovych's bell ostinato, low notes only
 Symphony No. 5 - Fate motif  104 BPM, 2/4 - Beethoven, low notes only
 Space Tribal                  84 BPM - doum ka tak with slaps on both sides

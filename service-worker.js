@@ -1,4 +1,4 @@
-const CACHE = 'ethereal-handpan-trainer-v10';
+const CACHE = 'ethereal-handpan-trainer-v11';
 const SHELL = [
   './',
   './index.html',
@@ -7,7 +7,9 @@ const SHELL = [
   './app-files/song-catalog.js',
   './app-files/manifest.webmanifest',
   './app-files/fonts/fredoka-latin-600-normal.woff2',
-  './app-files/fonts/fredoka-latin-700-normal.woff2'
+  './app-files/fonts/fredoka-latin-700-normal.woff2',
+  './app-files/icon-192.png',
+  './app-files/icon-512.png'
 ];
 
 self.addEventListener('install', event => {

@@ -7,6 +7,7 @@
   <meta name="description" content="A handpan / hand drum song trainer with drum-centre guidance, falling lanes, Wait for note practice, a tuner and D T K S percussion strokes." />
   <title>Hand Drum Trainer</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1.1 -1.1 2.2 2.2'%3E%3Ccircle r='1' fill='%232a3044' stroke='%23c4b5fd' stroke-width='.08'/%3E%3Cellipse rx='.34' ry='.3' fill='%238b7ae6'/%3E%3Ccircle cy='.66' r='.16' fill='%23ffffff55'/%3E%3Ccircle cx='-.55' cy='.38' r='.14' fill='%23ffffff55'/%3E%3Ccircle cx='.55' cy='.38' r='.14' fill='%23ffffff55'/%3E%3Ccircle cx='-.6' cy='-.25' r='.13' fill='%23ffffff55'/%3E%3Ccircle cx='.6' cy='-.25' r='.13' fill='%23ffffff55'/%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="app-files/icon-192.png" />
   <link rel="manifest" href="app-files/manifest.webmanifest" />
   <link rel="stylesheet" href="app-files/styles.css" />
 </head>
@@ -62,10 +63,11 @@
         </div>
         <div class="top-actions">
           <button class="soft-btn compact tour-btn" id="tourBtn" type="button" aria-label="Play the demo tour" title="Demo tour: Interstellar plays while the app is shown step by step">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M10 8.6v6.8l5.6-3.4z" fill="currentColor"></path></svg>
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.8 8.9a3.3 3.3 0 1 1 4.7 3c-.9.5-1.5 1.2-1.5 2.2v.7"></path><circle cx="12" cy="18.4" r=".8" fill="currentColor"></circle></svg>
             <span>Tour</span>
           </button>
-          <button class="icon-btn help-tour-btn" id="helpBtn" type="button" aria-label="Strokes, keys and notation help" title="Help">?</button>
+          <button class="icon-btn help-tour-btn" id="helpBtn" type="button" aria-label="Strokes, keys and notation help" title="Help: strokes, keys and notation"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10.3 5.2 7.6 4.7 4.5 5v12.6c3.1-.3 5.8.2 7.5 1.5 1.7-1.3 4.4-1.8 7.5-1.5V5c-3.1-.3-5.8.2-7.5 1.5z"></path><path d="M12 6.5v12.6"></path></svg></button>
+          <button class="soft-btn compact top-new-btn" id="topNewSongBtn" type="button" aria-label="New song" title="New song"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13"></path></svg></button>
           <button class="soft-btn compact" id="editBtn" aria-label="Edit song">Edit song</button>
           <button class="soft-btn compact" id="settingsBtn" aria-label="My Handpan">My Handpan</button>
           <button class="icon-btn mobile-view-toggle" id="mobileViewToggleBtn" type="button" data-view="radial" aria-label="Switch display to Falling lanes" title="Switch to Falling lanes">
@@ -75,7 +77,6 @@
             </svg>
             <svg class="view-mode-icon view-mode-icon-lanes" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M7 4v15M4.5 16.5 7 19l2.5-2.5M17 20V5M14.5 7.5 17 5l2.5 2.5"></path>
-              <path class="lane-guide" d="M2.5 4v16M12 3v18M21.5 4v16"></path>
             </svg>
           </button>
         </div>
@@ -85,13 +86,14 @@
         <div class="trainer-card">
           <div class="trainer-toolbar">
             <div class="toolbar-controls">
-              <div class="segmented" role="group" aria-label="Training mode">
+              <div class="segmented mode-segmented" role="group" aria-label="Mode">
                 <button class="segment active" data-mode="listen">Listen</button>
                 <button class="segment" data-mode="practice">Practice</button>
-                <button class="segment" data-mode="wait">Wait for note</button>
-              </div>
-              <div class="segmented tuner-segmented" role="group" aria-label="Tuner">
                 <button class="segment" data-mode="tuner">Tuner</button>
+              </div>
+              <div class="practice-options" id="practiceOptions">
+                <label class="toggle-label wait-toggle"><input type="checkbox" id="waitToggle" /><span>Wait for note</span></label>
+                <button class="mic-chip" id="micChipBtn" type="button" aria-pressed="false">Mic off</button>
               </div>
               <div class="display-control">
                 <span>Display</span>
@@ -120,8 +122,8 @@
             </div>
             <div class="stage-drum-wrap" id="stageDrumWrap" aria-label="Interactive handpan"></div>
             <div class="hand-legend stage-hand-legend" id="stageHandLegend" aria-hidden="true">
-              <span class="hl-left"><i></i>Left hand</span>
-              <span class="hl-right">Right hand<i></i></span>
+              <span class="hl-left"><i></i><em>Left</em> <em>hand</em></span>
+              <span class="hl-right"><em>Right</em> <em>hand</em><i></i></span>
             </div>
             <div class="note-tape" id="noteTape" aria-hidden="true" hidden>
               <div class="tape-window">
@@ -130,7 +132,13 @@
               </div>
               <div class="tape-judge" id="noteTapeJudge"></div>
             </div>
-            <div class="stage-song-name" id="stageSongName" aria-hidden="true"></div>
+            <button class="stage-song-name" id="stageSongName" type="button" aria-label="Choose another song"></button>
+            <div class="stage-dock" id="stageDock" role="group" aria-label="Play controls">
+              <button class="dock-btn" id="dockLoopBtn" type="button" aria-label="Loop song" aria-pressed="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l3 3-3 3"></path><path d="M3 11V9a4 4 0 0 1 4-4h13"></path><path d="M7 22l-3-3 3-3"></path><path d="M21 13v2a4 4 0 0 1-4 4H4"></path></svg></button>
+              <button class="dock-btn dock-play" id="dockPlayBtn" type="button" aria-label="Play"><span class="play-icon" aria-hidden="true"></span></button>
+              <button class="dock-btn" id="dockMetronomeBtn" type="button" aria-label="Metronome" aria-pressed="false"><span class="metronome-icon" aria-hidden="true"><span class="metronome-body"></span><span class="metronome-arm"></span></span></button>
+            </div>
+            <button class="speed-cycle-btn" id="speedCycleBtn" type="button" aria-label="Speed: tap to slow down" title="Tap to change the speed"><small>Speed</small><b id="speedCycleValue">1×</b></button>
             <div class="stage-judge" id="stageJudge" aria-hidden="true"></div>
             <div class="stage-overlay top-left">
               <span id="totalNotesLabel">0 strokes total</span>
@@ -191,12 +199,12 @@
               <svg class="loop-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l3 3-3 3"></path><path d="M3 11V9a4 4 0 0 1 4-4h13"></path><path d="M7 22l-3-3 3-3"></path><path d="M21 13v2a4 4 0 0 1-4 4H4"></path></svg>
             </button>
             <button class="round-btn small" id="stopBtn" aria-label="Back to start" title="Back to start">
-              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>
+              <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><rect x="5.5" y="5.5" width="13" height="13" rx="2.6" fill="currentColor"></rect></svg>
             </button>
             <button class="round-btn play" id="playBtn" aria-label="Play"><span class="play-icon" aria-hidden="true"></span></button>
             <button class="round-btn small" id="metronomeBtn" aria-label="Toggle metronome" title="Metronome"><span class="metronome-icon" aria-hidden="true"><span class="metronome-body"></span><span class="metronome-arm"></span></span></button>
             <button class="round-btn small" id="guideBtn" aria-label="Guide sound" aria-pressed="false" title="Guide sound in Practice and Wait for note">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"></path><path d="M16.5 8.5a5 5 0 0 1 0 7"></path><path d="M19 6a8.5 8.5 0 0 1 0 12"></path></svg>
+              <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"></path><path class="sound-wave" d="M16.5 8.5a5 5 0 0 1 0 7"></path><path class="sound-wave" d="M19 6a8.5 8.5 0 0 1 0 12"></path><path class="sound-slash" d="M16 9.5l5 5M21 9.5l-5 5"></path></svg>
             </button>
           </div>
 
@@ -233,8 +241,8 @@
             <span class="keyboard-hint" id="keyboardHint">Keys D, 1–9</span>
           </div>
           <div class="hand-legend" aria-hidden="true">
-            <span class="hl-left"><i></i>Left hand</span>
-            <span class="hl-right">Right hand<i></i></span>
+            <span class="hl-left"><i></i><em>Left</em> <em>hand</em></span>
+            <span class="hl-right"><em>Right</em> <em>hand</em><i></i></span>
           </div>
           <div class="drum-wrap" id="drumWrap" aria-label="Interactive handpan"></div>
           <div class="next-note-card">
@@ -300,13 +308,14 @@
         </div>
         <div class="compose-buttons">
           <button type="button" class="soft-btn compact" id="appendRestBtn">Add rest</button>
-          <button type="button" class="soft-btn compact" id="appendBarBtn">Add bar |</button>
-          <button type="button" class="soft-btn compact" id="undoTokenBtn">Remove last</button>
-          <button type="button" class="soft-btn compact" id="previewSongBtn">▶ Preview</button>
+          <button type="button" class="soft-btn compact" id="appendBarBtn">Add bar</button>
+          <button type="button" class="soft-btn compact" id="undoTokenBtn">Clear last</button>
+          <button type="button" class="soft-btn compact play-preview-btn" id="previewSongBtn">▶ Play</button>
         </div>
       </div>
 
       <div class="sequence-section">
+        <div class="compose-preview-strip" id="composePreviewStrip" hidden></div>
         <div class="sequence-label-row">
           <label for="sequenceInput">Stroke sequence</label>
           <span class="sequence-status" id="sequenceStatus"></span>
@@ -450,6 +459,17 @@
         <button type="button" class="soft-btn" id="resultNextBtn">Next in list</button>
       </div>
       <button type="button" class="result-close" data-close-dialog="resultDialog" aria-label="Close results"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog switch-dialog" id="songSwitchDialog">
+    <div class="switch-card">
+      <h2>Choose another song?</h2>
+      <p>The song pauses and the song list opens.</p>
+      <div class="switch-actions">
+        <button type="button" class="soft-btn" id="switchKeepBtn">Keep playing</button>
+        <button type="button" class="primary-btn" id="switchChooseBtn">Pause &amp; choose</button>
+      </div>
     </div>
   </dialog>
 

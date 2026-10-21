@@ -1,8 +1,8 @@
-window.HANDPAN_CATALOG_VERSION = '1792550979536022408';
+window.HANDPAN_CATALOG_VERSION = '1792568424625364787';
 window.HANDPAN_DEMO_SONGS = [
  {
   "title": "Interstellar",
-  "artist": "Hans Zimmer · handpan arrangement",
+  "artist": "Hans Zimmer · 2014",
   "bpm": 120,
   "beatsPerBar": 3,
   "scale": "D Kurd",
@@ -13,8 +13,8 @@ window.HANDPAN_DEMO_SONGS = [
   "folder": "demo"
  },
  {
-  "title": "Minecraft (Sweden)",
-  "artist": "C418 · handpan arrangement",
+  "title": "Minecraft Menu",
+  "artist": "Sweden · C418 · 2011",
   "bpm": 72,
   "beatsPerBar": 4,
   "scale": "D Kurd",
@@ -26,7 +26,7 @@ window.HANDPAN_DEMO_SONGS = [
  },
  {
   "title": "Carol of the Bells",
-  "artist": "Mykola Leontovych · Shchedryk (1916) · low notes only",
+  "artist": "Leontovych · 1916 · the winter bells",
   "bpm": 120,
   "beatsPerBar": 3,
   "scale": "D Kurd",
@@ -38,7 +38,7 @@ window.HANDPAN_DEMO_SONGS = [
  },
  {
   "title": "Symphony No. 5 · Fate motif",
-  "artist": "Ludwig van Beethoven (1808) · low notes only",
+  "artist": "Beethoven · 1808 · fate knocks at the door",
   "bpm": 104,
   "beatsPerBar": 2,
   "scale": "D Kurd",
@@ -50,7 +50,7 @@ window.HANDPAN_DEMO_SONGS = [
  },
  {
   "title": "Space Tribal",
-  "artist": "Percussion groove · D T K S",
+  "artist": "A groove from another planet",
   "bpm": 84,
   "beatsPerBar": 4,
   "scale": "D Kurd",
@@ -62,7 +62,7 @@ window.HANDPAN_DEMO_SONGS = [
  },
  {
   "title": "Heartbeat groove",
-  "artist": "Percussion + low notes · lub-dub on the ding",
+  "artist": "Lub-dub on the ding, taps in between",
   "bpm": 76,
   "beatsPerBar": 4,
   "scale": "D Kurd",
@@ -86,7 +86,7 @@ window.HANDPAN_DEMO_SONGS = [
  },
  {
   "title": "First steps",
-  "artist": "The ding and the four lowest notes",
+  "artist": "Your first notes around the ding",
   "bpm": 66,
   "beatsPerBar": 4,
   "scale": "D Kurd",
@@ -98,7 +98,7 @@ window.HANDPAN_DEMO_SONGS = [
  },
  {
   "title": "Mary Had a Little Lamb",
-  "artist": "Traditional (1830) · only notes 2, 3, 4 and 6",
+  "artist": "1830 · a tiny tune everyone knows",
   "bpm": 92,
   "beatsPerBar": 4,
   "scale": "D Kurd",
@@ -110,7 +110,7 @@ window.HANDPAN_DEMO_SONGS = [
  },
  {
   "title": "Jingle Bells",
-  "artist": "James Lord Pierpont (1857) · chorus, nine strokes in ten on the low notes",
+  "artist": "1857 · a jolly sleigh ride to lift your mood",
   "bpm": 100,
   "beatsPerBar": 4,
   "scale": "D Kurd",

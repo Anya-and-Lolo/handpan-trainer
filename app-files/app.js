@@ -77,7 +77,7 @@
     'handColorsToggle', 'noteNamesToggle', 'usedLanesToggle', 'helpDialog',
     'resultDialog', 'resultTitle', 'resultSummary', 'resultStats', 'resultHitValue', 'resultAccuracyValue', 'resultStreakValue', 'resultMistakes',
     'resultReplayBtn', 'resultSlowerBtn', 'resultNextBtn', 'resultRecommendation', 'resultRecommendedBtn', 'toast',
-    'tourBtn', 'stageJudge', 'difficultyFilter', 'resultSparkles', 'noteTape', 'noteTapeTrack', 'noteTapeJudge', 'stageSongName',
+    'tourBtn', 'topNewSongBtn', 'practiceOptions', 'waitToggle', 'micChipBtn', 'stageDock', 'dockLoopBtn', 'dockPlayBtn', 'dockMetronomeBtn', 'speedCycleBtn', 'speedCycleValue', 'songSwitchDialog', 'switchKeepBtn', 'switchChooseBtn', 'composePreviewStrip', 'stageJudge', 'difficultyFilter', 'resultSparkles', 'noteTape', 'noteTapeTrack', 'noteTapeJudge', 'stageSongName',
     'tourOverlay', 'tourShadeTop', 'tourShadeRight', 'tourShadeBottom', 'tourShadeLeft', 'tourFocusRing', 'tourCard', 'tourProgress',
     'tourTitle', 'tourText', 'tourSkipBtn', 'tourBackBtn', 'tourNextBtn', 'tourSoundBtn'
   ].forEach(id => { els[id] = $(id); });
@@ -448,6 +448,7 @@
     countIn: prefs.countIn !== false,
     metronome: Boolean(prefs.metronome),
     guide: Boolean(prefs.guide),
+    waitPref: prefs.mode === 'wait' || Boolean(prefs.waitPref),
     loop: Boolean(prefs.loop),
     playing: false,
     holding: false,
@@ -513,7 +514,7 @@
   function savePrefs() {
     writeJson(STORAGE_PREFS, {
       speed: state.speed, mode: state.mode === 'tuner' ? 'listen' : state.mode, view: state.view, countIn: state.countIn,
-      metronome: state.metronome, guide: state.guide, loop: state.loop, selectedId: state.song?.id || prefs.selectedId
+      metronome: state.metronome, guide: state.guide, loop: state.loop, waitPref: state.waitPref, selectedId: state.song?.id || prefs.selectedId
     });
   }
 
@@ -1098,10 +1099,32 @@
     drum.svg.addEventListener('pointerdown', event => {
       const target = event.target.closest('[data-pad]');
       if (!target) return;
-      event.preventDefault();
       const padId = target.getAttribute('data-pad');
-      if (drum.options.onTap) drum.options.onTap(padId, event);
-      else userHit(padId, 'tap');
+      const fire = () => {
+        if (drum.options.onTap) drum.options.onTap(padId, event);
+        else userHit(padId, 'tap');
+      };
+      // While a song is playing a touch plays the note at once (timing matters). Otherwise a
+      // finger may also be scrolling the page: the note plays when the finger lifts without
+      // having moved, and a scroll just scrolls.
+      const deferred = event.pointerType === 'touch' && !state.playing && drum.options.className !== 'settings-svg';
+      if (!deferred) {
+        event.preventDefault();
+        fire();
+        return;
+      }
+      const x0 = event.clientX;
+      const y0 = event.clientY;
+      const cleanup = () => {
+        drum.svg.removeEventListener('pointerup', up);
+        drum.svg.removeEventListener('pointercancel', cleanup);
+      };
+      const up = e => {
+        cleanup();
+        if (Math.hypot(e.clientX - x0, e.clientY - y0) < 12) fire();
+      };
+      drum.svg.addEventListener('pointerup', up);
+      drum.svg.addEventListener('pointercancel', cleanup);
     });
     drum.svg.addEventListener('contextmenu', event => event.preventDefault());
   }
@@ -1286,6 +1309,8 @@
       }
     }
     state.playing = true;
+    // On a phone, Play goes straight to the full-screen focus view.
+    if (isPhone() && !state.focusMode && !tour.active) setFocusMode(true);
     seekTo(start, { keepResults: true });
     anchorAt(start);
     resetVisualPerformanceMonitor();
@@ -1517,6 +1542,7 @@
       }, 700);
       return;
     }
+    if (isPhone() && state.focusMode) setFocusMode(false);
     if (state.mode === 'practice' || state.mode === 'wait') showResults();
   }
 
@@ -1760,12 +1786,20 @@
     els.guideBtn.classList.toggle('active', state.guide);
     els.guideBtn.setAttribute('aria-pressed', String(state.guide));
     els.guideBtn.disabled = state.mode === 'listen';
+    els.dockPlayBtn.innerHTML = els.playBtn.innerHTML;
+    els.dockPlayBtn.setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
+    els.dockLoopBtn.classList.toggle('active', state.loop);
+    els.dockLoopBtn.setAttribute('aria-pressed', String(state.loop));
+    els.dockMetronomeBtn.classList.toggle('active', state.metronome);
+    els.dockMetronomeBtn.setAttribute('aria-pressed', String(state.metronome));
+    keepScreenOn(state.playing || state.focusMode || (state.mode === 'tuner' && mic.on));
     els.guideBtn.title = state.mode === 'listen' ? 'Listen always plays the song' : state.guide ? 'Song sound on: the app plays the song (quieter once you play along)' : 'Song sound off: only your own strokes';
     document.body.classList.toggle('is-playing', state.playing);
   }
 
   function updateModeUI() {
-    document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
+    document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode || (button.dataset.mode === 'practice' && state.mode === 'wait')));
+    els.waitToggle.checked = state.mode === 'wait' || (state.mode !== 'practice' && state.waitPref);
     const hints = {
       listen: 'Sit back and listen: the song plays and the handpan lights up. Tap along if you like, nothing is scored.',
       practice: 'Play along in time on screen, on the keyboard or with the microphone. Every stroke is scored: Perfect, Good or Miss.',
@@ -1800,6 +1834,7 @@
     updateModeUI();
     updateNextHint(true);
     savePrefs();
+    fitPhoneStage();
     resizeCanvas();
     if (wasPlaying && mode !== 'tuner') startPlayback();
   }
@@ -1822,6 +1857,7 @@
     document.body.dataset.view = view;
     if (!options.keepPref) savePrefs();
     if (!options.silent) showToast(radial ? 'Centre-drum display enabled.' : 'Falling-lane display enabled.', 'success');
+    fitPhoneStage();
     requestAnimationFrame(() => resizeCanvas());
   }
 
@@ -1838,6 +1874,7 @@
     }
     els.speedRange.value = String(state.speed);
     els.speedValue.textContent = `${formatSpeed(state.speed)}×`;
+    els.speedCycleValue.textContent = `${formatSpeed(state.speed)}×`;
     document.querySelectorAll('[data-speed]').forEach(button => button.classList.toggle('active', Math.abs(Number(button.dataset.speed) - state.speed) < 0.001));
     updateTempoLabel();
     savePrefs();
@@ -2165,6 +2202,12 @@
       legend.style.left = `${cx - layout.drum.drumSize * 0.56}px`;
       legend.style.width = `${layout.drum.drumSize * 1.12}px`;
       legend.style.top = `${Math.max(phoneLanes ? layout.lanesBottom : 52, cy - layout.drum.drumSize * 0.5 - 30)}px`;
+      if (width <= 760 && !phoneLanes) {
+        // Phones: "Left / hand" and "Right / hand" sit on the edges, under the stats row.
+        legend.style.left = '10px';
+        legend.style.width = `${width - 20}px`;
+        legend.style.top = '58px';
+      }
     } else {
       const legend = els.stageHandLegend;
       legend.classList.remove('on-drum');
@@ -3065,6 +3108,10 @@
     els.micBtn.classList.toggle('active', mic.on);
     els.micBtn.setAttribute('aria-pressed', String(mic.on));
     els.micBtn.innerHTML = `${MIC_ICON} Microphone ${mic.on ? 'on' : 'off'}`;
+    els.micChipBtn.innerHTML = `${MIC_ICON} Mic ${mic.on ? 'on' : 'off'}`;
+    els.micChipBtn.classList.toggle('active', mic.on);
+    els.micChipBtn.setAttribute('aria-pressed', String(mic.on));
+    if (typeof updateTransportUI === 'function' && els.dockPlayBtn) keepScreenOn(state.playing || state.focusMode || (state.mode === 'tuner' && mic.on));
     if (!mic.on) {
       setMicStatus(state.mode === 'tuner' ? 'Turn on the microphone to tune' : 'Use in Practice, Wait, or Tuner mode');
       if (state.mode === 'tuner') resetTunerDisplay();
@@ -3490,7 +3537,8 @@
   async function previewEditorSong() {
     if (audio.preview.length) {
       cancelScheduledAudio(audio.preview);
-      els.previewSongBtn.textContent = '▶ Preview';
+      els.previewSongBtn.textContent = '▶ Play';
+      stopEditorPreviewVisuals();
       return;
     }
     const context = await ensureAudio();
@@ -3498,12 +3546,48 @@
     const parsed = editorParsed();
     const start = context.currentTime + 0.15;
     parsed.events.forEach(event => event.items.forEach(item => { if (!item.missing) playPad(item.pad, start + event.time, 0.9, audio.preview); }));
-    els.previewSongBtn.textContent = '■ Stop preview';
+    els.previewSongBtn.textContent = '■ Stop';
     clearTimeout(editor.previewTimer);
+    startEditorPreviewVisuals(parsed, (start - context.currentTime) * 1000);
     editor.previewTimer = setTimeout(() => {
-      els.previewSongBtn.textContent = '▶ Preview';
+      els.previewSongBtn.textContent = '▶ Play';
       audio.preview.length = 0;
+      stopEditorPreviewVisuals();
     }, (parsed.duration + 0.6) * 1000);
+  }
+
+  // While the editor plays a song, the strokes light up on its handpan and in a strip
+  // above the sequence.
+  function startEditorPreviewVisuals(parsed, delayMs) {
+    stopEditorPreviewVisuals();
+    const strip = els.composePreviewStrip;
+    strip.replaceChildren(...parsed.events.map(event => {
+      const chip = document.createElement('span');
+      chip.className = 'preview-chip';
+      chip.textContent = event.items.map(item => state.padMap.get(item.pad)?.label || item.pad).join('+');
+      chip.style.setProperty('--c', itemColor(event.items[0]));
+      return chip;
+    }));
+    strip.hidden = !parsed.events.length;
+    const chips = [...strip.children];
+    editor.previewTimers = parsed.events.map((event, index) => setTimeout(() => {
+      chips.forEach((chip, k) => { chip.classList.toggle('now', k === index); chip.classList.toggle('done', k < index); });
+      chips[index]?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+      event.items.forEach(item => {
+        const g = editor.drum?.padEls.get(item.pad);
+        if (!g) return;
+        g.style.setProperty('--flash', itemColor(item));
+        g.classList.add('flash');
+        clearTimeout(g._flashTimer);
+        g._flashTimer = setTimeout(() => g.classList.remove('flash'), 240);
+      });
+    }, delayMs + event.time * 1000));
+  }
+
+  function stopEditorPreviewVisuals() {
+    (editor.previewTimers || []).forEach(clearTimeout);
+    editor.previewTimers = [];
+    els.composePreviewStrip.hidden = true;
   }
 
   function saveEditorSong(event) {
@@ -3838,7 +3922,7 @@
     // Sit just above whatever controls are anchored to the bottom of the stage.
     const stage = els.noteStage.getBoundingClientRect();
     let controlsTop = height;
-    [els.noteStage.querySelector('.rotate-drum-pair'), els.focusModeBtn, els.stageSongName].forEach(el => {
+    [els.noteStage.querySelector('.rotate-drum-pair'), els.focusModeBtn, els.stageSongName, els.stageDock, els.speedCycleBtn].forEach(el => {
       if (!el) return;
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
@@ -3859,6 +3943,15 @@
     const ext = state.pads.some(pad => pad.kind === 'bottom') ? 0.66 : 0.53;
     const maxBottom = top - 6;
     const topReserve = width <= 900 ? 60 : 18;
+    if (width <= 760) {
+      // Phones: centre the handpan in the space between the stats row and the tape.
+      const room = maxBottom - topReserve;
+      const wanted = Math.max(drum.drumSize, Math.min(width * 0.8, 360));
+      drum.drumSize = Math.max(170, Math.min(wanted, (room - 8) / (0.53 + ext)));
+      drum.cy = topReserve + drum.drumSize * 0.53 + Math.max(0, (room - drum.drumSize * (0.53 + ext)) / 2);
+      drum.scale = drum.drumSize / STAGE_DRUM_BASE;
+      return;
+    }
     if (drum.cy + drum.drumSize * ext > maxBottom) {
       drum.drumSize = Math.max(170, Math.min(drum.drumSize, (maxBottom - topReserve) / (ext * 2)));
       drum.cy = maxBottom - drum.drumSize * ext;
@@ -3962,7 +4055,12 @@
     {
       target: '.toolbar-controls .segmented',
       title: 'Listen, practise, learn',
-      text: 'Listen just plays the song so you can relax. Practice scores your timing: Perfect, Good or Miss. Wait for note stops on every stroke until you play it. Tuner, on its own to the right, checks your handpan against A4 = 440 Hz.'
+      text: 'Listen just plays the song so you can relax. Practice scores every stroke: Perfect, Good or Miss. Tick Wait for note and the song stops on each stroke until you play it. Tuner checks your handpan against A4 = 440 Hz.'
+    },
+    {
+      target: '#speedCycleBtn',
+      title: 'Slow it right down',
+      text: 'Tap Speed to go 1x, 0.75x, 0.5x, 0.25x and back. Play opens the full-screen view; tap the song name there to pick another song.'
     },
     {
       target: '.speed-control',
@@ -3997,7 +4095,7 @@
     {
       target: '#tourBtn',
       title: 'Watch it again any time',
-      text: 'Tour replays this demo. ? opens the strokes, keys and notation help.'
+      text: 'The ? replays this tour, and the book opens the strokes, keys and notation help.'
     }
   ];
 
@@ -4426,7 +4524,58 @@
     els.focusModeBtn.setAttribute('aria-label', state.focusMode ? 'Exit focus mode' : 'Enter focus mode');
     els.focusModeBtn.title = state.focusMode ? 'Exit focus mode' : 'Focus mode';
     els.focusModeBtn.innerHTML = `<span aria-hidden="true">${state.focusMode ? '×' : '⛶'}</span><b>${state.focusMode ? 'Exit Focus' : 'Focus Mode'}</b>`;
+    // The phone's Back button leaves focus mode instead of leaving the app.
+    try {
+      if (state.focusMode && !history.state?.hdtFocus) history.pushState({ hdtFocus: true }, '');
+      else if (!state.focusMode && history.state?.hdtFocus) { focusHistory.ignore = true; history.back(); }
+    } catch (error) { /* file:// may refuse; not important */ }
+    fitPhoneStage();
+    updateTransportUI();
     requestAnimationFrame(() => resizeCanvas());
+  }
+
+  const focusHistory = { ignore: false };
+
+  function isPhone() {
+    return window.innerWidth <= 760;
+  }
+
+  // On a phone the start screen has no scrolling: the stage takes whatever height is left
+  // under the header and the mode buttons.
+  function fitPhoneStage() {
+    const stage = els.noteStage;
+    if (!isPhone() || state.focusMode) {
+      stage.style.height = '';
+      stage.style.minHeight = '';
+      return;
+    }
+    const viewport = window.visualViewport?.height || window.innerHeight;
+    const top = stage.getBoundingClientRect().top + window.scrollY;
+    const height = Math.max(400, Math.floor(viewport - top - 14));
+    stage.style.height = `${height}px`;
+    stage.style.minHeight = `${height}px`;
+  }
+
+  // Keep the phone awake while you play (Screen Wake Lock, Chrome / Edge / Safari 16.4+).
+  const wake = { lock: null, pending: false };
+
+  async function keepScreenOn(on) {
+    try {
+      if (on) {
+        if (wake.lock || wake.pending || !navigator.wakeLock || document.visibilityState !== 'visible') return;
+        wake.pending = true;
+        wake.lock = await navigator.wakeLock.request('screen');
+        wake.lock.addEventListener('release', () => { wake.lock = null; });
+      } else if (wake.lock) {
+        const lock = wake.lock;
+        wake.lock = null;
+        await lock.release();
+      }
+    } catch (error) {
+      wake.lock = null;
+    } finally {
+      wake.pending = false;
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -4488,7 +4637,41 @@
       }
     });
 
-    document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+    document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+      const mode = button.dataset.mode;
+      setMode(mode === 'practice' ? (state.waitPref ? 'wait' : 'practice') : mode);
+    }));
+    els.waitToggle.addEventListener('change', () => {
+      state.waitPref = els.waitToggle.checked;
+      savePrefs();
+      if (state.mode === 'practice' || state.mode === 'wait') setMode(state.waitPref ? 'wait' : 'practice');
+    });
+    els.micChipBtn.addEventListener('click', () => els.micBtn.click());
+    els.topNewSongBtn.addEventListener('click', () => { setSidebar(false); openEditor(null); });
+    els.dockPlayBtn.addEventListener('click', () => els.playBtn.click());
+    els.dockLoopBtn.addEventListener('click', () => els.loopBtn.click());
+    els.dockMetronomeBtn.addEventListener('click', () => els.metronomeBtn.click());
+    els.speedCycleBtn.addEventListener('click', () => {
+      const steps = [1, 0.75, 0.5, 0.25];
+      const index = steps.findIndex(value => Math.abs(value - state.speed) < 0.001);
+      setSpeed(index < 0 ? 1 : steps[(index + 1) % steps.length]);
+    });
+    els.stageSongName.addEventListener('click', () => {
+      if (!state.focusMode) return;
+      openDialog(els.songSwitchDialog);
+    });
+    els.switchKeepBtn.addEventListener('click', () => closeDialog(els.songSwitchDialog));
+    els.switchChooseBtn.addEventListener('click', () => {
+      closeDialog(els.songSwitchDialog);
+      pausePlayback();
+      setFocusMode(false);
+      setSidebar(true);
+    });
+    window.addEventListener('popstate', () => {
+      if (focusHistory.ignore) { focusHistory.ignore = false; return; }
+      if (state.focusMode) { pausePlayback(); setFocusMode(false); }
+    });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) updateTransportUI(); });
     document.querySelectorAll('.view-segment').forEach(button => button.addEventListener('click', () => {
       if (button.dataset.view !== state.view) setView(button.dataset.view);
     }));
@@ -4496,13 +4679,17 @@
       const dialog = $(button.dataset.closeDialog);
       if (dialog === els.editorDialog) {
         cancelScheduledAudio(audio.preview);
-        els.previewSongBtn.textContent = '▶ Preview';
+        els.previewSongBtn.textContent = '▶ Play';
+        stopEditorPreviewVisuals();
       }
       closeDialog(dialog);
     }));
 
     els.playBtn.addEventListener('click', () => { togglePlayback().catch(() => showToast('Could not start audio.', 'warning')); });
-    els.stopBtn.addEventListener('click', () => stopPlayback(true));
+    els.stopBtn.addEventListener('click', () => {
+      stopPlayback(true);
+      if (isPhone() && state.focusMode) setFocusMode(false);
+    });
     els.loopBtn.addEventListener('click', () => {
       state.loop = !state.loop;
       if (state.loop) state.abLoop = false;
@@ -4554,7 +4741,7 @@
     els.undoTokenBtn.addEventListener('click', removeLastToken);
     els.previewSongBtn.addEventListener('click', () => previewEditorSong());
     els.deleteEditorBtn.addEventListener('click', () => editor.songId && deleteSong(editor.songId));
-    els.editorDialog.addEventListener('close', () => { cancelScheduledAudio(audio.preview); els.previewSongBtn.textContent = '▶ Preview'; });
+    els.editorDialog.addEventListener('close', () => { cancelScheduledAudio(audio.preview); els.previewSongBtn.textContent = '▶ Play'; stopEditorPreviewVisuals(); });
     els.editorDialog.querySelectorAll('[data-hand]').forEach(button => button.addEventListener('click', () => {
       editor.hand = button.dataset.hand;
       els.editorDialog.querySelectorAll('[data-hand]').forEach(b => b.classList.toggle('active', b === button));
@@ -4629,6 +4816,7 @@
     document.addEventListener('keydown', keyboardHandler);
     window.addEventListener('resize', () => {
       if (state.focusMode && window.innerWidth > 1100) setFocusMode(false);
+      fitPhoneStage();
       resizeCanvas();
     });
     if ('ResizeObserver' in window) new ResizeObserver(() => resizeCanvas()).observe(els.noteStage);
@@ -4680,6 +4868,7 @@
     updateModeUI();
     setSpeed(state.speed);
     selectSong(prefs.selectedId);
+    fitPhoneStage();
     resizeCanvas();
     updateTransportUI();
     try {
