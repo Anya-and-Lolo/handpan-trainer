@@ -1,0 +1,12 @@
+{
+  "format": "ethereal-handpan-song-v1",
+  "song": {
+    "title": "Minecraft (Sweden)",
+    "artist": "C418 · handpan arrangement",
+    "bpm": 72,
+    "beatsPerBar": 4,
+    "scale": "D Kurd",
+    "sequence": "8L 7R:0.5 4L:0.5 6L - | 8L 7R:0.5 4L:0.5 3R - | 8L 7R:0.5 4L:0.5 6L:0.5 3R:0.5 - |\n3R:0.5 4L:0.5 6L:0.5 7R:0.5 8L:0.5 7R:0.5 8L | 3R:0.5 4L:0.5 6L:0.5 7R:0.5 6L - |\n8L:0.5 7R:0.5 7R:0.5 4L:0.5 6L - | 8L:0.5 7R:0.5 7R:0.5 4L:0.5 3R - | 8L:0.5 7R:0.5 7R:0.5 4L:0.5 6L:0.5 3R:0.5 - |\n3R:0.5 4L:0.5 6L:0.5 7R:0.5 8L:0.5 7R:0.5 8L | 3R:0.5 4L:0.5 6L:0.5 7R:0.5 6L - - - |",
+    "order": 2
+  }
+}

@@ -1,0 +1,43 @@
+const CACHE = 'ethereal-handpan-trainer-v10';
+const SHELL = [
+  './',
+  './index.html',
+  './app-files/styles.css',
+  './app-files/app.js',
+  './app-files/song-catalog.js',
+  './app-files/manifest.webmanifest',
+  './app-files/fonts/fredoka-latin-600-normal.woff2',
+  './app-files/fonts/fredoka-latin-700-normal.woff2'
+];
+
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).catch(() => {}));
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)));
+    await self.clients.claim();
+  })());
+});
+
+// Network first, so a new deploy is picked up immediately; the cache is only an offline fallback.
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    try {
+      const response = await fetch(event.request, { cache: 'no-cache' });
+      if (response && response.ok) cache.put(event.request, response.clone()).catch(() => {});
+      return response;
+    } catch (error) {
+      const cached = await cache.match(event.request, { ignoreSearch: true });
+      if (cached) return cached;
+      throw error;
+    }
+  })());
+});

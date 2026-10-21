@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="description" content="A handpan / hand drum song trainer with drum-centre guidance, falling lanes, Wait for note practice, a tuner and D T K S percussion strokes." />
+  <title>Hand Drum Trainer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1.1 -1.1 2.2 2.2'%3E%3Ccircle r='1' fill='%232a3044' stroke='%23c4b5fd' stroke-width='.08'/%3E%3Cellipse rx='.34' ry='.3' fill='%238b7ae6'/%3E%3Ccircle cy='.66' r='.16' fill='%23ffffff55'/%3E%3Ccircle cx='-.55' cy='.38' r='.14' fill='%23ffffff55'/%3E%3Ccircle cx='.55' cy='.38' r='.14' fill='%23ffffff55'/%3E%3Ccircle cx='-.6' cy='-.25' r='.13' fill='%23ffffff55'/%3E%3Ccircle cx='.6' cy='-.25' r='.13' fill='%23ffffff55'/%3E%3C/svg%3E" />
+  <link rel="manifest" href="app-files/manifest.webmanifest" />
+  <link rel="stylesheet" href="app-files/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-row">
+        <div class="brand-mark handpan-brand" aria-hidden="true"><svg viewBox="-1.1 -1.1 2.2 2.2"><circle r="1" class="bm-shell"/><ellipse rx=".34" ry=".3" class="bm-ding"/><circle cx="0" cy=".66" r=".16" class="bm-pad"/><circle cx="-.5" cy=".42" r=".14" class="bm-pad"/><circle cx=".5" cy=".42" r=".14" class="bm-pad"/><circle cx="-.64" cy="-.12" r=".13" class="bm-pad"/><circle cx=".64" cy="-.12" r=".13" class="bm-pad"/><circle cx="-.4" cy="-.56" r=".12" class="bm-pad"/><circle cx=".4" cy="-.56" r=".12" class="bm-pad"/></svg></div>
+        <div>
+          <h1>Ethereal Handpan</h1>
+          <p>Hand drum trainer</p>
+        </div>
+        <button class="icon-btn sidebar-close" id="sidebarClose" aria-label="Close songs panel">×</button>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="primary-btn" id="newSongBtn">＋ New song</button>
+        <button class="soft-btn" id="importBtn">Import song</button>
+        <input id="importFile" type="file" accept=".handsong,.json" hidden />
+      </div>
+
+      <label class="search-wrap">
+        <span>Search songs</span>
+        <input id="songSearch" type="search" placeholder="Find a song..." />
+      </label>
+      <div class="difficulty-filter" id="difficultyFilter" role="group" aria-label="Filter songs by difficulty">
+        <button type="button" data-level="all" class="active">All</button>
+        <button type="button" data-level="easy">Easy</button>
+        <button type="button" data-level="medium">Medium</button>
+        <button type="button" data-level="hard">Hard</button>
+      </div>
+
+      <div class="song-list" id="songList" aria-live="polite"></div>
+
+      <div class="sidebar-footer">
+        <button class="text-btn" id="exportBtn">Export selected song</button>
+        <button class="text-btn danger" id="deleteBtn">Delete selected song</button>
+      </div>
+    </aside>
+
+    <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="Close songs menu"></button>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open songs panel">☰</button>
+        <div class="song-heading">
+          <p class="eyebrow">NOW PRACTISING</p>
+          <div class="song-title-row">
+            <h2 id="currentTitle">Interstellar</h2>
+            <span id="currentDifficulty" class="difficulty-badge" data-level="easy">Easy difficulty</span>
+            <span id="currentFit" class="collection-badge fit-badge" data-fit="ok">D Kurd 10</span>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="soft-btn compact tour-btn" id="tourBtn" type="button" aria-label="Play the demo tour" title="Demo tour: Interstellar plays while the app is shown step by step">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M10 8.6v6.8l5.6-3.4z" fill="currentColor"></path></svg>
+            <span>Tour</span>
+          </button>
+          <button class="icon-btn help-tour-btn" id="helpBtn" type="button" aria-label="Strokes, keys and notation help" title="Help">?</button>
+          <button class="soft-btn compact" id="editBtn" aria-label="Edit song">Edit song</button>
+          <button class="soft-btn compact" id="settingsBtn" aria-label="My Handpan">My Handpan</button>
+          <button class="icon-btn mobile-view-toggle" id="mobileViewToggleBtn" type="button" data-view="radial" aria-label="Switch display to Falling lanes" title="Switch to Falling lanes">
+            <svg class="view-mode-icon view-mode-icon-drum" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="1.8"></circle>
+              <path d="M12 3v6M9.5 6.5 12 9l2.5-2.5M12 21v-6M9.5 17.5 12 15l2.5 2.5M3 12h6M6.5 9.5 9 12l-2.5 2.5M21 12h-6M17.5 9.5 15 12l2.5 2.5"></path>
+            </svg>
+            <svg class="view-mode-icon view-mode-icon-lanes" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 4v15M4.5 16.5 7 19l2.5-2.5M17 20V5M14.5 7.5 17 5l2.5 2.5"></path>
+              <path class="lane-guide" d="M2.5 4v16M12 3v18M21.5 4v16"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="trainer-grid" id="trainerGrid">
+        <div class="trainer-card">
+          <div class="trainer-toolbar">
+            <div class="toolbar-controls">
+              <div class="segmented" role="group" aria-label="Training mode">
+                <button class="segment active" data-mode="listen">Listen</button>
+                <button class="segment" data-mode="practice">Practice</button>
+                <button class="segment" data-mode="wait">Wait for note</button>
+              </div>
+              <div class="segmented tuner-segmented" role="group" aria-label="Tuner">
+                <button class="segment" data-mode="tuner">Tuner</button>
+              </div>
+              <div class="display-control">
+                <span>Display</span>
+                <div class="segmented view-segmented" role="group" aria-label="Note display mode">
+                  <button class="view-segment active" data-view="radial">Drum centre</button>
+                  <button class="view-segment" data-view="lanes">Falling lanes</button>
+                </div>
+              </div>
+            </div>
+            <div class="stat-pills">
+              <span class="stat-pill" id="scorePill" data-tone="neutral"><b id="scoreValue">0%</b> score</span>
+              <span class="stat-pill" id="streakPill" data-tone="neutral"><b id="streakValue">0</b> streak</span>
+              <span class="stat-pill" id="notesLeftPill" data-tone="notes"><b id="notesLeftValue">0</b> notes left</span>
+            </div>
+          </div>
+
+          <div class="note-stage radial-view" id="noteStage">
+            <canvas id="noteCanvasBack" aria-hidden="true"></canvas>
+            <canvas id="noteCanvas" aria-label="Animated note guide"></canvas>
+            <button class="focus-mode-btn" id="focusModeBtn" type="button" aria-pressed="false" aria-label="Enter focus mode" title="Focus mode">
+              <span aria-hidden="true">⛶</span><b>Focus Mode</b>
+            </button>
+            <div class="rotate-drum-pair" role="group" aria-label="Rotate the handpan">
+              <button class="rotate-drum-btn" id="rotateLeftBtn" type="button" aria-label="Rotate the handpan anticlockwise" title="Rotate anticlockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 12.4a7.6 7.6 0 1 0 2.3-6"></path><path d="M4.4 3.2v4.4h4.4"></path></svg></button>
+              <button class="rotate-drum-btn" id="rotateRightBtn" type="button" aria-label="Rotate the handpan clockwise" title="Rotate clockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 12.4a7.6 7.6 0 1 1-2.3-6"></path><path d="M19.6 3.2v4.4h-4.4"></path></svg></button>
+            </div>
+            <div class="stage-drum-wrap" id="stageDrumWrap" aria-label="Interactive handpan"></div>
+            <div class="hand-legend stage-hand-legend" id="stageHandLegend" aria-hidden="true">
+              <span class="hl-left"><i></i>Left hand</span>
+              <span class="hl-right">Right hand<i></i></span>
+            </div>
+            <div class="note-tape" id="noteTape" aria-hidden="true" hidden>
+              <div class="tape-window">
+                <div class="tape-playhead"></div>
+                <div class="tape-track" id="noteTapeTrack"></div>
+              </div>
+              <div class="tape-judge" id="noteTapeJudge"></div>
+            </div>
+            <div class="stage-song-name" id="stageSongName" aria-hidden="true"></div>
+            <div class="stage-judge" id="stageJudge" aria-hidden="true"></div>
+            <div class="stage-overlay top-left">
+              <span id="totalNotesLabel">0 strokes total</span>
+              <span id="tempoLabel">120 BPM</span>
+              <div class="mobile-stage-stats" aria-label="Current practice statistics">
+                <span class="stat-pill mobile-stage-pill" id="mobileScorePill" data-tone="neutral"><b id="mobileScoreValue">0%</b> Score</span>
+                <span class="stat-pill mobile-stage-pill" id="mobileStreakPill" data-tone="neutral"><b id="mobileStreakValue">0</b> Streak</span>
+                <span class="stat-pill mobile-stage-pill" data-tone="notes"><b id="mobileNotesLeftValue">0</b> Notes left</span>
+              </div>
+            </div>
+            <div class="wait-banner" id="waitBanner" hidden>
+              <span>Waiting for</span>
+              <strong id="waitBannerNotes">4</strong>
+            </div>
+            <div class="tuner-panel" id="tunerPanel" hidden aria-live="polite">
+              <div class="tuner-reading">
+                <span>LIVE TUNER · A4 = 440 HZ</span>
+                <strong id="tunerLabel">...</strong>
+                <div>
+                  <b id="tunerNoteName">Strike a note</b>
+                  <small id="tunerCents">Turn on the microphone to begin</small>
+                </div>
+              </div>
+              <div class="tuner-meter-wrap">
+                <div class="tuner-meter" id="tunerMeter" role="meter" aria-label="Pitch accuracy" aria-valuemin="-50" aria-valuemax="50" aria-valuenow="0">
+                  <span class="tuner-zone"></span>
+                  <i id="tunerNeedle"></i>
+                </div>
+                <div class="tuner-scale"><span>Flat</span><span id="tunerHz">In tune</span><span>Sharp</span></div>
+              </div>
+            </div>
+            <div class="count-in" id="countIn" hidden>3</div>
+            <div class="hit-label">PLAY</div>
+          </div>
+
+          <div class="progress-wrap">
+            <span id="elapsedLabel">0:00</span>
+            <div class="progress-track-shell">
+              <input id="progress" type="range" min="0" max="1000" value="0" aria-label="Song position" />
+              <i class="ab-marker marker-a" id="abMarkerA" hidden aria-hidden="true"></i>
+              <i class="ab-marker marker-b" id="abMarkerB" hidden aria-hidden="true"></i>
+            </div>
+            <span id="durationLabel">0:00</span>
+          </div>
+
+          <div class="ab-loop-row" id="abLoopRow">
+            <div class="ab-loop-controls" role="group" aria-label="A to B section loop">
+              <button class="mini-loop-btn" id="setABtn" type="button">Set A</button>
+              <button class="mini-loop-btn" id="setBBtn" type="button">Set B</button>
+              <button class="mini-loop-btn accent" id="abLoopBtn" type="button" aria-pressed="false" disabled>Loop A-B</button>
+              <button class="mini-loop-btn clear" id="clearABBtn" type="button" disabled>Clear</button>
+            </div>
+            <span class="ab-loop-status" id="abLoopStatus">Set A and B from the timeline to practise a section.</span>
+          </div>
+
+          <div class="transport">
+            <button class="round-btn small" id="loopBtn" aria-label="Loop song" aria-pressed="false" title="Loop song">
+              <svg class="loop-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l3 3-3 3"></path><path d="M3 11V9a4 4 0 0 1 4-4h13"></path><path d="M7 22l-3-3 3-3"></path><path d="M21 13v2a4 4 0 0 1-4 4H4"></path></svg>
+            </button>
+            <button class="round-btn small" id="stopBtn" aria-label="Back to start" title="Back to start">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>
+            </button>
+            <button class="round-btn play" id="playBtn" aria-label="Play"><span class="play-icon" aria-hidden="true"></span></button>
+            <button class="round-btn small" id="metronomeBtn" aria-label="Toggle metronome" title="Metronome"><span class="metronome-icon" aria-hidden="true"><span class="metronome-body"></span><span class="metronome-arm"></span></span></button>
+            <button class="round-btn small" id="guideBtn" aria-label="Guide sound" aria-pressed="false" title="Guide sound in Practice and Wait for note">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"></path><path d="M16.5 8.5a5 5 0 0 1 0 7"></path><path d="M19 6a8.5 8.5 0 0 1 0 12"></path></svg>
+            </button>
+          </div>
+
+          <div class="speed-row">
+            <div class="speed-control">
+              <label for="speedRange">Speed</label>
+              <input id="speedRange" type="range" min="0.1" max="1.5" step="0.05" value="1" aria-describedby="speedValue" />
+              <output id="speedValue" for="speedRange">1×</output>
+              <div class="speed-chips" role="group" aria-label="Speed presets">
+                <button type="button" data-speed="0.25">0.25×</button>
+                <button type="button" data-speed="0.5">0.5×</button>
+                <button type="button" data-speed="0.75">0.75×</button>
+                <button type="button" data-speed="1">1×</button>
+              </div>
+            </div>
+            <div class="speed-row-tail">
+              <label class="toggle-label">
+                <input id="countInToggle" type="checkbox" checked />
+                <span>Count-in</span>
+              </label>
+              <button class="mic-toggle" id="micBtn" type="button" aria-pressed="false"></button>
+              <span class="mic-status" id="micStatus" aria-live="polite">Use in Practice, Wait, or Tuner mode</span>
+            </div>
+            <p id="modeHint">Listen and watch the strokes.</p>
+          </div>
+        </div>
+
+        <aside class="practice-card" id="practiceCard">
+          <div class="practice-head">
+            <div>
+              <p class="eyebrow">YOUR HANDPAN</p>
+              <h3 id="instrumentTitle">D Kurd 10 · 440 Hz</h3>
+            </div>
+            <span class="keyboard-hint" id="keyboardHint">Keys D, 1–9</span>
+          </div>
+          <div class="hand-legend" aria-hidden="true">
+            <span class="hl-left"><i></i>Left hand</span>
+            <span class="hl-right">Right hand<i></i></span>
+          </div>
+          <div class="drum-wrap" id="drumWrap" aria-label="Interactive handpan"></div>
+          <div class="next-note-card">
+            <span>Next stroke</span>
+            <strong id="nextNoteValue">–</strong>
+            <small id="nextNoteTime">Ready</small>
+          </div>
+          <div class="stroke-key" id="strokeKey"></div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <!-- Song builder -->
+  <dialog id="editorDialog" class="dialog large-dialog">
+    <form method="dialog" id="editorForm" novalidate>
+      <div class="dialog-head">
+        <div class="editor-title-lockup">
+          <p class="editor-kicker"><span>SONG</span><span>BUILDER</span></p>
+          <h2 id="editorHeading">Create a song</h2>
+        </div>
+        <button type="button" class="icon-btn" data-close-dialog="editorDialog" aria-label="Close">×</button>
+      </div>
+
+      <div class="form-grid hp-song-grid">
+        <label class="song-title-option">Song title<input id="songTitleInput" required maxlength="80" placeholder="My handpan groove" /></label>
+        <label>Tempo (BPM)<input id="songBpmInput" type="number" min="20" max="260" step="1" value="90" required /></label>
+        <label>Beats per bar<select id="songMeterInput">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4" selected>4</option>
+          <option value="6">6</option>
+        </select></label>
+      </div>
+
+      <div class="live-compose">
+        <div>
+          <h3>Tap to compose</h3>
+          <p>Choose hand and length, then tap the handpan. Strokes are added at the cursor.</p>
+        </div>
+        <div class="compose-options">
+          <div class="mini-seg" role="group" aria-label="Hand">
+            <button type="button" data-hand="" class="active">Auto hand</button>
+            <button type="button" data-hand="L" class="hand-l">Left</button>
+            <button type="button" data-hand="R" class="hand-r">Right</button>
+          </div>
+          <div class="mini-seg" role="group" aria-label="Length">
+            <button type="button" data-len="0.25">¼</button>
+            <button type="button" data-len="0.5">½</button>
+            <button type="button" data-len="1" class="active">1 beat</button>
+            <button type="button" data-len="2">2</button>
+          </div>
+          <label class="toggle-label compact"><input type="checkbox" id="chordModeToggle" /><span>Chord (+)</span></label>
+        </div>
+      </div>
+      <div class="compose-row">
+        <div class="compose-drum-wrap">
+          <div class="compose-drum" id="composeDrum"></div>
+          <div class="rotate-drum-pair compose-rotate" role="group" aria-label="Rotate the handpan">
+            <button class="rotate-drum-btn" id="composeRotateLeftBtn" type="button" aria-label="Rotate the handpan anticlockwise" title="Rotate anticlockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 12.4a7.6 7.6 0 1 0 2.3-6"></path><path d="M4.4 3.2v4.4h4.4"></path></svg></button>
+            <button class="rotate-drum-btn" id="composeRotateRightBtn" type="button" aria-label="Rotate the handpan clockwise" title="Rotate clockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 12.4a7.6 7.6 0 1 1-2.3-6"></path><path d="M19.6 3.2v4.4h-4.4"></path></svg></button>
+          </div>
+        </div>
+        <div class="compose-buttons">
+          <button type="button" class="soft-btn compact" id="appendRestBtn">Add rest</button>
+          <button type="button" class="soft-btn compact" id="appendBarBtn">Add bar |</button>
+          <button type="button" class="soft-btn compact" id="undoTokenBtn">Remove last</button>
+          <button type="button" class="soft-btn compact" id="previewSongBtn">▶ Preview</button>
+        </div>
+      </div>
+
+      <div class="sequence-section">
+        <div class="sequence-label-row">
+          <label for="sequenceInput">Stroke sequence</label>
+          <span class="sequence-status" id="sequenceStatus"></span>
+        </div>
+        <textarea id="sequenceInput" rows="6" wrap="soft" spellcheck="false" placeholder="DR TR:0.5 KL:0.5 SR - | 4L+2R 8R -"></textarea>
+        <div class="notation-cheats">
+          <span><kbd>D</kbd> ding</span><span><kbd>1</kbd>–<kbd>9</kbd> tone fields</span><span><kbd>B1</kbd> <kbd>B2</kbd> bottoms</span><span><kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> tak / ka / slap</span><span><kbd>L</kbd> <kbd>R</kbd> after a stroke = hand (SL / SR = left / right slap)</span><span><kbd>+</kbd> together</span><span><kbd>:0.5</kbd> half beat</span><span><kbd>-</kbd> one beat rest</span><span><kbd>|</kbd> bar</span><span><kbd>#</kbd> comment</span>
+        </div>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="submit" class="primary-btn" id="saveSongBtn">Save song</button>
+        <div class="dialog-action-secondary">
+          <button type="button" class="soft-btn" data-close-dialog="editorDialog">Cancel</button>
+          <button type="button" class="danger-btn" id="deleteEditorBtn" hidden>Delete song</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- My handpan -->
+  <dialog id="settingsDialog" class="dialog large-dialog">
+    <form method="dialog" id="settingsForm">
+      <div class="dialog-head">
+        <div class="editor-title-lockup">
+          <p class="editor-kicker"><span>MY</span><span>HANDPAN</span></p>
+          <h2>Instrument and strokes</h2>
+        </div>
+        <button type="button" class="icon-btn" data-close-dialog="settingsDialog" aria-label="Close">×</button>
+      </div>
+
+      <div class="settings-layout">
+        <div class="settings-col">
+          <h3 class="settings-h">Scale</h3>
+          <div class="scale-cards" id="scaleCards" role="radiogroup" aria-label="Handpan scale"></div>
+          <h3 class="settings-h">Layout</h3>
+          <div class="layout-row" id="layoutRow">
+            <button type="button" class="layout-card" data-layout="1"><b>Layout 1</b><span>Bb (left) and A (right) share the bottom</span></button>
+            <button type="button" class="layout-card" data-layout="0"><b>Layout 2</b><span>Note 1 alone at the bottom</span></button>
+            <div class="rotate-pair" role="group" aria-label="Rotate the handpan">
+              <button type="button" class="icon-btn" data-rotate="1" aria-label="Rotate anticlockwise" title="Rotate anticlockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 12.4a7.6 7.6 0 1 0 2.3-6"></path><path d="M4.4 3.2v4.4h4.4"></path></svg></button>
+              <button type="button" class="icon-btn" data-rotate="-1" aria-label="Rotate clockwise" title="Rotate clockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 12.4a7.6 7.6 0 1 1-2.3-6"></path><path d="M19.6 3.2v4.4h-4.4"></path></svg></button>
+            </div>
+          </div>
+          <div class="bottoms-config" id="bottomsConfig"></div>
+          <h3 class="settings-h">Notes · A4 = 440 Hz</h3>
+          <div class="note-table" id="noteTable"></div>
+        </div>
+        <div class="settings-col">
+          <h3 class="settings-h">Percussion strokes</h3>
+          <label class="toggle-label"><input type="checkbox" id="percToggle" checked /><span>Use T, K and S strokes</span></label>
+          <label class="toggle-label"><input type="checkbox" id="mirrorToggle" /><span>Mirror T and K for left-handed playing</span></label>
+          <p class="settings-note">They appear on the handpan only when a song uses them. Drag <b>T</b>, <b>K</b> or either <b>S</b> to where you actually play them. <b>D</b> is always the ding.</p>
+          <div class="settings-drum" id="settingsDrum"></div>
+          <button type="button" class="text-tool-btn" id="resetPercBtn">Reset stroke positions</button>
+          <h3 class="settings-h">Display</h3>
+          <label class="toggle-label"><input type="checkbox" id="handColorsToggle" checked /><span>Colour notes by hand (blue = left, amber = right)</span></label>
+          <label class="toggle-label"><input type="checkbox" id="noteNamesToggle" /><span>Show note names (A3, Bb3…)</span></label>
+          <label class="toggle-label"><input type="checkbox" id="usedLanesToggle" checked /><span>Falling lanes: only lanes used by the song</span></label>
+        </div>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" class="primary-btn" data-close-dialog="settingsDialog">Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Help -->
+  <dialog id="helpDialog" class="dialog guide-dialog">
+    <form method="dialog">
+      <div class="dialog-head">
+        <div class="editor-title-lockup">
+          <p class="editor-kicker"><span>STROKES</span><span>&amp; KEYS</span></p>
+          <h2>How it works</h2>
+        </div>
+        <button type="button" class="icon-btn" data-close-dialog="helpDialog" aria-label="Close">×</button>
+      </div>
+      <div class="help-content">
+        <section>
+          <h3>Strokes</h3>
+          <ul class="help-strokes">
+            <li><b class="hs hs-d">D</b><span><strong>Ding (Doum)</strong> — the deep bass note in the centre.</span></li>
+            <li><b class="hs">1–9</b><span><strong>Tone fields</strong> — numbered from the lowest note upwards, zig-zagging left and right.</span></li>
+            <li><b class="hs">B1 B2</b><span><strong>Bottom notes</strong> (D Kurd 12) — on the underside of the shell.</span></li>
+            <li><b class="hs hs-p">T</b><span><strong>Tak / Tek</strong> — a light fingertip tap on the shell next to the ding, usually right hand.</span></li>
+            <li><b class="hs hs-p">K</b><span><strong>Ka</strong> — the same tap with the other hand, usually left.</span></li>
+            <li><b class="hs hs-p">S</b><span><strong>Slap</strong> — a sharp pop on the outer shoulder. There is one on each side: SL left hand, SR right hand.</span></li>
+          </ul>
+          <p class="help-hands"><span class="dot-l"></span> Blue notes = left hand <span class="dot-r"></span> Amber notes = right hand</p>
+        </section>
+        <section>
+          <h3>Modes</h3>
+          <p><strong>Listen</strong> plays the song so you can sit back and enjoy it. <strong>Practice</strong> scores every stroke from the first note (Perfect, Good, Miss). <strong>Wait for note</strong> lets the notes fly in and then stops on each one until you play it — play in time and it never stops. <strong>Tuner</strong> listens to your handpan and shows how many cents each note is from A4 = 440 Hz.</p>
+          <p>Speed goes down to <strong>0.1×</strong>. Use <kbd>[</kbd> and <kbd>]</kbd> to change it while you play.</p>
+        </section>
+        <section>
+          <h3>Song tape</h3>
+          <p>Under the handpan the strokes scroll past as numbers, a little of what you just played and more of what comes next. Chords are stacked. In Practice and Wait for note each stroke turns <strong style="color:#5eead4">teal</strong> for Perfect, <strong style="color:#c4b5fd">violet</strong> for Good and <strong style="color:#fb7185">red</strong> for Miss. Press <strong>Tour</strong> to watch the demo tour again.</p>
+        </section>
+        <section>
+          <h3>Keyboard</h3>
+          <p><kbd>Space</kbd> play / pause · <kbd>D</kbd> ding · <kbd>1</kbd>–<kbd>9</kbd> tone fields · <kbd>0</kbd> / <kbd>-</kbd> bottoms · <kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> strokes (<kbd>Shift</kbd>+<kbd>S</kbd> right slap) · <kbd>[</kbd> <kbd>]</kbd> speed</p>
+        </section>
+        <section>
+          <h3>Microphone (beta)</h3>
+          <p>Turn the microphone on and play your real handpan: tone fields are recognised by pitch, and any clear percussive hit counts for T, K or S. Turn the song sound (speaker button) off or use headphones so the app does not hear itself.</p>
+        </section>
+        <section>
+          <h3>Writing songs</h3>
+          <p><code>4L 8R - | 4L+2R 8R -</code> — space separates strokes, <code>+</code> plays together, <code>L</code>/<code>R</code> picks the hand, <code>:0.5</code> makes a stroke half a beat, <code>-</code> is a one-beat rest, <code>|</code> is a bar line.</p>
+        </section>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="primary-btn" data-close-dialog="helpDialog">Got it</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Results -->
+  <dialog class="dialog result-dialog" id="resultDialog">
+    <div class="result-card">
+      <canvas class="result-sparkles" id="resultSparkles" aria-hidden="true"></canvas>
+      <div class="result-icon" aria-hidden="true">✓</div>
+      <p class="eyebrow">SESSION COMPLETE</p>
+      <h2 id="resultTitle">Song complete</h2>
+      <p class="result-summary" id="resultSummary">Nice work.</p>
+      <div class="result-stats" id="resultStats">
+        <div><strong id="resultHitValue">0/0</strong><span>strokes hit</span></div>
+        <div><strong id="resultAccuracyValue">0%</strong><span>accuracy</span></div>
+        <div><strong id="resultStreakValue">0</strong><span>best streak</span></div>
+      </div>
+      <p class="result-mistakes" id="resultMistakes"></p>
+      <div class="result-recommendation" id="resultRecommendation" hidden>
+        <span class="result-recommendation-label">Recommended next</span>
+        <button type="button" class="result-recommended-song" id="resultRecommendedBtn"></button>
+      </div>
+      <div class="result-actions">
+        <button type="button" class="soft-btn" id="resultReplayBtn">Play again</button>
+        <button type="button" class="primary-btn" id="resultSlowerBtn">Again, a bit slower</button>
+        <button type="button" class="soft-btn" id="resultNextBtn">Next in list</button>
+      </div>
+      <button type="button" class="result-close" data-close-dialog="resultDialog" aria-label="Close results"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></button>
+    </div>
+  </dialog>
+
+  <div class="tour-overlay" id="tourOverlay" hidden>
+    <div class="tour-shade" id="tourShadeTop" aria-hidden="true"></div>
+    <div class="tour-shade" id="tourShadeRight" aria-hidden="true"></div>
+    <div class="tour-shade" id="tourShadeBottom" aria-hidden="true"></div>
+    <div class="tour-shade" id="tourShadeLeft" aria-hidden="true"></div>
+    <div class="tour-focus-ring" id="tourFocusRing" aria-hidden="true"></div>
+    <section class="tour-card" id="tourCard" role="dialog" aria-modal="true" aria-labelledby="tourTitle" aria-describedby="tourText">
+      <div class="tour-card-head">
+        <span id="tourProgress">1 of 5</span>
+        <button type="button" class="tour-skip-btn" id="tourSkipBtn">Skip</button>
+      </div>
+      <h2 id="tourTitle">Welcome</h2>
+      <p id="tourText"></p>
+      <div class="tour-actions">
+        <button type="button" class="tour-sound-btn" id="tourSoundBtn" hidden>🔊 Sound on</button>
+        <div class="tour-nav-actions">
+          <button type="button" class="soft-btn compact" id="tourBackBtn">Back</button>
+          <button type="button" class="primary-btn compact" id="tourNextBtn">Next</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" popover="manual" role="alert" aria-live="assertive"></div>
+
+  <script src="app-files/song-catalog.js"></script>
+  <script src="app-files/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "format": "ethereal-handpan-song-v1",
+  "song": {
+    "title": "Heartbeat groove",
+    "artist": "Percussion + low notes · lub-dub on the ding",
+    "bpm": 76,
+    "beatsPerBar": 4,
+    "scale": "D Kurd",
+    "sequence": "# Heartbeat on the ding, then the taps\nDL:0.75 DR:0.25 - TR:0.5 KL:0.5 TR | DL:0.75 DR:0.25 - - - |\nDL:0.75 DR:0.25 - TR:0.5 KL:0.5 TR | DL:0.75 DR:0.25 - - - |\n# The low notes beat with the heart\nDL+1R:0.75 DR:0.25 - 2L:0.5 TR:0.5 KL | DL+1R:0.75 DR:0.25 - - - |\nDL+3R:0.75 DR:0.25 - 4L:0.5 TR:0.5 KL | DR+2L:0.75 DL:0.25 - - - |\n# Running heart\nDL:0.75 DR:0.25 TR:0.5 KL:0.5 DL:0.75 DR:0.25 - | DL+1R:0.75 DR:0.25 TR:0.5 KL:0.5 DL+3R:0.75 DR:0.25 - |\nDL:0.75 DR:0.25 TR:0.5 KL:0.5 DL:0.75 DR:0.25 - | DR+4L:0.75 DL:0.25 TR:0.5 KL:0.5 DR+4L:2 |",
+    "order": 6
+  }
+}

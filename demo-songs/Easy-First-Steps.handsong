@@ -1,0 +1,12 @@
+{
+  "format": "ethereal-handpan-song-v1",
+  "song": {
+    "title": "First steps",
+    "artist": "The ding and the four lowest notes",
+    "bpm": 66,
+    "beatsPerBar": 4,
+    "scale": "D Kurd",
+    "sequence": "# The ding with the right hand, then the low notes around it\nDR - 1R - | DR - 2L - | DR - 3R - | DR - 4L - |\n# Ding in between\nDR 1R DR 2L | DR 3R DR 4L |\n# Walk down and home\n4L 3R 2L 1R | DR - - - |\nDR 1R DR 2L | DR 3R DR 4L | 4L 3R 2L 1R | DR - - - |",
+    "order": 8
+  }
+}

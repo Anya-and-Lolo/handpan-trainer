@@ -1,0 +1,12 @@
+{
+  "format": "ethereal-handpan-song-v1",
+  "song": {
+    "title": "Space Tribal",
+    "artist": "Percussion groove · D T K S",
+    "bpm": 84,
+    "beatsPerBar": 4,
+    "scale": "D Kurd",
+    "sequence": "# Doum - tak - ka\nDR TR:0.5 KL:0.5 DR:0.5 KL:0.5 TR | DR TR:0.5 KL:0.5 SR - |\nDR TR:0.5 KL:0.5 DR:0.5 KL:0.5 TR | DR TR:0.5 KL:0.5 SR - |\n# Add the melody\nDR+4L TR:0.5 KL:0.5 DR 6L:0.5 5R:0.5 | DR+4L TR:0.5 KL:0.5 SR - |\nDR+4L TR:0.5 KL:0.5 DR 8L:0.5 7R:0.5 | DR TR:0.5 KL:0.5 SL+5R - |",
+    "order": 5
+  }
+}

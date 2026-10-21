@@ -1,0 +1,11 @@
+{
+  "name": "Ethereal Handpan Trainer",
+  "short_name": "Handpan Trainer",
+  "description": "A handpan / hand drum song trainer with falling lanes, Wait for note practice and D T K S strokes.",
+  "start_url": "../index.html",
+  "scope": "../",
+  "display": "standalone",
+  "background_color": "#090d18",
+  "theme_color": "#111827",
+  "icons": []
+}

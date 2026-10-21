@@ -1,0 +1,4696 @@
+(() => {
+  'use strict';
+
+  /* =====================================================================
+     Ethereal Handpan · Hand Drum Trainer
+     Drum centre / falling lanes guidance, Demo / Practice / Wait for note /
+     Tuner, D Kurd 9 / 10 / 12 at A4 = 440 Hz, percussion strokes D T K S.
+     The canvas pipeline (stars, glow, guides, note sprites, particle trails,
+     performance profiles) follows Ethereal Drum's tongue drum trainer.
+     ===================================================================== */
+
+  const STORAGE_SONGS = 'ethereal-handpan-songs-v1';
+  const STORAGE_INSTRUMENT = 'ethereal-handpan-instrument-v1';
+  const STORAGE_PREFS = 'ethereal-handpan-prefs-v3';
+  const SONG_FORMAT = 'ethereal-handpan-song-v1';
+  const REFERENCE_PITCH = 440;
+  const HAND_COLORS = { L: '#38bdf8', R: '#fbbf24' };
+  const NOTE_COLORS = ['#a78bfa', '#5eead4', '#fbbf24', '#fb7185', '#60a5fa', '#f472b6', '#34d399', '#f97316', '#c084fc', '#22d3ee', '#eab308', '#a3e635'];
+  const DING_COLOR = '#c4b5fd';
+  const PERC_COLOR = '#e2e8f0';
+  const WRONG_COLOR = '#fb7185';
+  const MIC_HEARD_COLOR = '#5eead4';
+  const AUDIO_LOOKAHEAD = 0.14;
+  const SCHEDULER_MS = 25;
+  const MIN_SPEED = 0.1;
+  const MAX_SPEED = 1.5;
+  // Shell diameter of the stage handpan at --stage-scale 1. The wrapper is 1.3x wider so
+  // bottom notes and slap zones near the rim still fit inside it.
+  const STAGE_DRUM_BASE = 360;
+  const VIEWBOX = { x: -1.3, y: -1.3, w: 2.6, h: 2.6 };
+  const PARTICLE_QUALITY_ORDER = ['none', 'half', 'full'];
+  const MIC_ICON = '<svg class="mic-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"></rect><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0"></path><path d="M12 17v4"></path><path d="M8.6 21h6.8"></path></svg>';
+
+  const SCALES = {
+    kurd9: { id: 'kurd9', name: 'D Kurd 9', ding: 'D3', top: ['A3', 'Bb3', 'C4', 'D4', 'E4', 'F4', 'G4', 'A4'], bottoms: 0 },
+    kurd10: { id: 'kurd10', name: 'D Kurd 10', ding: 'D3', top: ['A3', 'Bb3', 'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'C5'], bottoms: 0 },
+    kurd12: { id: 'kurd12', name: 'D Kurd 12', ding: 'D3', top: ['A3', 'Bb3', 'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'C5'], bottoms: 2 }
+  };
+  const DEFAULT_BOTTOMS = ['F3', 'G3'];
+  const BOTTOM_CHOICES = ['C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'Bb3', 'C4', 'D5', 'E5', 'F5', 'G5'];
+  // Percussion zones. There are two slap zones, one under each hand; both are written "S".
+  const PERC_IDS = ['T', 'K', 'SL', 'SR'];
+  const PERC_INFO = {
+    T: { label: 'T', name: 'Tak', sound: 'T' },
+    K: { label: 'K', name: 'Ka', sound: 'K' },
+    SL: { label: 'S', name: 'Slap (left)', sound: 'S' },
+    SR: { label: 'S', name: 'Slap (right)', sound: 'S' }
+  };
+  const KEY_MAP = { d: 'D', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': 'B1', '-': 'B2', t: 'T', k: 'K' };
+
+  // Fallback copies so the two headline songs are there even if song-catalog.js is missing.
+  const FALLBACK_SONGS = [
+    {
+      id: 'demo-interstellar', title: 'Interstellar', artist: 'Hans Zimmer · handpan arrangement', bpm: 120, beatsPerBar: 3, order: 1,
+      sequence: '4L 8R - | 4L 8R - | 5R 8L - | 5R 8L - | 6L 8R - | 6L 8R - | 7R 8L - | 7R 8L 5R |\n4L 8R - | 4L 8R - | 5R 8L - | 5R 8L - | 6L 8R - | 6L 8R - | 7R 8L - | 7R 8L - | - - - - |\n4L+2R 8R - | 4L+2R 8R - | 3L+5R 8L - | 3L+5R 8L - | 6L+4R 8R - | 6L+4R 8R - | 5L+7R 8L - | 5L+7R 8L 5R |\n4L+2R 8R - | 4L+2R 8R - | 3L+5R 8L - | 3L+5R 8L - | 6L+4R 8R - | 6L+4R 8R - | 5L+7R 8L - | 5L+7R 8L - |'
+    },
+    {
+      id: 'demo-minecraft', title: 'Minecraft (Sweden)', artist: 'C418 · handpan arrangement', bpm: 72, beatsPerBar: 4, order: 2,
+      sequence: '8L 7R:0.5 4L:0.5 6L - | 8L 7R:0.5 4L:0.5 3R - | 8L 7R:0.5 4L:0.5 6L:0.5 3R:0.5 - |\n3R:0.5 4L:0.5 6L:0.5 7R:0.5 8L:0.5 7R:0.5 8L | 3R:0.5 4L:0.5 6L:0.5 7R:0.5 6L - |\n8L+7R 7R:0.5 4L:0.5 6L - | 8L+7R 7R:0.5 4L:0.5 3R - | 8L+7R 7R:0.5 4L:0.5 6L:0.5 3R:0.5 - |\n3R:0.5 4L:0.5 6L:0.5 7R:0.5 8L:0.5 7R:0.5 8L | 3R:0.5 4L:0.5 6L:0.5 7R:0.5 6L - - - |'
+    }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const els = {};
+  [
+    'sidebar', 'sidebarClose', 'sidebarScrim', 'menuBtn', 'newSongBtn', 'importBtn', 'importFile', 'songSearch', 'songList', 'exportBtn', 'deleteBtn',
+    'currentTitle', 'currentDifficulty', 'currentFit', 'helpBtn', 'editBtn', 'settingsBtn', 'mobileViewToggleBtn', 'trainerGrid',
+    'scoreValue', 'scorePill', 'streakValue', 'streakPill', 'notesLeftValue', 'noteStage', 'noteCanvasBack', 'noteCanvas', 'focusModeBtn',
+    'stageDrumWrap', 'stageHandLegend', 'rotateLeftBtn', 'rotateRightBtn', 'composeRotateLeftBtn', 'composeRotateRightBtn', 'layoutRow', 'totalNotesLabel', 'tempoLabel', 'mobileScoreValue', 'mobileScorePill', 'mobileStreakValue', 'mobileStreakPill', 'mobileNotesLeftValue',
+    'waitBanner', 'waitBannerNotes', 'tunerPanel', 'tunerLabel', 'tunerNoteName', 'tunerCents', 'tunerMeter', 'tunerNeedle', 'tunerHz', 'countIn',
+    'elapsedLabel', 'durationLabel', 'progress', 'abMarkerA', 'abMarkerB', 'setABtn', 'setBBtn', 'abLoopBtn', 'clearABBtn', 'abLoopStatus',
+    'loopBtn', 'stopBtn', 'playBtn', 'metronomeBtn', 'guideBtn', 'speedRange', 'speedValue', 'countInToggle', 'micBtn', 'micStatus', 'modeHint',
+    'practiceCard', 'instrumentTitle', 'keyboardHint', 'drumWrap', 'nextNoteValue', 'nextNoteTime', 'strokeKey',
+    'editorDialog', 'editorForm', 'editorHeading', 'songTitleInput', 'songBpmInput', 'songMeterInput', 'chordModeToggle', 'composeDrum',
+    'appendRestBtn', 'appendBarBtn', 'undoTokenBtn', 'previewSongBtn', 'sequenceInput', 'sequenceStatus', 'saveSongBtn', 'deleteEditorBtn',
+    'settingsDialog', 'scaleCards', 'bottomsConfig', 'noteTable', 'percToggle', 'mirrorToggle', 'settingsDrum', 'resetPercBtn',
+    'handColorsToggle', 'noteNamesToggle', 'usedLanesToggle', 'helpDialog',
+    'resultDialog', 'resultTitle', 'resultSummary', 'resultStats', 'resultHitValue', 'resultAccuracyValue', 'resultStreakValue', 'resultMistakes',
+    'resultReplayBtn', 'resultSlowerBtn', 'resultNextBtn', 'resultRecommendation', 'resultRecommendedBtn', 'toast',
+    'tourBtn', 'stageJudge', 'difficultyFilter', 'resultSparkles', 'noteTape', 'noteTapeTrack', 'noteTapeJudge', 'stageSongName',
+    'tourOverlay', 'tourShadeTop', 'tourShadeRight', 'tourShadeBottom', 'tourShadeLeft', 'tourFocusRing', 'tourCard', 'tourProgress',
+    'tourTitle', 'tourText', 'tourSkipBtn', 'tourBackBtn', 'tourNextBtn', 'tourSoundBtn'
+  ].forEach(id => { els[id] = $(id); });
+
+  /* ------------------------------------------------------------------ */
+  /* Storage                                                             */
+  /* ------------------------------------------------------------------ */
+
+  function readJson(key, fallback) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function writeJson(key, value) {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Pitch helpers                                                       */
+  /* ------------------------------------------------------------------ */
+
+  const PITCH_CLASS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const NAME_FOR_PC = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+  function noteToMidi(name) {
+    const match = /^([A-Ga-g])([#b]?)(-?\d)$/.exec(String(name || '').trim());
+    if (!match) return 60;
+    const pc = PITCH_CLASS[match[1].toUpperCase()] + (match[2] === '#' ? 1 : match[2] === 'b' ? -1 : 0);
+    return (Number(match[3]) + 1) * 12 + pc;
+  }
+
+  function midiToName(midi) {
+    return `${NAME_FOR_PC[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+  }
+
+  function frequencyForMidi(midi) {
+    return REFERENCE_PITCH * Math.pow(2, (midi - 69) / 12);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Instrument                                                          */
+  /* ------------------------------------------------------------------ */
+
+  function defaultInstrument() {
+    return {
+      scale: 'kurd10',
+      bottoms: DEFAULT_BOTTOMS.slice(),
+      percussion: true,
+      mirror: false,
+      percPos: {},
+      handColors: true,
+      noteNames: false,
+      usedLanes: true,
+      // Rotation in half-steps between tone fields. 1 = layout 1 (the lowest pair, Bb and A,
+      // straddles the bottom - the most common), 0 = layout 2 (note 1 alone at the bottom).
+      rotationSteps: 1
+    };
+  }
+
+  function normaliseInstrument(raw) {
+    const base = defaultInstrument();
+    const value = raw && typeof raw === 'object' ? raw : {};
+    const result = { ...base, ...value };
+    if (!SCALES[result.scale]) result.scale = base.scale;
+    if (!Array.isArray(result.bottoms) || result.bottoms.length < 2) result.bottoms = base.bottoms.slice();
+    result.bottoms = result.bottoms.slice(0, 2).map((name, index) => (BOTTOM_CHOICES.includes(name) ? name : DEFAULT_BOTTOMS[index]));
+    if (!result.percPos || typeof result.percPos !== 'object') result.percPos = {};
+    // Version 1 stored a single slap as "S"; it is the left slap now.
+    Object.values(result.percPos).forEach(map => {
+      if (map && map.S && !map.SL) { map.SL = map.S; delete map.S; }
+    });
+    ['percussion', 'mirror', 'handColors', 'noteNames', 'usedLanes'].forEach(key => { result[key] = Boolean(result[key]); });
+    result.rotationSteps = Number.isFinite(Number(result.rotationSteps)) ? Math.round(Number(result.rotationSteps)) : 1;
+    return result;
+  }
+
+  // Tone fields zig-zag around the ding: 1 at the bottom, even numbers to the left,
+  // odd numbers to the right, climbing towards the top. Angles are measured from the
+  // bottom of the drum, positive to the player's right.
+  function topAngle(index, count) {
+    if (index === 1) return 0;
+    const step = 360 / count;
+    const k = Math.floor(index / 2);
+    return (index % 2 === 0 ? -1 : 1) * k * step;
+  }
+
+  function polar(angleDeg, radius) {
+    const a = angleDeg * Math.PI / 180;
+    return { x: radius * Math.sin(a), y: radius * Math.cos(a) };
+  }
+
+  function rotationOffset(instrument, count) {
+    return (instrument.rotationSteps || 0) * (360 / count) / 2;
+  }
+
+  function angleDistance(a, b) {
+    return Math.abs(((((a - b) % 360) + 540) % 360) - 180);
+  }
+
+  // The ding's notes fly in through the gap between two tone fields nearest the top.
+  function dingRayAngle(count, offset) {
+    const step = 360 / count;
+    let best = 180;
+    let bestDistance = Infinity;
+    for (let i = 1; i <= count; i += 1) {
+      const mid = topAngle(i, count) + offset + step / 2;
+      const distance = angleDistance(mid, 180);
+      if (distance < bestDistance - 1e-6) { best = mid; bestDistance = distance; }
+    }
+    return best;
+  }
+
+  function defaultPercPositions(count, offset = 0) {
+    // The left slap sits between 4 and 6; the right slap mirrors it, so both hands
+    // reach the same distance (both slaps sound the same).
+    const left = polar((topAngle(4, count) + topAngle(6, count)) / 2 + offset, 0.895);
+    const right = { x: -left.x, y: left.y };
+    return {
+      T: { x: 0.37, y: -0.02 },
+      K: { x: -0.37, y: -0.02 },
+      SL: { x: left.x, y: left.y },
+      SR: { x: right.x, y: right.y }
+    };
+  }
+
+  function buildPads(instrument, offsetOverride) {
+    const scale = SCALES[instrument.scale];
+    const count = scale.top.length;
+    const offset = Number.isFinite(offsetOverride) ? offsetOverride : rotationOffset(instrument, count);
+    const pads = [];
+    const dingMidi = noteToMidi(scale.ding);
+    pads.push({ id: 'D', label: 'D', kind: 'ding', midi: dingMidi, name: midiToName(dingMidi), x: 0, y: 0, rx: 0.27, ry: 0.24, rot: 0, side: 'C', hand: 'R', color: DING_COLOR, rayAngle: dingRayAngle(count, offset) });
+    scale.top.forEach((noteName, i) => {
+      const num = i + 1;
+      const p = polar(topAngle(num, count) + offset, 0.645);
+      const t = count > 1 ? i / (count - 1) : 0;
+      const midi = noteToMidi(noteName);
+      const side = num === 1 ? 'R' : (num % 2 === 0 ? 'L' : 'R');
+      pads.push({
+        id: String(num), num, label: String(num), kind: 'tone', midi, name: midiToName(midi),
+        x: p.x, y: p.y, rx: 0.185 - 0.05 * t, ry: 0.15 - 0.038 * t,
+        rot: Math.atan2(p.y, p.x) * 180 / Math.PI, side, hand: side, color: NOTE_COLORS[i % NOTE_COLORS.length]
+      });
+    });
+    for (let b = 0; b < scale.bottoms; b += 1) {
+      const sign = b === 0 ? -1 : 1;
+      const p = polar(sign * 40 + offset, 1.12);
+      const midi = noteToMidi(instrument.bottoms[b] || DEFAULT_BOTTOMS[b]);
+      pads.push({
+        id: `B${b + 1}`, label: `B${b + 1}`, kind: 'bottom', midi, name: midiToName(midi),
+        x: p.x, y: p.y, rx: 0.15, ry: 0.105, rot: Math.atan2(p.y, p.x) * 180 / Math.PI,
+        side: sign < 0 ? 'L' : 'R', hand: sign < 0 ? 'L' : 'R', color: '#94a3b8'
+      });
+    }
+    if (instrument.percussion) {
+      const defaults = defaultPercPositions(count, offset);
+      const custom = instrument.percPos[instrument.scale] || {};
+      PERC_IDS.forEach(id => {
+        const base = custom[id] && Number.isFinite(custom[id].x) ? custom[id] : defaults[id];
+        // Mirroring swaps the taps only; there is a slap zone under each hand already.
+        const mirrored = instrument.mirror && (id === 'T' || id === 'K');
+        const x = mirrored ? -base.x : base.x;
+        const hand = id === 'SL' ? 'L' : id === 'SR' ? 'R' : (x < 0 ? 'L' : 'R');
+        pads.push({
+          id, label: PERC_INFO[id].label, kind: 'perc', midi: null, name: PERC_INFO[id].name, sound: PERC_INFO[id].sound,
+          x, y: base.y, rx: 0.08, ry: 0.08, rot: 0, side: x < 0 ? 'L' : 'R', hand, color: PERC_COLOR
+        });
+      });
+    }
+    return pads;
+  }
+
+  // Lanes read like the drum seen from above: even notes on the left, odd notes on the
+  // right, the ding in the middle, taps next to it and slaps / bottoms at the edges.
+  function laneOrder(pads, usedIds) {
+    const ding = pads.filter(p => p.kind === 'ding');
+    const tones = pads.filter(p => p.kind === 'tone');
+    const left = tones.filter(p => p.side === 'L').sort((a, b) => b.num - a.num);
+    const right = tones.filter(p => p.side === 'R').sort((a, b) => a.num - b.num);
+    const perc = pads.filter(p => p.kind === 'perc');
+    const inner = perc.filter(p => Math.hypot(p.x, p.y) < 0.6);
+    const outer = perc.filter(p => Math.hypot(p.x, p.y) >= 0.6);
+    const byX = (a, b) => a.x - b.x;
+    const bottoms = pads.filter(p => p.kind === 'bottom');
+    let order = [
+      ...bottoms.filter(p => p.side === 'L'),
+      ...outer.filter(p => p.x < 0).sort(byX),
+      ...left,
+      ...inner.filter(p => p.x < 0).sort(byX),
+      ...ding,
+      ...inner.filter(p => p.x >= 0).sort(byX),
+      ...right,
+      ...outer.filter(p => p.x >= 0).sort(byX),
+      ...bottoms.filter(p => p.side === 'R')
+    ];
+    if (usedIds && usedIds.size) order = order.filter(p => p.kind === 'ding' || usedIds.has(p.id));
+    return order;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Song parsing                                                        */
+  /* ------------------------------------------------------------------ */
+
+  const ITEM_PATTERN = /^(DING|D|B[12]|[1-9]|T|K|S)([LR])?$/i;
+
+  function parseDuration(text) {
+    if (text == null || text === '') return 1;
+    const fraction = /^(\d+)\/(\d+)$/.exec(text);
+    if (fraction) return Number(fraction[1]) / Math.max(1, Number(fraction[2]));
+    const value = Number(text);
+    return Number.isFinite(value) && value > 0 ? value : NaN;
+  }
+
+  function splitToken(token) {
+    let core = token;
+    let duration = 1;
+    const colon = core.lastIndexOf(':');
+    if (colon >= 0) {
+      duration = parseDuration(core.slice(colon + 1));
+      core = core.slice(0, colon);
+    } else if (/=+$/.test(core) && core.length > 1) {
+      duration = Math.pow(0.25, core.match(/=+$/)[0].length);
+      core = core.replace(/=+$/, '');
+    } else if (/_+$/.test(core) && core.length > 1) {
+      duration = Math.pow(0.5, core.match(/_+$/)[0].length);
+      core = core.replace(/_+$/, '');
+    }
+    return { core, duration };
+  }
+
+  function parseSequence(text, bpm, beatsPerBar, padMap) {
+    const tempo = Math.min(300, Math.max(20, Number(bpm) || 90));
+    const spb = 60 / tempo;
+    const clean = String(text || '').replace(/#[^\n]*/g, ' ').replace(/\|/g, ' | ');
+    const tokens = clean.split(/\s+/).filter(Boolean);
+    const events = [];
+    const bars = [0];
+    const errors = [];
+    let beat = 0;
+
+    tokens.forEach(token => {
+      if (token === '|') {
+        if (bars[bars.length - 1] !== beat) bars.push(beat);
+        return;
+      }
+      const { core, duration } = splitToken(token);
+      if (!Number.isFinite(duration)) { errors.push(token); return; }
+      if (core === '-' || core === '0' || core === '.' || core === '') {
+        beat += duration;
+        return;
+      }
+      const items = [];
+      let bad = false;
+      core.split('+').filter(Boolean).forEach(part => {
+        const match = ITEM_PATTERN.exec(part);
+        if (!match) { bad = true; return; }
+        let id = match[1].toUpperCase();
+        if (id === 'DING') id = 'D';
+        const hand = match[2] ? match[2].toUpperCase() : '';
+        items.push({ pad: id, hand, explicitHand: Boolean(hand) });
+      });
+      if (bad || !items.length) { errors.push(token); beat += duration; return; }
+      const index = events.length;
+      items.forEach((item, k) => { item.id = `${index}:${k}`; item.event = index; });
+      events.push({ index, beat, time: beat * spb, durBeats: duration, items, bar: bars.length });
+      beat += duration;
+    });
+
+    const totalBeats = Math.max(beat, 1);
+    if (bars[bars.length - 1] !== totalBeats) bars.push(totalBeats);
+    assignHands(events, padMap);
+    const missing = new Set();
+    const used = new Set();
+    events.forEach(event => event.items.forEach(item => {
+      // "S" is written once; the hand decides which slap zone it lands on.
+      if (item.pad === 'S') item.pad = item.hand === 'R' ? 'SR' : 'SL';
+      item.missing = !padMap.has(item.pad);
+      used.add(item.pad);
+      if (item.missing) missing.add(item.pad === 'SL' || item.pad === 'SR' ? 'S' : item.pad);
+    }));
+    const playable = events.flatMap(e => e.items.filter(i => !i.missing));
+    return {
+      events, bars, errors, missing, used, spb, bpm: tempo,
+      beatsPerBar: Math.max(1, Number(beatsPerBar) || 4),
+      totalBeats, duration: totalBeats * spb,
+      itemCount: playable.length,
+      chordCount: events.filter(e => e.items.length > 1).length
+    };
+  }
+
+  function defaultHandFor(padId, padMap) {
+    const pad = padMap.get(padId);
+    if (pad) return pad.hand;
+    if (padId === 'T') return 'R';
+    if (padId === 'K') return 'L';
+    return '';
+  }
+
+  function assignHands(events, padMap) {
+    let lastHand = 'L';
+    events.forEach(event => {
+      const auto = event.items.filter(item => !item.explicitHand);
+      auto.forEach(item => {
+        if (item.pad === 'S') {
+          // A free slap goes to whichever hand is not busy, alternating with the last stroke.
+          const others = event.items.filter(other => other !== item && other.hand);
+          item.hand = others.length ? (others[0].hand === 'L' ? 'R' : 'L') : (lastHand === 'R' ? 'L' : 'R');
+          return;
+        }
+        item.hand = defaultHandFor(item.pad, padMap) || 'R';
+        const pad = padMap.get(item.pad);
+        if (pad && pad.side === 'C' && event.items.length === 1) item.hand = lastHand === 'R' ? 'L' : 'R';
+      });
+      if (event.items.length > 1 && auto.length) {
+        // Two strokes on the same side at once: the left one to the left hand, the other to the right.
+        const hands = event.items.map(i => i.hand);
+        if (new Set(hands).size === 1) {
+          const sorted = event.items.slice().sort((a, b) => (padMap.get(a.pad)?.x || 0) - (padMap.get(b.pad)?.x || 0));
+          sorted.forEach((item, k) => { if (!item.explicitHand) item.hand = k === 0 ? 'L' : 'R'; });
+        }
+      }
+      lastHand = event.items[event.items.length - 1]?.hand || lastHand;
+    });
+  }
+
+  function songDifficulty(parsed) {
+    const seconds = Math.max(1, parsed.duration);
+    const rate = parsed.itemCount / seconds;
+    const chordRatio = parsed.events.length ? parsed.chordCount / parsed.events.length : 0;
+    let score = rate + chordRatio * 1.2 + (parsed.bpm >= 140 ? 0.6 : 0);
+    const minDur = parsed.events.reduce((m, e) => Math.min(m, e.durBeats * parsed.spb), 9);
+    if (minDur < 0.2) score += 0.8;
+    if (score < 1.4) return { level: 'easy', label: 'Easy' };
+    if (score < 2.3) return { level: 'medium', label: 'Medium' };
+    if (score < 3.3) return { level: 'hard', label: 'Hard' };
+    return { level: 'expert', label: 'Expert' };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* State                                                               */
+  /* ------------------------------------------------------------------ */
+
+  const prefs = Object.assign({
+    speed: 1, mode: 'listen', view: 'radial', countIn: true, metronome: false, guide: true, loop: false, selectedId: 'demo-interstellar'
+  }, readJson(STORAGE_PREFS, {}));
+
+  const state = {
+    instrument: normaliseInstrument(readJson(STORAGE_INSTRUMENT, null)),
+    pads: [],
+    padMap: new Map(),
+    lanes: [],
+    demoSongs: [],
+    mySongs: [],
+    song: null,
+    parsed: null,
+    mode: ['listen', 'practice', 'wait'].includes(prefs.mode) ? prefs.mode : 'listen',
+    view: prefs.view === 'lanes' ? 'lanes' : 'radial',
+    speed: clampSpeed(prefs.speed),
+    countIn: prefs.countIn !== false,
+    metronome: Boolean(prefs.metronome),
+    guide: Boolean(prefs.guide),
+    loop: Boolean(prefs.loop),
+    playing: false,
+    holding: false,
+    songTime: 0,
+    anchorSong: 0,
+    anchorReal: 0,
+    clock: 'perf',
+    countInBeats: 0,
+    loopA: null,
+    loopB: null,
+    abLoop: false,
+    results: new Map(),
+    wrong: 0,
+    streak: 0,
+    bestStreak: 0,
+    waitIdx: 0,
+    schedIdx: 0,
+    schedBeat: 0,
+    flashIdx: 0,
+    missIdx: 0,
+    runStartedAt: 0,
+    effects: [],
+    laneFlash: new Map(),
+    nextKey: '',
+    drums: [],
+    loopTimer: 0,
+    schedulerId: 0,
+    lastUi: 0,
+    search: '',
+    levelFilter: 'all',
+    focusMode: false,
+    // canvas pipeline
+    layout: { w: 0, h: 0, drum: null, lanesTop: 0, lanesBottom: 0, phoneLanes: false },
+    performanceProfile: null,
+    particleQuality: 'full',
+    particleProfileName: '',
+    backgroundRateScale: 1,
+    particlePhaseCache: new Map(),
+    stars: [],
+    lastFrameAt: 0,
+    lastBackdropAt: 0,
+    backdropMode: '',
+    staticGuideCanvas: null,
+    staticGuideKey: '',
+    laneGuideCanvas: null,
+    laneGuideKey: '',
+    lastRenderAt: 0,
+    visualMonitorStartedAt: 0,
+    visualMonitorSamples: 0,
+    visualMonitorSlowSamples: 0,
+    visualMonitorCostAverage: 0,
+    visualMonitorLastFrameAt: 0,
+    tunerToken: 0,
+    tunerReadings: []
+  };
+
+  function clampSpeed(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 1;
+    return Math.round(Math.min(MAX_SPEED, Math.max(MIN_SPEED, n)) * 100) / 100;
+  }
+
+  function savePrefs() {
+    writeJson(STORAGE_PREFS, {
+      speed: state.speed, mode: state.mode === 'tuner' ? 'listen' : state.mode, view: state.view, countIn: state.countIn,
+      metronome: state.metronome, guide: state.guide, loop: state.loop, selectedId: state.song?.id || prefs.selectedId
+    });
+  }
+
+  function saveInstrument() {
+    writeJson(STORAGE_INSTRUMENT, state.instrument);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Audio                                                               */
+  /* ------------------------------------------------------------------ */
+
+  const audio = { ctx: null, bus: null, master: null, buffers: new Map(), rendering: null, scheduled: [], preview: [] };
+
+  function makeImpulse(context, seconds, decay) {
+    const length = Math.floor(context.sampleRate * seconds);
+    const impulse = context.createBuffer(2, length, context.sampleRate);
+    for (let channel = 0; channel < 2; channel += 1) {
+      const data = impulse.getChannelData(channel);
+      for (let i = 0; i < length; i += 1) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    }
+    return impulse;
+  }
+
+  function createAudioGraph() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    const context = new AudioCtx({ latencyHint: 'interactive' });
+    const master = context.createGain();
+    master.gain.value = 0.9;
+    const compressor = context.createDynamicsCompressor();
+    compressor.threshold.value = -14;
+    compressor.ratio.value = 3;
+    const bus = context.createGain();
+    const dry = context.createGain();
+    dry.gain.value = 1;
+    const wet = context.createGain();
+    wet.gain.value = 0.22;
+    const reverb = context.createConvolver();
+    reverb.buffer = makeImpulse(context, 2.6, 2.8);
+    bus.connect(dry).connect(master);
+    bus.connect(reverb).connect(wet).connect(master);
+    master.connect(compressor).connect(context.destination);
+    audio.ctx = context;
+    audio.bus = bus;
+    audio.master = master;
+    return context;
+  }
+
+  async function ensureAudio() {
+    if (!audio.ctx) createAudioGraph();
+    if (!audio.ctx) return null;
+    if (audio.ctx.state !== 'running') {
+      // Before the first tap/click the browser keeps audio locked and resume() would
+      // wait for that gesture; the demo tour then runs silently on the page clock.
+      const activation = navigator.userActivation;
+      if (activation && !activation.hasBeenActive) audio.ctx.resume().catch(() => {});
+      else {
+        try { await audio.ctx.resume(); } catch (error) { /* ignored */ }
+      }
+    }
+    if (!audio.rendering) audio.rendering = renderAllSounds();
+    return audio.ctx;
+  }
+
+  function soundKeyForPad(pad) {
+    if (!pad) return '';
+    if (pad.kind === 'perc') return `perc:${pad.sound || pad.id}`;
+    return `${pad.kind === 'ding' ? 'ding' : 'tone'}:${pad.midi}`;
+  }
+
+  function normaliseBuffer(buffer, target) {
+    let peak = 0;
+    for (let c = 0; c < buffer.numberOfChannels; c += 1) {
+      const data = buffer.getChannelData(c);
+      for (let i = 0; i < data.length; i += 1) peak = Math.max(peak, Math.abs(data[i]));
+    }
+    if (peak > 0) {
+      const gain = target / peak;
+      for (let c = 0; c < buffer.numberOfChannels; c += 1) {
+        const data = buffer.getChannelData(c);
+        for (let i = 0; i < data.length; i += 1) data[i] *= gain;
+      }
+    }
+    return buffer;
+  }
+
+  function noiseBuffer(context, seconds) {
+    const length = Math.max(1, Math.floor(context.sampleRate * seconds));
+    const buffer = context.createBuffer(1, length, context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i += 1) data[i] = Math.random() * 2 - 1;
+    return buffer;
+  }
+
+  // Attack, then an exponential fall to -60 dB at decayEnd (a natural ring-out).
+  function envelope(context, param, start, peak, attack, decayEnd) {
+    param.setValueAtTime(0.00001, start);
+    param.linearRampToValueAtTime(peak, start + attack);
+    param.exponentialRampToValueAtTime(Math.max(0.000001, peak * 0.001), Math.max(start + attack + 0.01, decayEnd));
+    param.linearRampToValueAtTime(0, Math.max(start + attack + 0.02, decayEnd) + 0.05);
+  }
+
+  // A handpan voice: tuned fundamental, octave and compound fifth, a slightly detuned
+  // twin for the gentle shimmer, and a short soft "touch" transient.
+  async function renderToneSound(midi, isDing) {
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Offline) return null;
+    const sampleRate = 44100;
+    const seconds = isDing ? 5.6 : 4.6;
+    const context = new Offline(1, Math.ceil(sampleRate * seconds), sampleRate);
+    const f = frequencyForMidi(midi);
+    const out = context.createGain();
+    const tone = context.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = Math.min(10000, f * 10);
+    tone.Q.value = 0.3;
+    out.connect(tone).connect(context.destination);
+    const partials = isDing
+      ? [[1, 1, 0.012, 5.4], [1.0028, 0.3, 0.012, 4.8], [2, 0.42, 0.006, 3.6], [3, 0.16, 0.004, 2.2], [4.02, 0.04, 0.003, 0.9]]
+      : [[1, 1, 0.009, 4.4], [1.0024, 0.24, 0.009, 3.8], [2, 0.48, 0.005, 3.0], [3, 0.18, 0.004, 1.8], [4.03, 0.05, 0.003, 0.7]];
+    partials.forEach(([ratio, amp, attack, decay]) => {
+      const freq = f * ratio;
+      if (freq > sampleRate / 2 - 200) return;
+      const osc = context.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const gain = context.createGain();
+      envelope(context, gain.gain, 0, amp, attack, Math.min(seconds, decay));
+      osc.connect(gain).connect(out);
+      osc.start(0);
+      osc.stop(seconds);
+    });
+    const touch = context.createBufferSource();
+    touch.buffer = noiseBuffer(context, 0.06);
+    const touchFilter = context.createBiquadFilter();
+    touchFilter.type = 'bandpass';
+    touchFilter.frequency.value = Math.min(6000, f * 5);
+    touchFilter.Q.value = 1.4;
+    const touchGain = context.createGain();
+    envelope(context, touchGain.gain, 0, isDing ? 0.14 : 0.1, 0.002, 0.07);
+    touch.connect(touchFilter).connect(touchGain).connect(out);
+    touch.start(0);
+    const buffer = await context.startRendering();
+    return normaliseBuffer(buffer, isDing ? 0.62 : 0.5);
+  }
+
+  async function renderPercSound(id) {
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Offline) return null;
+    const sampleRate = 44100;
+    const seconds = id === 'S' ? 1.6 : 1.2;
+    const context = new Offline(1, Math.ceil(sampleRate * seconds), sampleRate);
+    const out = context.createGain();
+    out.connect(context.destination);
+    const spec = {
+      T: { band: 3300, q: 1.3, noise: 0.9, noiseDecay: 0.05, knock: 230, knockAmp: 0.32, ring: [1230, 1810, 2730], ringAmp: 0.13, ringDecay: 0.2, ding: 0.07 },
+      K: { band: 2200, q: 1.1, noise: 0.8, noiseDecay: 0.055, knock: 190, knockAmp: 0.3, ring: [1050, 1590, 2410], ringAmp: 0.11, ringDecay: 0.2, ding: 0.07 },
+      S: { band: 2600, q: 0.6, noise: 1.25, noiseDecay: 0.11, knock: 120, knockAmp: 0.55, ring: [1480, 2270, 3390], ringAmp: 0.16, ringDecay: 0.34, ding: 0.12 }
+    }[id];
+    const noise = context.createBufferSource();
+    noise.buffer = noiseBuffer(context, 0.25);
+    const band = context.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = spec.band;
+    band.Q.value = spec.q;
+    const noiseGain = context.createGain();
+    envelope(context, noiseGain.gain, 0, spec.noise, 0.0015, spec.noiseDecay);
+    noise.connect(band).connect(noiseGain).connect(out);
+    noise.start(0);
+
+    const knock = context.createOscillator();
+    knock.type = 'sine';
+    knock.frequency.setValueAtTime(spec.knock * 1.5, 0);
+    knock.frequency.exponentialRampToValueAtTime(spec.knock, 0.04);
+    const knockGain = context.createGain();
+    envelope(context, knockGain.gain, 0, spec.knockAmp, 0.002, id === 'S' ? 0.14 : 0.07);
+    knock.connect(knockGain).connect(out);
+    knock.start(0);
+    knock.stop(0.3);
+
+    spec.ring.forEach((freq, k) => {
+      const osc = context.createOscillator();
+      osc.frequency.value = freq;
+      const gain = context.createGain();
+      envelope(context, gain.gain, 0, spec.ringAmp / (k + 1), 0.002, spec.ringDecay);
+      osc.connect(gain).connect(out);
+      osc.start(0);
+      osc.stop(seconds);
+    });
+
+    // Taps and slaps excite the shell, so a whisper of the ding rings on.
+    const dingF = frequencyForMidi(noteToMidi(SCALES[state.instrument.scale].ding));
+    [[1, 1], [2, 0.5]].forEach(([ratio, amp]) => {
+      const osc = context.createOscillator();
+      osc.frequency.value = dingF * ratio;
+      const gain = context.createGain();
+      envelope(context, gain.gain, 0, spec.ding * amp, 0.01, seconds);
+      osc.connect(gain).connect(out);
+      osc.start(0);
+      osc.stop(seconds);
+    });
+    const buffer = await context.startRendering();
+    return normaliseBuffer(buffer, id === 'S' ? 0.62 : 0.5);
+  }
+
+  async function renderAllSounds() {
+    const wanted = [];
+    const seen = new Set();
+    const addPad = pad => {
+      const key = soundKeyForPad(pad);
+      if (!key || seen.has(key) || audio.buffers.has(key)) return;
+      seen.add(key);
+      wanted.push({ key, pad });
+    };
+    // Sounds for the selected song first, then everything else on the drum.
+    if (state.parsed) state.parsed.events.forEach(e => e.items.forEach(i => addPad(state.padMap.get(i.pad))));
+    state.pads.forEach(addPad);
+    ['T', 'K', 'S'].forEach(id => addPad({ id, kind: 'perc', sound: id }));
+    for (const [key, accent] of [['click:accent', true], ['click:beat', false]]) {
+      if (audio.buffers.has(key)) continue;
+      try {
+        const buffer = await renderClickSound(accent);
+        if (buffer) audio.buffers.set(key, buffer);
+      } catch (error) { /* live fallback */ }
+    }
+    for (const { key, pad } of wanted) {
+      try {
+        const buffer = pad.kind === 'perc' ? await renderPercSound(pad.sound || pad.id) : await renderToneSound(pad.midi, pad.kind === 'ding');
+        if (buffer) audio.buffers.set(key, buffer);
+      } catch (error) {
+        /* fall back to live synthesis */
+      }
+    }
+    audio.rendering = null;
+  }
+
+  function trackSource(source, when, list = audio.scheduled) {
+    list.push({ source, when });
+    source.onended = () => {
+      const index = list.findIndex(entry => entry.source === source);
+      if (index >= 0) list.splice(index, 1);
+    };
+  }
+
+  function cancelScheduledAudio(list = audio.scheduled) {
+    if (!audio.ctx) return;
+    const now = audio.ctx.currentTime;
+    list.slice().forEach(entry => {
+      if (entry.when > now + 0.005) {
+        try { entry.source.stop(); } catch (error) { /* already stopped */ }
+      }
+    });
+    list.length = 0;
+  }
+
+  function playPad(padId, when = 0, velocity = 1, list = audio.scheduled) {
+    const context = audio.ctx;
+    if (!context || context.state !== 'running') return;
+    const pad = state.padMap.get(padId) || (PERC_INFO[padId] ? { id: padId, kind: 'perc', sound: PERC_INFO[padId].sound } : null);
+    if (!pad) return;
+    const start = Math.max(context.currentTime, when || 0);
+    const buffer = audio.buffers.get(soundKeyForPad(pad));
+    const gain = context.createGain();
+    gain.gain.value = velocity;
+    gain.connect(audio.bus);
+    if (buffer) {
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(gain);
+      source.start(start);
+      trackSource(source, start, list);
+      return;
+    }
+    // Live fallback while the offline renders are still being prepared.
+    if (pad.kind === 'perc') {
+      const source = context.createBufferSource();
+      source.buffer = noiseBuffer(context, 0.08);
+      const filter = context.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = pad.sound === 'S' ? 2600 : 3000;
+      const env = context.createGain();
+      envelope(context, env.gain, start, 0.5, 0.002, start + 0.07);
+      source.connect(filter).connect(env).connect(gain);
+      source.start(start);
+      trackSource(source, start, list);
+      return;
+    }
+    const f = frequencyForMidi(pad.midi);
+    [[1, 0.35, 2.4], [2, 0.16, 1.6], [3, 0.06, 0.9]].forEach(([ratio, amp, decay]) => {
+      const osc = context.createOscillator();
+      osc.frequency.value = f * ratio;
+      const env = context.createGain();
+      envelope(context, env.gain, start, amp, 0.008, start + decay);
+      osc.connect(env).connect(gain);
+      osc.start(start);
+      osc.stop(start + decay + 0.05);
+      trackSource(osc, start, list);
+    });
+  }
+
+  // A wooden metronome tick: a pure ~1.57 kHz knock that dies away in about 40 ms
+  // (modelled on the click in the handpan app video), plus a tiny attack transient.
+  async function renderClickSound(accent) {
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Offline) return null;
+    const sampleRate = 44100;
+    const seconds = 0.12;
+    const context = new Offline(1, Math.ceil(sampleRate * seconds), sampleRate);
+    const f = accent ? 1860 : 1570;
+    const out = context.createGain();
+    out.connect(context.destination);
+    [[1, 1, 0.1], [2.01, 0.12, 0.04], [0.5, 0.18, 0.06]].forEach(([ratio, amp, decay]) => {
+      const osc = context.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f * ratio * 1.03, 0);
+      osc.frequency.exponentialRampToValueAtTime(f * ratio, 0.006);
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.00001, 0);
+      gain.gain.linearRampToValueAtTime(amp, 0.0008);
+      gain.gain.exponentialRampToValueAtTime(amp * 0.001, decay);
+      osc.connect(gain).connect(out);
+      osc.start(0);
+      osc.stop(seconds);
+    });
+    const tick = context.createBufferSource();
+    tick.buffer = noiseBuffer(context, 0.01);
+    const band = context.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 3200;
+    band.Q.value = 1.2;
+    const tickGain = context.createGain();
+    tickGain.gain.setValueAtTime(0.25, 0);
+    tickGain.gain.exponentialRampToValueAtTime(0.0001, 0.008);
+    tick.connect(band).connect(tickGain).connect(out);
+    tick.start(0);
+    const buffer = await context.startRendering();
+    return normaliseBuffer(buffer, accent ? 0.42 : 0.34);
+  }
+
+  function playClick(when, accent) {
+    const context = audio.ctx;
+    if (!context || context.state !== 'running') return;
+    const start = Math.max(context.currentTime, when || 0);
+    const buffer = audio.buffers.get(accent ? 'click:accent' : 'click:beat');
+    if (buffer) {
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audio.master);
+      source.start(start);
+      trackSource(source, start);
+      return;
+    }
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = accent ? 1860 : 1570;
+    gain.gain.setValueAtTime(accent ? 0.3 : 0.24, start);
+    gain.gain.exponentialRampToValueAtTime(0.0003, start + 0.06);
+    osc.connect(gain).connect(audio.master);
+    osc.start(start);
+    osc.stop(start + 0.07);
+    trackSource(osc, start);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Songs                                                               */
+  /* ------------------------------------------------------------------ */
+
+  function normaliseSong(raw, folder) {
+    if (!raw || typeof raw !== 'object') return null;
+    const title = String(raw.title || '').trim().slice(0, 80);
+    const sequence = String(raw.sequence || '');
+    if (!title || !sequence.trim()) return null;
+    return {
+      id: String(raw.id || `song-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`),
+      title,
+      artist: String(raw.artist || '').slice(0, 80),
+      bpm: Math.min(260, Math.max(20, Math.round(Number(raw.bpm) || 90))),
+      beatsPerBar: Math.min(12, Math.max(1, Math.round(Number(raw.beatsPerBar) || 4))),
+      sequence,
+      order: Number(raw.order) || 999,
+      folder,
+      builtIn: folder === 'demo'
+    };
+  }
+
+  function loadSongs() {
+    const catalog = Array.isArray(window.HANDPAN_DEMO_SONGS) && window.HANDPAN_DEMO_SONGS.length ? window.HANDPAN_DEMO_SONGS : FALLBACK_SONGS;
+    state.demoSongs = catalog.map(song => normaliseSong(song, 'demo')).filter(Boolean).sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+    const mine = readJson(STORAGE_SONGS, []);
+    state.mySongs = (Array.isArray(mine) ? mine : []).map(song => normaliseSong(song, 'mine')).filter(Boolean);
+  }
+
+  function saveMySongs() {
+    const ok = writeJson(STORAGE_SONGS, state.mySongs.map(({ id, title, artist, bpm, beatsPerBar, sequence }) => ({ id, title, artist, bpm, beatsPerBar, sequence })));
+    if (!ok) showToast('This browser blocked saving. Export the song to keep it.', 'warning');
+  }
+
+  function allSongs() {
+    return [...state.demoSongs, ...state.mySongs];
+  }
+
+  function findSong(id) {
+    return allSongs().find(song => song.id === id) || null;
+  }
+
+  function parseSong(song) {
+    return parseSequence(song?.sequence || '', song?.bpm, song?.beatsPerBar, state.padMap);
+  }
+
+  // Percussion zones are drawn only when the current song uses them.
+  function visiblePercIds() {
+    const used = state.parsed?.used || new Set();
+    return new Set(PERC_IDS.filter(id => used.has(id) && state.padMap.has(id)));
+  }
+
+  function selectSong(id, options = {}) {
+    const song = findSong(id) || state.demoSongs[0] || state.mySongs[0];
+    if (!song) return;
+    stopPlayback(false);
+    state.song = song;
+    state.parsed = parseSong(song);
+    state.particlePhaseCache.clear();
+    state.loopA = null;
+    state.loopB = null;
+    state.abLoop = false;
+    resetRun(0);
+    rebuildLanes();
+    renderDrums();
+    renderSongHeader();
+    renderSongList();
+    updateNextHint(true);
+    updateABLoopUI();
+    savePrefs();
+    if (options.closeSidebar) setSidebar(false);
+    if (audio.ctx && !audio.rendering) audio.rendering = renderAllSounds();
+    invalidateGuides();
+    requestFrame();
+  }
+
+  function renderSongHeader() {
+    const song = state.song;
+    const parsed = state.parsed;
+    if (!song || !parsed) return;
+    els.currentTitle.textContent = song.title;
+    els.stageSongName.innerHTML = `<b>${escapeHtml(song.title)}</b>${song.artist ? `<small>${escapeHtml(song.artist)}</small>` : ''}`;
+    const difficulty = songDifficulty(parsed);
+    els.currentDifficulty.textContent = `${difficulty.label} difficulty`;
+    els.currentDifficulty.dataset.level = difficulty.level;
+    const scaleName = SCALES[state.instrument.scale].name;
+    if (parsed.missing.size) {
+      els.currentFit.dataset.fit = 'warn';
+      els.currentFit.textContent = `${[...parsed.missing].join(', ')} not on ${scaleName}`;
+      els.currentFit.title = 'These strokes are skipped on your handpan. Pick a bigger scale in My Handpan, or turn on percussion strokes.';
+    } else {
+      els.currentFit.dataset.fit = 'ok';
+      els.currentFit.textContent = `✓ ${scaleName}`;
+      els.currentFit.title = 'Every stroke in this song is on your handpan.';
+    }
+    setTextIfChanged(els.totalNotesLabel, `${parsed.itemCount} strokes total`);
+    updateTempoLabel();
+    document.title = `${song.title} · Hand Drum Trainer`;
+  }
+
+  function updateTempoLabel() {
+    if (!state.parsed) return;
+    setTextIfChanged(els.tempoLabel, `${Math.round(state.parsed.bpm * state.speed)} BPM`);
+    setTextIfChanged(els.durationLabel, formatTime(state.parsed.duration / state.speed));
+  }
+
+  function renderSongList() {
+    const query = state.search.trim().toLowerCase();
+    const levelOk = song => {
+      if (state.levelFilter === 'all') return true;
+      const level = songDifficulty(parseSong(song)).level;
+      return state.levelFilter === 'hard' ? level === 'hard' || level === 'expert' : level === state.levelFilter;
+    };
+    const filter = song => levelOk(song) && (!query || song.title.toLowerCase().includes(query) || song.artist.toLowerCase().includes(query));
+    const group = (label, songs, emptyText, className) => {
+      const shown = songs.filter(filter);
+      const items = shown.map(song => {
+        const parsed = parseSong(song);
+        const difficulty = songDifficulty(parsed);
+        const active = state.song && state.song.id === song.id;
+        const meta = `${song.bpm} BPM · ${parsed.itemCount} strokes${song.artist ? ` · ${escapeHtml(song.artist)}` : ''}`;
+        return `<button class="song-item${active ? ' active' : ''}" data-song-id="${escapeHtml(song.id)}" type="button" title="${escapeHtml(song.title)}">
+          <span class="song-item-title"><strong>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span>
+          <span>${meta}</span>
+          ${parsed.missing.size ? `<span class="song-item-warn">needs ${escapeHtml([...parsed.missing].join(', '))}</span>` : ''}
+        </button>`;
+      }).join('');
+      return `<section class="song-group catalogue-collection ${className}">
+        <div class="song-group-heading static-heading"><span>${label}</span><small>${shown.length}</small></div>
+        <div class="song-group-items">${items || `<p class="community-empty">${emptyText}</p>`}</div>
+      </section>`;
+    };
+    els.songList.innerHTML = group('Demo songs', state.demoSongs, query ? 'No demo songs match that search.' : 'Drop .handsong files into demo-songs.', 'demo-collection')
+      + group('My songs', state.mySongs, query ? 'No My songs match that search.' : 'Create or import a song and it will appear here.', 'community-collection personal-collection');
+    els.deleteBtn.disabled = !(state.song && state.song.folder === 'mine');
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Handpan drawing (SVG)                                               */
+  /* ------------------------------------------------------------------ */
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  let svgCounter = 0;
+
+  function svgEl(name, attrs = {}, parent) {
+    const node = document.createElementNS(SVG_NS, name);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function buildDrumSvg(options = {}) {
+    const uid = `hp${(svgCounter += 1)}`;
+    const svg = svgEl('svg', { viewBox: `${VIEWBOX.x} ${VIEWBOX.y} ${VIEWBOX.w} ${VIEWBOX.h}`, class: `handpan-svg${options.className ? ` ${options.className}` : ''}`, role: 'group' });
+    const defs = svgEl('defs', {}, svg);
+    const shellGrad = svgEl('radialGradient', { id: `${uid}-shell`, cx: '42%', cy: '36%', r: '72%' }, defs);
+    svgEl('stop', { offset: '0%', 'stop-color': '#5b6175' }, shellGrad);
+    svgEl('stop', { offset: '55%', 'stop-color': '#363b4b' }, shellGrad);
+    svgEl('stop', { offset: '100%', 'stop-color': '#1d2130' }, shellGrad);
+    const padGrad = svgEl('radialGradient', { id: `${uid}-pad`, cx: '45%', cy: '40%', r: '70%' }, defs);
+    svgEl('stop', { offset: '0%', 'stop-color': '#7d849b', 'stop-opacity': '0.55' }, padGrad);
+    svgEl('stop', { offset: '100%', 'stop-color': '#2a2f40', 'stop-opacity': '0.55' }, padGrad);
+    const rimGrad = svgEl('linearGradient', { id: `${uid}-rim`, x1: '0', y1: '0', x2: '1', y2: '1' }, defs);
+    svgEl('stop', { offset: '0%', 'stop-color': '#c9cfdf', 'stop-opacity': '0.7' }, rimGrad);
+    svgEl('stop', { offset: '50%', 'stop-color': '#545b70', 'stop-opacity': '0.5' }, rimGrad);
+    svgEl('stop', { offset: '100%', 'stop-color': '#a9b0c4', 'stop-opacity': '0.6' }, rimGrad);
+
+    const body = svgEl('g', { class: 'hp-body' }, svg);
+    if (!options.noHalo) svgEl('circle', { r: 1.035, class: 'hp-halo' }, body);
+    svgEl('circle', { r: 1, fill: `url(#${uid}-shell)`, class: 'hp-shell' }, body);
+    svgEl('circle', { r: 0.985, fill: 'none', stroke: `url(#${uid}-rim)`, 'stroke-width': 0.022, class: 'hp-rim' }, body);
+    svgEl('ellipse', { cx: -0.3, cy: -0.42, rx: 0.42, ry: 0.22, class: 'hp-sheen', transform: 'rotate(-28 -0.3 -0.42)' }, body);
+
+    const percShown = options.showAllPerc ? new Set(PERC_IDS) : visiblePercIds();
+    const padGroup = svgEl('g', { class: 'hp-pads' }, svg);
+    const padEls = new Map();
+    const ordered = state.pads
+      .filter(pad => pad.kind !== 'perc' || percShown.has(pad.id))
+      .sort((a, b) => (a.kind === 'perc') - (b.kind === 'perc'));
+    ordered.forEach(pad => {
+      const g = svgEl('g', { class: `pad pad-${pad.kind}`, 'data-pad': pad.id, transform: `translate(${pad.x.toFixed(4)} ${pad.y.toFixed(4)})` });
+      g.style.setProperty('--note', pad.color);
+      if (pad.kind === 'perc') {
+        svgEl('circle', { r: 0.12, class: 'hit-area' }, g);
+        svgEl('circle', { r: pad.rx, class: 'field' }, g);
+        svgEl('text', { class: 'num perc-num', y: 0.004 }, g).textContent = pad.label;
+      } else if (pad.kind === 'ding') {
+        svgEl('ellipse', { rx: pad.rx, ry: pad.ry, class: 'field', fill: `url(#${uid}-pad)` }, g);
+        svgEl('ellipse', { rx: pad.rx * 0.42, ry: pad.ry * 0.42, class: 'dimple' }, g);
+        svgEl('text', { class: 'num ding-num', y: state.instrument.noteNames ? -0.025 : 0.004 }, g).textContent = 'D';
+        if (state.instrument.noteNames) svgEl('text', { class: 'name', y: 0.1 }, g).textContent = pad.name;
+      } else {
+        const shape = svgEl('g', { transform: `rotate(${pad.rot.toFixed(2)})` }, g);
+        if (pad.kind === 'bottom') {
+          svgEl('ellipse', { rx: pad.rx, ry: pad.ry, class: 'field bottom-field' }, shape);
+        } else {
+          svgEl('ellipse', { rx: pad.rx, ry: pad.ry, class: 'field', fill: `url(#${uid}-pad)` }, shape);
+          svgEl('ellipse', { rx: pad.rx * 0.5, ry: pad.ry * 0.5, class: 'dimple' }, shape);
+        }
+        const big = pad.kind === 'tone' ? Math.max(0.095, Math.min(0.13, pad.ry * 0.9)) : 0.08;
+        const num = svgEl('text', { class: 'num', y: state.instrument.noteNames ? -0.018 : 0.004 }, g);
+        num.style.fontSize = `${big}px`;
+        num.textContent = pad.label;
+        if (state.instrument.noteNames) svgEl('text', { class: 'name', y: 0.07 }, g).textContent = pad.name;
+      }
+      padGroup.appendChild(g);
+      padEls.set(pad.id, g);
+    });
+    if (state.pads.some(p => p.kind === 'bottom')) {
+      svgEl('text', { class: 'under-caption', x: 0, y: 1.215 }, svg).textContent = 'bottom notes (underside)';
+    }
+    const drum = { svg, padEls, options };
+    if (options.interactive) bindDrumInput(drum);
+    return drum;
+  }
+
+  function bindDrumInput(drum) {
+    drum.svg.addEventListener('pointerdown', event => {
+      const target = event.target.closest('[data-pad]');
+      if (!target) return;
+      event.preventDefault();
+      const padId = target.getAttribute('data-pad');
+      if (drum.options.onTap) drum.options.onTap(padId, event);
+      else userHit(padId, 'tap');
+    });
+    drum.svg.addEventListener('contextmenu', event => event.preventDefault());
+  }
+
+  function renderDrums() {
+    const side = buildDrumSvg({ interactive: true, className: 'side-drum' });
+    els.drumWrap.replaceChildren(side.svg);
+    const stage = buildDrumSvg({ interactive: true, className: 'stage-drum', noHalo: true });
+    els.stageDrumWrap.replaceChildren(stage.svg);
+    state.drums = [side, stage];
+    state.nextKey = '';
+    updateNextHint(true);
+    renderInstrumentInfo();
+  }
+
+  function flashPad(padId, color, duration = 220) {
+    state.drums.forEach(drum => {
+      const g = drum.padEls.get(padId);
+      if (!g) return;
+      g.style.setProperty('--flash', color);
+      g.classList.add('flash');
+      clearTimeout(g._flashTimer);
+      g._flashTimer = setTimeout(() => g.classList.remove('flash'), duration);
+    });
+    state.laneFlash.set(padId, { at: performance.now(), color });
+    requestFrame();
+  }
+
+  function markWrongPad(padId) {
+    state.drums.forEach(drum => {
+      const g = drum.padEls.get(padId);
+      if (!g) return;
+      g.classList.add('wrong');
+      clearTimeout(g._wrongTimer);
+      g._wrongTimer = setTimeout(() => g.classList.remove('wrong'), 260);
+    });
+  }
+
+  function renderInstrumentInfo() {
+    const scale = SCALES[state.instrument.scale];
+    els.instrumentTitle.textContent = `${scale.name} · 440 Hz`;
+    const perc = visiblePercIds();
+    const keys = [`D, 1–${scale.top.length}`];
+    if (scale.bottoms) keys.push('0 / -');
+    if (perc.size) keys.push([...new Set([...perc].map(id => PERC_INFO[id].label))].join(' '));
+    els.keyboardHint.textContent = `Keys ${keys.join(', ')}`;
+    const strokes = [];
+    if (state.parsed?.used.has('D')) strokes.push('<span><b>D</b> ding</span>');
+    if (perc.has('T')) strokes.push('<span><b>T</b> tak</span>');
+    if (perc.has('K')) strokes.push('<span><b>K</b> ka</span>');
+    if (perc.has('SL') || perc.has('SR')) strokes.push('<span><b>S</b> slap</span>');
+    els.strokeKey.innerHTML = perc.size ? strokes.join('') : '';
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Playback engine                                                     */
+  /* ------------------------------------------------------------------ */
+
+  function realNow() {
+    if (state.clock === 'audio' && audio.ctx) return audio.ctx.currentTime;
+    return performance.now() / 1000;
+  }
+
+  function songNow() {
+    if (!state.playing) return state.songTime;
+    if (state.holding) return state.anchorSong;
+    return state.anchorSong + (realNow() - state.anchorReal) * state.speed;
+  }
+
+  function songToCtx(time) {
+    return state.anchorReal + (time - state.anchorSong) / state.speed;
+  }
+
+  function anchorAt(time) {
+    state.anchorSong = time;
+    state.anchorReal = realNow();
+    state.songTime = time;
+  }
+
+  function playableItems() {
+    return state.parsed ? state.parsed.events.flatMap(e => e.items.filter(i => !i.missing)) : [];
+  }
+
+  function firstEventIndexAtOrAfter(time) {
+    const events = state.parsed?.events || [];
+    let lo = 0;
+    let hi = events.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (events[mid].time < time - 1e-6) lo = mid + 1; else hi = mid;
+    }
+    return lo;
+  }
+
+  function eventPlayable(event) {
+    return event.items.some(item => !item.missing);
+  }
+
+  function eventDone(event) {
+    return event.items.every(item => item.missing || state.results.has(item.id));
+  }
+
+  function resetRun(time = 0) {
+    state.results.clear();
+    state.userPlayed = false;
+    state.wrong = 0;
+    state.streak = 0;
+    state.bestStreak = 0;
+    state.effects = [];
+    state.runStartedAt = performance.now();
+    seekTo(time, { keepResults: true });
+  }
+
+  function clearResultsFrom(time, until = Infinity) {
+    if (!state.parsed) return;
+    state.parsed.events.forEach(event => {
+      if (event.time >= time - 1e-6 && event.time < until - 1e-6) event.items.forEach(item => state.results.delete(item.id));
+    });
+  }
+
+  function seekTo(time, options = {}) {
+    if (!state.parsed) return;
+    const duration = state.parsed.duration;
+    const t = Math.max(-60, Math.min(duration, time));
+    if (!options.keepResults) clearResultsFrom(Math.max(0, t));
+    state.waitIdx = firstEventIndexAtOrAfter(t);
+    state.schedIdx = state.waitIdx;
+    state.flashIdx = state.waitIdx;
+    state.missIdx = state.waitIdx;
+    state.schedBeat = Math.ceil(t / state.parsed.spb - 1e-6);
+    state.holding = false;
+    if (state.playing) {
+      cancelScheduledAudio();
+      anchorAt(t);
+    } else {
+      state.songTime = t;
+    }
+    updateNextHint(true);
+    updatePracticeUI();
+    requestFrame();
+  }
+
+  async function togglePlayback() {
+    if (state.mode === 'tuner') {
+      if (!mic.on) await startMic();
+      return;
+    }
+    if (state.playing) {
+      pausePlayback();
+      return;
+    }
+    await startPlayback();
+  }
+
+  async function startPlayback(options = {}) {
+    if (!state.parsed || !state.parsed.events.length) {
+      showToast('This song has no strokes yet.', 'warning');
+      return;
+    }
+    clearTimeout(state.loopTimer);
+    const context = await ensureAudio();
+    state.clock = context && context.state === 'running' ? 'audio' : 'perf';
+    const parsed = state.parsed;
+    let start = state.songTime;
+    if (start >= parsed.duration - 0.01) {
+      resetRun(0);
+      start = 0;
+    }
+    if (state.abLoop && state.loopA != null && (start < state.loopA - 0.001 || start >= state.loopB)) start = state.loopA;
+    state.countInBeats = 0;
+    if (start <= 0.0001 || options.countIn) {
+      if (start <= 0.0001) state.runStartedAt = performance.now();
+      if (state.mode === 'wait') {
+        // The notes wait for you anyway, so no count-in: just let the first ones fly in.
+        start -= Math.min(previewSeconds() * 0.55, 1.4 * state.speed);
+      } else if (state.countIn && !tour.active) {
+        const beats = parsed.beatsPerBar <= 2 ? parsed.beatsPerBar * 2 : parsed.beatsPerBar;
+        state.countInBeats = beats;
+        start -= beats * parsed.spb;
+      } else {
+        start -= Math.max(1.5 * parsed.spb, 0.6);
+      }
+    }
+    state.playing = true;
+    seekTo(start, { keepResults: true });
+    anchorAt(start);
+    resetVisualPerformanceMonitor();
+    startScheduler();
+    updateTransportUI();
+    requestFrame();
+  }
+
+  function pausePlayback() {
+    if (!state.playing) return;
+    state.songTime = Math.max(0, Math.min(state.parsed?.duration || 0, songNow()));
+    state.playing = false;
+    state.holding = false;
+    stopScheduler();
+    cancelScheduledAudio();
+    els.countIn.hidden = true;
+    els.waitBanner.hidden = true;
+    updateTransportUI();
+    requestFrame();
+  }
+
+  function stopPlayback(resetPosition = true) {
+    clearTimeout(state.loopTimer);
+    if (state.playing) pausePlayback();
+    if (resetPosition) resetRun(0);
+    updateTransportUI();
+  }
+
+  function startScheduler() {
+    stopScheduler();
+    runScheduler();
+    state.schedulerId = window.setInterval(runScheduler, SCHEDULER_MS);
+  }
+
+  function stopScheduler() {
+    clearInterval(state.schedulerId);
+    state.schedulerId = 0;
+  }
+
+  // Listen just plays the song (full volume, pads light up, nothing is scored).
+  // Practice scores every stroke from the very first note.
+  function listening() {
+    return state.mode === 'listen';
+  }
+
+  function autoPlaysNotes() {
+    if (state.mode === 'listen' || tour.active) return true;
+    return state.guide && (state.mode === 'practice' || state.mode === 'wait');
+  }
+
+  function runScheduler() {
+    if (!state.playing || !state.parsed || document.hidden || state.holding) return;
+    const parsed = state.parsed;
+    const t = songNow();
+    let horizon = t + AUDIO_LOOKAHEAD * state.speed;
+    if (state.abLoop && state.loopB != null) horizon = Math.min(horizon, state.loopB - 0.001);
+    if (state.mode === 'wait') {
+      const pending = parsed.events[nextPendingWaitIndex()];
+      if (pending) horizon = Math.min(horizon, pending.time + 0.0005);
+    }
+    const events = parsed.events;
+    while (state.schedIdx < events.length && events[state.schedIdx].time <= horizon) {
+      const event = events[state.schedIdx];
+      if (event.time >= t - 0.04 && autoPlaysNotes() && !eventDone(event)) {
+        const when = songToCtx(event.time);
+        const velocity = listening() ? 1 : 0.55;
+        event.items.forEach(item => { if (!item.missing) playPad(item.pad, state.clock === 'audio' ? when : 0, velocity); });
+      }
+      state.schedIdx += 1;
+    }
+    const spb = parsed.spb;
+    while (state.schedBeat * spb <= horizon) {
+      const beat = state.schedBeat;
+      const beatTime = beat * spb;
+      if (beatTime >= t - 0.04 && beatTime < parsed.duration - 0.001) {
+        const isCount = beat < 0 && state.countInBeats > 0 && beat >= -state.countInBeats;
+        if (isCount || (state.metronome && beat >= 0)) {
+          const accent = isCount ? beat === -state.countInBeats : ((beat % parsed.beatsPerBar) + parsed.beatsPerBar) % parsed.beatsPerBar === 0;
+          playClick(state.clock === 'audio' ? songToCtx(beatTime) : 0, accent);
+        }
+      }
+      state.schedBeat += 1;
+    }
+  }
+
+  function nextPendingWaitIndex() {
+    const events = state.parsed?.events || [];
+    let index = state.waitIdx;
+    while (index < events.length && (!eventPlayable(events[index]) || eventDone(events[index]))) index += 1;
+    return index;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Frame loop                                                          */
+  /* ------------------------------------------------------------------ */
+
+  let frameRequested = false;
+
+  function requestFrame() {
+    if (frameRequested) return;
+    frameRequested = true;
+    requestAnimationFrame(frame);
+  }
+
+  function frame(nowMs) {
+    frameRequested = false;
+    const parsed = state.parsed;
+    if (state.playing && parsed) {
+      let t = songNow();
+      if (state.mode === 'wait' && !state.holding) {
+        state.waitIdx = nextPendingWaitIndex();
+        const pending = parsed.events[state.waitIdx];
+        if (pending && t >= pending.time) {
+          state.holding = true;
+          state.anchorSong = pending.time;
+          state.anchorReal = realNow();
+          state.songTime = pending.time;
+          t = pending.time;
+          updateWaitBanner();
+        }
+      }
+      if (listening()) flashDueNotes(t);
+      if (state.mode === 'practice') markMissedNotes(t);
+      if (state.abLoop && state.loopA != null && state.loopB != null && t >= state.loopB) {
+        restartSection();
+        t = songNow();
+      } else if (t >= parsed.duration && !(state.mode === 'wait' && nextPendingWaitIndex() < parsed.events.length)) {
+        finishPlayback();
+      }
+      updateCountIn(t);
+      const profile = visualPerformanceProfile();
+      if (nowMs - state.lastUi > profile.uiInterval) {
+        state.lastUi = nowMs;
+        updatePracticeUI();
+        updateNextHint();
+      }
+    }
+
+    const profile = visualPerformanceProfile();
+    const busy = state.playing || state.effects.length || state.laneFlash.size || spin.active;
+    const interval = state.playing ? profile.visualInterval : busy ? 0 : effectiveAmbientInterval(profile);
+    updateTape(songNow());
+    if (state.dirty || !interval || nowMs - state.lastRenderAt >= interval) {
+      applySpin(nowMs);
+      state.dirty = false;
+      state.lastRenderAt = nowMs;
+      const started = performance.now();
+      renderStage(nowMs);
+      if (state.playing) monitorVisualPerformance(started, performance.now(), profile);
+    }
+    const ambient = state.view === 'radial' && !document.hidden;
+    if (busy || state.dirty || ambient) requestFrame();
+  }
+
+  function flashDueNotes(t) {
+    const events = state.parsed.events;
+    while (state.flashIdx < events.length && events[state.flashIdx].time <= t + 0.012) {
+      const event = events[state.flashIdx];
+      if (event.time >= t - 0.25) {
+        event.items.forEach(item => {
+          if (item.missing) return;
+          flashPad(item.pad, itemColor(item), Math.max(150, Math.min(380, event.durBeats * state.parsed.spb * 600 / state.speed)));
+        });
+      }
+      state.flashIdx += 1;
+    }
+  }
+
+  function goodWindow() {
+    return Math.max(0.3 * state.parsed.spb, 0.13);
+  }
+
+  function perfectWindow() {
+    return Math.max(0.13 * state.parsed.spb, 0.06);
+  }
+
+  function markMissedNotes(t) {
+    const events = state.parsed.events;
+    const window = goodWindow();
+    while (state.missIdx < events.length && events[state.missIdx].time < t - window) {
+      const event = events[state.missIdx];
+      let missed = false;
+      event.items.forEach(item => {
+        if (item.missing || state.results.has(item.id)) return;
+        state.results.set(item.id, 'miss');
+        missed = true;
+        addEffect('miss', item.pad, WRONG_COLOR);
+      });
+      if (missed) {
+        state.streak = 0;
+        tapeJudge('miss');
+      }
+      state.missIdx += 1;
+    }
+  }
+
+  function restartSection() {
+    clearResultsFrom(state.loopA, state.loopB);
+    cancelScheduledAudio();
+    const preroll = Math.min(state.loopA, state.parsed.spb);
+    seekTo(state.loopA - preroll, { keepResults: true });
+  }
+
+  function finishPlayback() {
+    const parsed = state.parsed;
+    if (state.mode === 'practice') markMissedNotes(parsed.duration + 10);
+    state.playing = false;
+    state.holding = false;
+    state.songTime = parsed.duration;
+    stopScheduler();
+    els.countIn.hidden = true;
+    els.waitBanner.hidden = true;
+    updateTransportUI();
+    updatePracticeUI();
+    requestFrame();
+    if (tour.active) {
+      // The tour keeps Interstellar going round.
+      state.loopTimer = window.setTimeout(() => {
+        if (!tour.active) return;
+        resetRun(0);
+        startPlayback();
+      }, 900);
+      return;
+    }
+    if (state.loop) {
+      state.loopTimer = window.setTimeout(() => {
+        resetRun(0);
+        startPlayback();
+      }, 700);
+      return;
+    }
+    if (state.mode === 'practice' || state.mode === 'wait') showResults();
+  }
+
+  function updateCountIn(t) {
+    if (state.countInBeats > 0 && t < 0) {
+      const remaining = Math.ceil(-t / state.parsed.spb - 1e-6);
+      if (remaining >= 1 && remaining <= state.countInBeats) {
+        const text = String(remaining);
+        if (els.countIn.textContent !== text || els.countIn.hidden) {
+          els.countIn.textContent = text;
+          els.countIn.hidden = false;
+          els.countIn.classList.remove('pop');
+          void els.countIn.offsetWidth;
+          els.countIn.classList.add('pop');
+        }
+        return;
+      }
+    }
+    if (!els.countIn.hidden) els.countIn.hidden = true;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Input / judging                                                     */
+  /* ------------------------------------------------------------------ */
+
+  function itemColor(item) {
+    if (state.instrument.handColors && item.hand) return HAND_COLORS[item.hand];
+    return state.padMap.get(item.pad)?.color || '#e2e8f0';
+  }
+
+  function padColor(pad) {
+    return state.instrument.handColors ? HAND_COLORS[pad.hand] || pad.color : pad.color;
+  }
+
+  function userHit(padId, source = 'tap') {
+    if (!state.padMap.has(padId)) return;
+    if (source !== 'mic') ensureAudio().then(() => playPad(padId, 0, 1)).catch(() => {});
+    const pad = state.padMap.get(padId);
+    if (!state.playing || state.mode === 'tuner' || state.mode === 'listen' || !state.parsed) {
+      flashPad(padId, source === 'mic' ? MIC_HEARD_COLOR : padColor(pad), source === 'mic' ? 600 : 200);
+      addEffect('burst', padId, source === 'mic' ? MIC_HEARD_COLOR : padColor(pad));
+      return;
+    }
+    if (state.mode === 'wait') judgeWait(padId);
+    else judgePractice(padId);
+    updatePracticeUI();
+    requestFrame();
+  }
+
+  function registerHit(item, quality) {
+    state.results.set(item.id, quality);
+    state.streak += 1;
+    state.bestStreak = Math.max(state.bestStreak, state.streak);
+    const color = itemColor(item);
+    flashPad(item.pad, color, 230);
+    addEffect('burst', item.pad, color);
+    if (quality === 'perfect' || quality === 'good') addEffect('text', item.pad, quality === 'perfect' ? '#5eead4' : '#c4b5fd', quality === 'perfect' ? 'Perfect' : 'Good');
+    tapeJudge(quality);
+  }
+
+  function registerWrong(padId) {
+    state.wrong += 1;
+    state.streak = 0;
+    markWrongPad(padId);
+    flashPad(padId, WRONG_COLOR, 200);
+    addEffect('miss', padId, WRONG_COLOR);
+    tapeJudge('wrong');
+  }
+
+  function judgePractice(padId) {
+    const t = songNow();
+    const window = goodWindow();
+    const events = state.parsed.events;
+    let best = null;
+    let bestDelta = Infinity;
+    const from = Math.max(0, firstEventIndexAtOrAfter(t - window) - 1);
+    for (let i = from; i < events.length && events[i].time <= t + window; i += 1) {
+      const event = events[i];
+      const delta = Math.abs(event.time - t);
+      if (delta > window) continue;
+      event.items.forEach(item => {
+        if (item.missing || item.pad !== padId || state.results.has(item.id)) return;
+        if (delta < bestDelta) { best = item; bestDelta = delta; }
+      });
+    }
+    if (best) registerHit(best, bestDelta <= perfectWindow() ? 'perfect' : 'good');
+    else registerWrong(padId);
+  }
+
+  function judgeWait(padId) {
+    const events = state.parsed.events;
+    const index = nextPendingWaitIndex();
+    const pending = events[index];
+    if (!pending) { registerWrong(padId); return; }
+    const t = songNow();
+    const early = Math.max(0.45 * state.parsed.spb, 0.18);
+    const item = pending.items.find(candidate => !candidate.missing && candidate.pad === padId && !state.results.has(candidate.id));
+    if (!item || t < pending.time - early) {
+      registerWrong(padId);
+      return;
+    }
+    registerHit(item, 'hit');
+    if (eventDone(pending)) {
+      state.waitIdx = index + 1;
+      if (state.holding) {
+        state.holding = false;
+        anchorAt(pending.time);
+        state.schedIdx = Math.max(state.schedIdx, index + 1);
+      }
+      els.waitBanner.hidden = true;
+      updateNextHint(true);
+    } else {
+      updateWaitBanner();
+    }
+  }
+
+  function updateWaitBanner() {
+    const pending = state.parsed?.events[nextPendingWaitIndex()];
+    if (!state.holding || !pending) { els.waitBanner.hidden = true; return; }
+    els.waitBannerNotes.innerHTML = pending.items.filter(i => !i.missing).map(item => {
+      const done = state.results.has(item.id);
+      const label = state.padMap.get(item.pad)?.label || item.pad;
+      return `<span class="wb-item${done ? ' done' : ''}" style="--hand:${itemColor(item)}">${escapeHtml(label)}<small>${item.hand}</small></span>`;
+    }).join('<em>+</em>');
+    els.waitBanner.hidden = false;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* UI updates                                                          */
+  /* ------------------------------------------------------------------ */
+
+  function setTextIfChanged(element, value) {
+    if (element && element.textContent !== value) element.textContent = value;
+  }
+
+  function setToneIfChanged(element, value) {
+    if (element && element.dataset.tone !== value) element.dataset.tone = value;
+  }
+
+  function updatePracticeUI() {
+    const parsed = state.parsed;
+    if (!parsed) return;
+    const t = state.playing ? songNow() : state.songTime;
+    const shown = Math.max(0, Math.min(parsed.duration, t));
+    if (!state.dragProgress) {
+      const value = String(Math.round((shown / parsed.duration) * 1000));
+      if (els.progress.value !== value) els.progress.value = value;
+    }
+    setTextIfChanged(els.elapsedLabel, formatTime(shown / state.speed));
+
+    let perfect = 0; let good = 0; let miss = 0; let hit = 0;
+    state.results.forEach(value => {
+      if (value === 'perfect') perfect += 1;
+      else if (value === 'good') good += 1;
+      else if (value === 'miss') miss += 1;
+      else if (value === 'hit') hit += 1;
+    });
+    const judged = perfect + good + miss + hit;
+    let score = 0;
+    if (state.mode === 'wait') score = hit + state.wrong ? hit / (hit + state.wrong) : 0;
+    else if (state.mode === 'practice') score = judged + state.wrong ? (perfect + good * 0.7) / (judged + state.wrong * 0.5) : 0;
+    const percent = Math.round(score * 100);
+    const scoreText = `${percent}%`;
+    setTextIfChanged(els.scoreValue, scoreText);
+    setTextIfChanged(els.mobileScoreValue, scoreText);
+    setTextIfChanged(els.streakValue, String(state.streak));
+    setTextIfChanged(els.mobileStreakValue, String(state.streak));
+    const scoreTone = !(judged + state.wrong) || percent === 0 ? 'neutral' : percent >= 80 ? 'success' : percent >= 40 ? 'warning' : 'danger';
+    const streakTone = state.streak === 0 ? 'neutral' : state.streak >= 3 ? 'success' : 'building';
+    setToneIfChanged(els.scorePill, scoreTone);
+    setToneIfChanged(els.mobileScorePill, scoreTone);
+    setToneIfChanged(els.streakPill, streakTone);
+    setToneIfChanged(els.mobileStreakPill, streakTone);
+    let left;
+    if (state.mode === 'practice' || state.mode === 'wait') left = Math.max(0, parsed.itemCount - judged);
+    else left = playableItems().filter(item => parsed.events[item.event].time >= t - 0.001).length;
+    setTextIfChanged(els.notesLeftValue, String(left));
+    setTextIfChanged(els.mobileNotesLeftValue, String(left));
+  }
+
+  function nextUpcomingEvent() {
+    const parsed = state.parsed;
+    if (!parsed || state.mode === 'tuner') return null;
+    const t = state.playing ? songNow() : state.songTime;
+    if (state.mode === 'wait') return parsed.events[nextPendingWaitIndex()] || null;
+    const window = state.mode === 'practice' ? goodWindow() : 0.02;
+    for (let i = firstEventIndexAtOrAfter(t - window); i < parsed.events.length; i += 1) {
+      const event = parsed.events[i];
+      if (!eventPlayable(event)) continue;
+      if (state.mode === 'practice' && eventDone(event)) continue;
+      return event;
+    }
+    return null;
+  }
+
+  function updateNextHint(force = false) {
+    const event = nextUpcomingEvent();
+    const key = event ? `${event.index}:${state.mode}:${state.instrument.handColors}` : 'none';
+    const t = state.playing ? songNow() : state.songTime;
+    let timeText;
+    if (event) {
+      const beats = (event.time - t) / state.parsed.spb;
+      timeText = state.holding ? 'Play it now' : beats <= 0.25 ? 'Now' : `in ${beats < 10 ? beats.toFixed(1) : Math.round(beats)} beats`;
+    } else {
+      timeText = state.mode === 'tuner' ? 'Tuner' : state.parsed && state.songTime >= state.parsed.duration - 0.01 ? 'Complete' : 'Ready';
+    }
+    setTextIfChanged(els.nextNoteTime, timeText);
+    if (key === state.nextKey && !force) return;
+    state.nextKey = key;
+    state.drums.forEach(drum => drum.padEls.forEach(g => g.classList.remove('next')));
+    if (!event) {
+      els.nextNoteValue.innerHTML = state.parsed && state.songTime >= state.parsed.duration - 0.01 ? '✓' : '–';
+      return;
+    }
+    // Before the transport rolls, keep the drum clean (no highlighted pads).
+    const started = state.playing || state.songTime > 0.001;
+    event.items.forEach(item => {
+      if (item.missing || !started) return;
+      state.drums.forEach(drum => {
+        const g = drum.padEls.get(item.pad);
+        if (!g) return;
+        g.style.setProperty('--next', itemColor(item));
+        g.classList.add('next');
+      });
+    });
+    els.nextNoteValue.innerHTML = event.items.filter(i => !i.missing).map(item => {
+      const label = state.padMap.get(item.pad)?.label || item.pad;
+      return `<span class="nn-item" style="--hand:${itemColor(item)}">${escapeHtml(label)}<small>${item.hand === 'L' ? 'left' : 'right'}</small></span>`;
+    }).join('<em>+</em>') || '–';
+  }
+
+  function updateTransportUI() {
+    els.playBtn.innerHTML = state.playing
+      ? '<span class="pause-icon" aria-hidden="true"><span></span><span></span></span>'
+      : '<span class="play-icon" aria-hidden="true"></span>';
+    els.playBtn.setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
+    els.loopBtn.classList.toggle('active', state.loop);
+    els.loopBtn.setAttribute('aria-pressed', String(state.loop));
+    els.metronomeBtn.classList.toggle('active', state.metronome);
+    els.metronomeBtn.setAttribute('aria-pressed', String(state.metronome));
+    els.guideBtn.classList.toggle('active', state.guide);
+    els.guideBtn.setAttribute('aria-pressed', String(state.guide));
+    els.guideBtn.disabled = state.mode === 'listen';
+    els.guideBtn.title = state.mode === 'listen' ? 'Listen always plays the song' : state.guide ? 'Song sound on: the app plays the song (quieter once you play along)' : 'Song sound off: only your own strokes';
+    document.body.classList.toggle('is-playing', state.playing);
+  }
+
+  function updateModeUI() {
+    document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
+    const hints = {
+      listen: 'Sit back and listen: the song plays and the handpan lights up. Tap along if you like, nothing is scored.',
+      practice: 'Play along in time on screen, on the keyboard or with the microphone. Every stroke is scored: Perfect, Good or Miss.',
+      wait: 'The notes fly in and wait for you. Play each stroke to move on — play in time and it never stops.',
+      tuner: 'Strike one note at a time. The note lights up and the meter shows how many cents it is from 440 Hz tuning.'
+    };
+    els.modeHint.textContent = hints[state.mode];
+    const tuner = state.mode === 'tuner';
+    els.trainerGrid.classList.toggle('tuner-mode', tuner);
+    els.tunerPanel.hidden = !tuner;
+    document.body.dataset.mode = state.mode;
+    updateTransportUI();
+    updateMicUI();
+  }
+
+  function setMode(mode) {
+    if (mode === 'demo') mode = 'listen';
+    if (!['listen', 'practice', 'wait', 'tuner'].includes(mode) || mode === state.mode) return;
+    const wasPlaying = state.playing;
+    pausePlayback();
+    const previous = state.mode;
+    state.mode = mode;
+    const t = state.songTime;
+    resetRun(t >= (state.parsed?.duration || 0) - 0.01 ? 0 : t);
+    if (mode === 'tuner') {
+      if (state.view !== 'radial') setView('radial', { silent: true, keepPref: true });
+      resetTunerDisplay(mic.on ? 'Listening for a clear pitch' : 'Turn on the microphone to begin');
+      if (!mic.on) startMic();
+    } else if (previous === 'tuner' && prefs.view === 'lanes' && state.view !== 'lanes') {
+      setView('lanes', { silent: true });
+    }
+    updateModeUI();
+    updateNextHint(true);
+    savePrefs();
+    resizeCanvas();
+    if (wasPlaying && mode !== 'tuner') startPlayback();
+  }
+
+  function setView(view, options = {}) {
+    if (!['radial', 'lanes'].includes(view)) return;
+    state.view = view;
+    if (!options.keepPref) prefs.view = view;
+    const radial = view === 'radial';
+    els.noteStage.classList.toggle('radial-view', radial);
+    els.trainerGrid.classList.toggle('radial-layout', radial);
+    document.querySelectorAll('.view-segment').forEach(button => {
+      button.classList.toggle('active', button.dataset.view === view);
+      button.setAttribute('aria-pressed', String(button.dataset.view === view));
+    });
+    const nextView = radial ? 'Falling lanes' : 'Drum centre';
+    els.mobileViewToggleBtn.dataset.view = view;
+    els.mobileViewToggleBtn.setAttribute('aria-label', `Switch display to ${nextView}`);
+    els.mobileViewToggleBtn.title = `Switch to ${nextView}`;
+    document.body.dataset.view = view;
+    if (!options.keepPref) savePrefs();
+    if (!options.silent) showToast(radial ? 'Centre-drum display enabled.' : 'Falling-lane display enabled.', 'success');
+    requestAnimationFrame(() => resizeCanvas());
+  }
+
+  function setSpeed(value, announce = false) {
+    state.speed = clampSpeed(value);
+    if (state.playing) {
+      const t = songNow();
+      cancelScheduledAudio();
+      state.anchorSong = t;
+      state.anchorReal = realNow();
+      if (!state.holding) state.songTime = t;
+      state.schedIdx = firstEventIndexAtOrAfter(t);
+      state.schedBeat = Math.ceil(t / state.parsed.spb - 1e-6);
+    }
+    els.speedRange.value = String(state.speed);
+    els.speedValue.textContent = `${formatSpeed(state.speed)}×`;
+    document.querySelectorAll('[data-speed]').forEach(button => button.classList.toggle('active', Math.abs(Number(button.dataset.speed) - state.speed) < 0.001));
+    updateTempoLabel();
+    savePrefs();
+    if (announce) showToast(`Speed ${formatSpeed(state.speed)}× · ${Math.round((state.parsed?.bpm || 0) * state.speed)} BPM`, 'success');
+  }
+
+  function formatSpeed(value) {
+    return Number(value).toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* A-B section loop                                                    */
+  /* ------------------------------------------------------------------ */
+
+  function currentPosition() {
+    return Math.max(0, Math.min(state.parsed?.duration || 0, state.playing ? songNow() : state.songTime));
+  }
+
+  function snapToBar(time) {
+    const parsed = state.parsed;
+    if (!parsed) return time;
+    const beat = time / parsed.spb;
+    let best = parsed.bars[0];
+    parsed.bars.forEach(bar => { if (Math.abs(bar - beat) < Math.abs(best - beat)) best = bar; });
+    return best * parsed.spb;
+  }
+
+  function setLoopPoint(which) {
+    const parsed = state.parsed;
+    if (!parsed) return;
+    const position = snapToBar(currentPosition());
+    if (which === 'A') {
+      state.loopA = position;
+      if (state.loopB != null && state.loopB <= position) state.loopB = null;
+    } else {
+      state.loopB = position;
+      if (state.loopA != null && state.loopA >= position) state.loopA = null;
+      if (state.loopA == null) state.loopA = 0;
+    }
+    if (state.loopA != null && state.loopB != null && state.loopB - state.loopA < parsed.spb) {
+      state.loopB = Math.min(parsed.duration, state.loopA + parsed.beatsPerBar * parsed.spb);
+    }
+    updateABLoopUI();
+  }
+
+  function clearABLoop() {
+    state.loopA = null;
+    state.loopB = null;
+    state.abLoop = false;
+    updateABLoopUI();
+  }
+
+  function toggleABLoop() {
+    if (state.loopA == null || state.loopB == null) return;
+    state.abLoop = !state.abLoop;
+    if (state.abLoop) {
+      state.loop = false;
+      const t = currentPosition();
+      if (t < state.loopA || t >= state.loopB) seekTo(state.loopA);
+    }
+    updateABLoopUI();
+    updateTransportUI();
+  }
+
+  function updateABLoopUI() {
+    const parsed = state.parsed;
+    if (!parsed) return;
+    const hasA = state.loopA != null;
+    const hasB = state.loopB != null;
+    els.abLoopBtn.disabled = !(hasA && hasB);
+    els.clearABBtn.disabled = !(hasA || hasB);
+    els.abLoopBtn.classList.toggle('active', state.abLoop);
+    els.abLoopBtn.setAttribute('aria-pressed', String(state.abLoop));
+    const pos = time => `${(time / parsed.duration) * 100}%`;
+    els.abMarkerA.hidden = !hasA;
+    els.abMarkerB.hidden = !hasB;
+    if (hasA) els.abMarkerA.style.left = pos(state.loopA);
+    if (hasB) els.abMarkerB.style.left = pos(state.loopB);
+    const barOf = time => Math.round(time / parsed.spb / parsed.beatsPerBar) + 1;
+    if (hasA && hasB) els.abLoopStatus.textContent = state.abLoop ? `Looping bars ${barOf(state.loopA)}–${barOf(state.loopB) - 1}.` : `Bars ${barOf(state.loopA)}–${barOf(state.loopB) - 1} are ready. Press Loop A-B.`;
+    else if (hasA) els.abLoopStatus.textContent = `A is at bar ${barOf(state.loopA)}. Move on and set B.`;
+    else els.abLoopStatus.textContent = 'Set A and B from the timeline to practise a section.';
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Canvas pipeline (after Ethereal Drum)                               */
+  /* ------------------------------------------------------------------ */
+
+  const renderColorDataCache = new Map();
+  const noteSpriteCache = new Map();
+  const noteLabelSpriteCache = new Map();
+  const glowTextureCache = new Map();
+  const backCtx = els.noteCanvasBack.getContext('2d');
+  const frontCtx = els.noteCanvas.getContext('2d');
+
+  function hexToRgb(hex) {
+    const clean = /^#[0-9a-f]{6}$/i.test(String(hex || '')) ? hex.slice(1) : 'a78bfa';
+    return { r: parseInt(clean.slice(0, 2), 16), g: parseInt(clean.slice(2, 4), 16), b: parseInt(clean.slice(4, 6), 16) };
+  }
+
+  function renderColorData(hex) {
+    if (renderColorDataCache.has(hex)) return renderColorDataCache.get(hex);
+    const { r, g, b } = hexToRgb(hex);
+    const mix = amount => ({
+      r: Math.round(r + (255 - r) * amount),
+      g: Math.round(g + (255 - g) * amount),
+      b: Math.round(b + (255 - b) * amount)
+    });
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    const data = { r, g, b, highlight: mix(0.56), light: mix(0.3), trail: mix(0.38), ink: luminance > 0.58 ? '#101521' : '#ffffff' };
+    renderColorDataCache.set(hex, data);
+    return data;
+  }
+
+  function rgba(hex, alpha) {
+    const { r, g, b } = renderColorData(hex);
+    return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
+  }
+
+  // Keep musical timing independent from drawing cost. Phones use a deliberately lean
+  // canvas profile, tablets keep a little more detail, and desktop retains the full scene.
+  function performanceProfileFor(width) {
+    const coarsePointer = Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+    const viewportShortEdge = Math.min(window.innerWidth || width, window.innerHeight || width);
+    const phoneLayout = width <= 600 || (coarsePointer && viewportShortEdge <= 600);
+    if (phoneLayout) {
+      return {
+        name: 'phone', dpr: 1, visualInterval: 34, uiInterval: 100,
+        backdropInterval: 100, ambientInterval: 100, stars: 52,
+        particleQualityCap: 'none', fallingParticles: 27, radialParticles: 36,
+        particleBudget: 0, particleShadows: false
+      };
+    }
+    if (width <= 1100 || coarsePointer) {
+      return {
+        name: 'tablet', dpr: 1.25, visualInterval: 25, uiInterval: 80,
+        backdropInterval: 67, ambientInterval: 80, stars: 78,
+        particleQualityCap: 'half', fallingParticles: 27, radialParticles: 36,
+        particleBudget: 144, particleShadows: false
+      };
+    }
+    return {
+      name: 'desktop', dpr: 1.75, visualInterval: 0, uiInterval: 33,
+      backdropInterval: 33, ambientInterval: 66, stars: 110,
+      particleQualityCap: 'full', fallingParticles: 27, radialParticles: 36,
+      particleBudget: 432, particleShadows: true
+    };
+  }
+
+  function visualPerformanceProfile() {
+    return state.performanceProfile || performanceProfileFor(els.noteCanvas.clientWidth || window.innerWidth);
+  }
+
+  function setParticleQuality(quality) {
+    state.particleQuality = PARTICLE_QUALITY_ORDER.includes(quality) ? quality : 'none';
+    document.documentElement.dataset.particleQuality = state.particleQuality;
+  }
+
+  function resetVisualPerformanceMonitor(now = performance.now()) {
+    state.visualMonitorStartedAt = now;
+    state.visualMonitorSamples = 0;
+    state.visualMonitorSlowSamples = 0;
+    state.visualMonitorCostAverage = 0;
+    state.visualMonitorLastFrameAt = 0;
+  }
+
+  function configureParticleQuality(profile) {
+    if (state.particleProfileName === profile.name) return;
+    state.particleProfileName = profile.name;
+    state.backgroundRateScale = profile.name === 'phone' ? 2 : profile.name === 'tablet' ? 1.35 : 1;
+    setParticleQuality(profile.particleQualityCap);
+    resetVisualPerformanceMonitor();
+  }
+
+  function downgradeParticleQuality() {
+    const current = Math.max(0, PARTICLE_QUALITY_ORDER.indexOf(state.particleQuality));
+    if (current <= 0) return false;
+    setParticleQuality(PARTICLE_QUALITY_ORDER[current - 1]);
+    resetVisualPerformanceMonitor();
+    return true;
+  }
+
+  function monitorVisualPerformance(frameStartedAt, frameFinishedAt, profile) {
+    const targetInterval = profile.visualInterval || 16.7;
+    const renderCost = Math.max(0, frameFinishedAt - frameStartedAt);
+    const frameGap = state.visualMonitorLastFrameAt ? frameStartedAt - state.visualMonitorLastFrameAt : targetInterval;
+    state.visualMonitorLastFrameAt = frameStartedAt;
+    state.visualMonitorSamples += 1;
+    state.visualMonitorCostAverage += (renderCost - state.visualMonitorCostAverage) * 0.08;
+    if (renderCost > targetInterval * 0.62 || frameGap > targetInterval * 2.1) state.visualMonitorSlowSamples += 1;
+    const elapsed = frameFinishedAt - state.visualMonitorStartedAt;
+    if (elapsed < 2400 || state.visualMonitorSamples < 48) return;
+    const slowRatio = state.visualMonitorSlowSamples / state.visualMonitorSamples;
+    const drawingIsHeavy = state.visualMonitorCostAverage > targetInterval * 0.52;
+    if (slowRatio >= 0.24 || drawingIsHeavy) {
+      const reduced = downgradeParticleQuality();
+      if (state.backgroundRateScale < 2) {
+        state.backgroundRateScale = 2;
+        state.lastBackdropAt = 0;
+      }
+      if (!reduced) resetVisualPerformanceMonitor(frameFinishedAt);
+    } else resetVisualPerformanceMonitor(frameFinishedAt);
+  }
+
+  function effectiveBackdropInterval(profile) {
+    if (!profile.backdropInterval) return state.backgroundRateScale > 1 ? 33 : 0;
+    return profile.backdropInterval * state.backgroundRateScale;
+  }
+
+  function effectiveAmbientInterval(profile) {
+    return profile.ambientInterval * state.backgroundRateScale;
+  }
+
+  function particleCountWithinBudget(maximum, visibleNotes, profile) {
+    const quality = state.particleQuality || profile.particleQualityCap;
+    if (quality === 'none') return 0;
+    const multiplier = quality === 'half' ? 0.5 : 1;
+    const qualityMaximum = Math.max(3, Math.floor((maximum * multiplier) / 3) * 3);
+    const budgeted = Math.floor(profile.particleBudget / Math.max(1, visibleNotes));
+    return Math.min(qualityMaximum, Math.max(Math.min(6, qualityMaximum), Math.floor(budgeted / 3) * 3));
+  }
+
+  function cacheGet(cache, key) {
+    return cache.has(key) ? cache.get(key) : null;
+  }
+
+  function cacheSet(cache, key, value, maximum) {
+    cache.set(key, value);
+    while (cache.size > maximum) cache.delete(cache.keys().next().value);
+    return value;
+  }
+
+  function canvasDensity(profile = visualPerformanceProfile()) {
+    return Math.min(window.devicePixelRatio || 1, profile.dpr || 2);
+  }
+
+  function resizeCanvas() {
+    const rect = els.noteStage.getBoundingClientRect();
+    const previous = state.performanceProfile;
+    state.performanceProfile = performanceProfileFor(rect.width);
+    if (!previous || previous.name !== state.performanceProfile.name || previous.dpr !== state.performanceProfile.dpr) {
+      noteSpriteCache.clear();
+      noteLabelSpriteCache.clear();
+      glowTextureCache.clear();
+    }
+    configureParticleQuality(state.performanceProfile);
+    const dpr = canvasDensity(state.performanceProfile);
+    [els.noteCanvas, els.noteCanvasBack].forEach(canvas => {
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    });
+    invalidateGuides();
+    buildStarField(rect.width, rect.height);
+    layoutStage(rect.width, rect.height);
+    state.dirty = true;
+    requestFrame();
+  }
+
+  function invalidateGuides() {
+    state.staticGuideCanvas = null;
+    state.staticGuideKey = '';
+    state.laneGuideCanvas = null;
+    state.laneGuideKey = '';
+    state.backdropMode = '';
+    state.lastBackdropAt = 0;
+    state.dirty = true;
+  }
+
+  // Same sizing rules as Ethereal Drum's centre drum, so the handpan sits in the same
+  // place on every screen and is always centred.
+  function radialGeometry(width, height) {
+    let drumSize;
+    if (width <= 760) {
+      const mobileFloor = Math.min(290, Math.max(250, width - 20));
+      const mobileTarget = Math.min(360, width * 0.54, height * 0.68);
+      drumSize = Math.max(mobileFloor, mobileTarget);
+    } else if (width <= 1100) {
+      const tabletFloor = Math.min(320, Math.max(280, width - 28));
+      const tabletTarget = Math.min(400, width * 0.42, height * 0.64);
+      drumSize = Math.max(tabletFloor, tabletTarget);
+    } else {
+      drumSize = Math.max(270, Math.min(450, Math.min(height * 0.61, width * 0.38)));
+    }
+    // Bottom notes sit just outside the shell; keep them on screen.
+    if (state.pads.some(pad => pad.kind === 'bottom')) drumSize = Math.min(drumSize, (width - 14) / 1.27, (height - 20) / 1.3);
+    const cx = width / 2;
+    const cy = height / 2 + Math.min(14, height * 0.02);
+    return { drumSize, scale: drumSize / STAGE_DRUM_BASE, cx, cy };
+  }
+
+  function layoutStage(width, height) {
+    // Matches the 760px breakpoint where the side card (with its drum) is hidden.
+    const phoneLanes = state.view === 'lanes' && window.innerWidth <= 760;
+    els.noteStage.classList.toggle('lanes-drum', phoneLanes);
+    const layout = { w: width, h: height, drum: null, phoneLanes, lanesTop: width <= 900 ? 58 : 14, lanesBottom: height };
+    if (state.view === 'radial') {
+      layout.drum = radialGeometry(width, height);
+      if (state.mode === 'tuner') {
+        // Leave room for the tuner panel along the bottom of the stage.
+        const panel = width <= 760 ? 150 : 112;
+        const usable = height - panel;
+        layout.drum.drumSize = Math.min(layout.drum.drumSize, usable * 0.86);
+        layout.drum.scale = layout.drum.drumSize / STAGE_DRUM_BASE;
+        layout.drum.cy = usable / 2 + 8;
+      }
+    } else if (phoneLanes) {
+      // Lanes on top, the handpan under them, like the handpan apps on a phone.
+      const lanesBottom = Math.round(height * 0.5);
+      const available = height - lanesBottom - 28;
+      const hasBottoms = state.pads.some(pad => pad.kind === 'bottom');
+      const drumSize = Math.max(170, Math.min(width - 40, available / (hasBottoms ? 1.3 : 1.12), 330));
+      layout.lanesBottom = lanesBottom;
+      layout.drum = { drumSize, scale: drumSize / STAGE_DRUM_BASE, cx: width / 2, cy: lanesBottom + 28 + available / 2 };
+    }
+    placeTape(layout, width, height);
+    if (layout.drum) {
+      const { cx, cy, scale } = layout.drum;
+      els.stageDrumWrap.style.left = `${cx}px`;
+      els.stageDrumWrap.style.top = `${cy}px`;
+      els.stageDrumWrap.style.setProperty('--stage-scale', scale.toFixed(4));
+      // Left hand / Right hand captions sit just above the drum, either side.
+      const legend = els.stageHandLegend;
+      legend.classList.add('on-drum');
+      legend.style.left = `${cx - layout.drum.drumSize * 0.56}px`;
+      legend.style.width = `${layout.drum.drumSize * 1.12}px`;
+      legend.style.top = `${Math.max(phoneLanes ? layout.lanesBottom : 52, cy - layout.drum.drumSize * 0.5 - 30)}px`;
+    } else {
+      const legend = els.stageHandLegend;
+      legend.classList.remove('on-drum');
+      legend.style.left = '';
+      legend.style.width = '';
+      legend.style.top = '';
+    }
+    state.layout = layout;
+  }
+
+  function padScreen(pad) {
+    const g = state.layout.drum;
+    const r = g.drumSize / 2;
+    return { x: g.cx + pad.x * r, y: g.cy + pad.y * r };
+  }
+
+  function rebuildLanes() {
+    const used = state.instrument.usedLanes && state.parsed ? new Set([...state.parsed.used].filter(id => state.padMap.has(id))) : null;
+    const perc = visiblePercIds();
+    state.lanes = laneOrder(state.pads.filter(pad => pad.kind !== 'perc' || perc.has(pad.id)), used && used.size ? used : null);
+    invalidateGuides();
+  }
+
+  function previewSeconds() {
+    const spb = state.parsed?.spb || 0.6;
+    return Math.min(4.2, Math.max(2.6, spb * 6));
+  }
+
+  function smooth(value) {
+    const t = Math.max(0, Math.min(1, value));
+    return t * t * (3 - 2 * t);
+  }
+
+  function addEffect(type, padId, color, text) {
+    state.effects.push({ type, padId, color, text, at: performance.now() });
+    if (state.effects.length > 80) state.effects.splice(0, state.effects.length - 80);
+    requestFrame();
+  }
+
+  /* ---------- stars, glow, halo ---------- */
+
+  function buildStarField(width, height) {
+    if (!width || !height) return;
+    const count = visualPerformanceProfile().stars;
+    state.stars = Array.from({ length: count }, () => {
+      const depth = Math.random() ** 1.4;
+      return {
+        x: Math.random() * width, y: Math.random() * height, depth,
+        r: 0.35 + depth * 1.25, base: 0.13 + depth * 0.52,
+        speed: 0.3 + Math.random() * 1.9, phase: Math.random() * Math.PI * 2, wobble: 0.7 + Math.random() * 0.6
+      };
+    });
+  }
+
+  // Parallax: every star slides along the same axis, near ones faster than far ones.
+  const PARALLAX = { x: -5.2, y: 2.1 };
+
+  function drawStars(ctx, width, height, now, delta) {
+    if (!state.stars.length) buildStarField(width, height);
+    const fixedPositions = visualPerformanceProfile().name === 'phone';
+    const pace = (state.playing ? 1 : 0.32) * delta;
+    const bucketCount = 6;
+    const buckets = Array.from({ length: bucketCount }, () => []);
+    state.stars.forEach(star => {
+      if (!fixedPositions) {
+        const rate = 0.18 + star.depth * 1.05;
+        star.x = (star.x + PARALLAX.x * rate * star.wobble * pace + width) % width;
+        star.y = (star.y + PARALLAX.y * rate * pace + height) % height;
+      }
+      const twinkle = 0.5 + 0.5 * Math.sin(now * star.speed + star.phase);
+      const alpha = star.base * (0.3 + 0.7 * twinkle);
+      buckets[Math.min(bucketCount - 1, Math.floor((alpha / 0.7) * bucketCount))].push(star);
+    });
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    buckets.forEach((stars, bucket) => {
+      if (!stars.length) return;
+      ctx.globalAlpha = ((bucket + 0.5) / bucketCount) * 0.7;
+      ctx.beginPath();
+      stars.forEach(star => {
+        ctx.moveTo(star.x + star.r, star.y);
+        ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+      });
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  const AMOEBA_LOBES = [
+    { orbit: 0.11, speed: 0.130, phase: 0.0, size: 0.62, tint: '123,146,255', alpha: 0.15 },
+    { orbit: 0.17, speed: -0.092, phase: 1.9, size: 0.53, tint: '99,130,246', alpha: 0.13 },
+    { orbit: 0.14, speed: 0.074, phase: 3.4, size: 0.58, tint: '94,234,212', alpha: 0.10 },
+    { orbit: 0.21, speed: -0.109, phase: 5.0, size: 0.45, tint: '167,139,250', alpha: 0.11 },
+    { orbit: 0.08, speed: 0.161, phase: 2.4, size: 0.70, tint: '110,140,255', alpha: 0.08 }
+  ];
+
+  function cachedGlowTexture(key, stops) {
+    const density = canvasDensity();
+    const cacheKey = `${key}:${density}`;
+    const existing = cacheGet(glowTextureCache, cacheKey);
+    if (existing) return existing;
+    const cssSize = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(cssSize * density);
+    canvas.height = Math.ceil(cssSize * density);
+    const textureCtx = canvas.getContext('2d');
+    textureCtx.setTransform(density, 0, 0, density, 0, 0);
+    const gradient = textureCtx.createRadialGradient(cssSize / 2, cssSize / 2, 0, cssSize / 2, cssSize / 2, cssSize / 2);
+    stops.forEach(([offset, color]) => gradient.addColorStop(offset, color));
+    textureCtx.fillStyle = gradient;
+    textureCtx.fillRect(0, 0, cssSize, cssSize);
+    return cacheSet(glowTextureCache, cacheKey, { canvas, cssSize }, 24);
+  }
+
+  function drawGlowTexture(ctx, texture, cx, cy, radius) {
+    ctx.drawImage(texture.canvas, cx - radius, cy - radius, radius * 2, radius * 2);
+  }
+
+  function drawAmoeba(ctx, cx, cy, size, now) {
+    const compactLayout = visualPerformanceProfile().name !== 'desktop';
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    if (compactLayout) {
+      const breathe = 1 + Math.sin(now * 0.42) * 0.035;
+      const texture = cachedGlowTexture('amoeba:compact', [
+        [0, 'rgba(112,143,255,.17)'], [0.34, 'rgba(99,130,246,.115)'], [0.66, 'rgba(99,130,246,.05)'],
+        [0.86, 'rgba(94,234,212,.016)'], [1, 'rgba(109,130,246,0)']
+      ]);
+      drawGlowTexture(ctx, texture, cx, cy, size * 0.73 * breathe);
+      ctx.restore();
+      return;
+    }
+    AMOEBA_LOBES.forEach(lobe => {
+      const breathe = 1 + 0.19 * Math.sin(now * lobe.speed * 2.3 + lobe.phase);
+      const ox = cx + Math.cos(now * lobe.speed + lobe.phase) * size * lobe.orbit;
+      const oy = cy + Math.sin(now * lobe.speed * 1.27 + lobe.phase * 1.4) * size * lobe.orbit * 0.82;
+      const texture = cachedGlowTexture(`amoeba:${lobe.tint}:${lobe.alpha}`, [
+        [0, `rgba(${lobe.tint},${lobe.alpha})`],
+        [0.42, `rgba(${lobe.tint},${(lobe.alpha * 0.42).toFixed(4)})`],
+        [1, `rgba(${lobe.tint},0)`]
+      ]);
+      drawGlowTexture(ctx, texture, ox, oy, size * lobe.size * breathe);
+    });
+    ctx.restore();
+  }
+
+  function drawDrumHalo(ctx, cx, cy, size, now) {
+    const pulse = 1 + Math.sin(now * 0.82) * 0.035;
+    const compactLayout = visualPerformanceProfile().name !== 'desktop';
+    const innerRadius = size * (compactLayout ? 0.45 : 0.47);
+    const outerRadius = size * (compactLayout ? 0.72 : 0.76) * pulse;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const innerRatio = Math.max(0, Math.min(0.9, innerRadius / outerRadius));
+    const haloTexture = cachedGlowTexture(`halo:${compactLayout ? 'compact' : 'desktop'}`, [
+      [0, 'rgba(126,156,255,.3)'],
+      [innerRatio, 'rgba(126,156,255,.3)'],
+      [innerRatio + (1 - innerRatio) * 0.22, 'rgba(116,147,255,.17)'],
+      [innerRatio + (1 - innerRatio) * 0.58, compactLayout ? 'rgba(109,130,246,.06)' : 'rgba(109,130,246,.07)'],
+      [1, 'rgba(109,130,246,0)']
+    ]);
+    drawGlowTexture(ctx, haloTexture, cx, cy, outerRadius);
+    ctx.globalAlpha = 0.36 + Math.sin(now * 0.82) * 0.08;
+    ctx.strokeStyle = 'rgba(170,186,255,.72)';
+    ctx.lineWidth = Math.max(2, size * 0.009);
+    ctx.shadowColor = 'rgba(112,143,255,.85)';
+    ctx.shadowBlur = size * 0.07;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.505, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ---------- flight guides (rays) ---------- */
+
+  function distanceToStageEdge(cx, cy, dx, dy, width, height, margin) {
+    const values = [];
+    if (dx > 0.0001) values.push((width - margin - cx) / dx);
+    if (dx < -0.0001) values.push((margin - cx) / dx);
+    if (dy > 0.0001) values.push((height - margin - cy) / dy);
+    if (dy < -0.0001) values.push((margin - cy) / dy);
+    return Math.max(0, Math.min(...values.filter(value => value > 0)));
+  }
+
+  function padTarget(pad, geometry) {
+    const r = geometry.drumSize / 2;
+    let dx = pad.x;
+    let dy = pad.y;
+    let length = Math.hypot(dx, dy);
+    if (length < 0.05) {
+      const a = (pad.rayAngle ?? 180) * Math.PI / 180;
+      dx = Math.sin(a);
+      dy = Math.cos(a);
+      length = 0;
+    } else { dx /= length; dy /= length; }
+    const distance = length * r;
+    return { x: geometry.cx + dx * distance, y: geometry.cy + dy * distance, dx, dy, distance, reach: Math.max(pad.rx, pad.ry) * r };
+  }
+
+  function guidePads() {
+    const perc = visiblePercIds();
+    return state.pads.filter(pad => pad.kind !== 'perc' || perc.has(pad.id));
+  }
+
+  function drawRadialGuide(ctx, width, height, geometry, pad, strength = 0, color = null) {
+    const target = padTarget(pad, geometry);
+    const edgeRadius = distanceToStageEdge(geometry.cx, geometry.cy, target.dx, target.dy, width, height, 12);
+    const startX = target.x + target.dx * target.reach * 0.85;
+    const startY = target.y + target.dy * target.reach * 0.85;
+    const edgeX = geometry.cx + target.dx * edgeRadius;
+    const edgeY = geometry.cy + target.dy * edgeRadius;
+    if (edgeRadius <= target.distance + target.reach) return;
+    const gradient = ctx.createLinearGradient(startX, startY, edgeX, edgeY);
+    // The ray fades in over its first ~40 px, so it melts into the field instead of
+    // stopping with a hard bright end.
+    const length = Math.max(1, Math.hypot(edgeX - startX, edgeY - startY));
+    const fade = Math.min(0.3, 42 / length);
+    if (color) {
+      gradient.addColorStop(0, rgba(color, 0));
+      gradient.addColorStop(fade * 0.45, rgba(color, strength * 0.38));
+      gradient.addColorStop(fade, rgba(color, strength * 0.78));
+      gradient.addColorStop(Math.max(fade + 0.05, 0.3), rgba(color, strength * 0.48));
+      gradient.addColorStop(0.65, rgba(color, strength * 0.16));
+      gradient.addColorStop(1, rgba(color, strength * 0.02));
+    } else {
+      gradient.addColorStop(0, 'rgba(255,255,255,0)');
+      gradient.addColorStop(fade, 'rgba(255,255,255,.08)');
+      gradient.addColorStop(Math.max(fade + 0.05, 0.3), 'rgba(255,255,255,.06)');
+      gradient.addColorStop(0.65, 'rgba(255,255,255,.03)');
+      gradient.addColorStop(1, 'rgba(255,255,255,.006)');
+    }
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = color ? 1 + strength * 1.6 : 1;
+    ctx.shadowColor = color ? rgba(color, 0.9) : 'rgba(255,255,255,.9)';
+    ctx.shadowBlur = color ? strength * 10 : 0;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(edgeX, edgeY);
+    ctx.stroke();
+  }
+
+  function staticGuideLayer(width, height, geometry) {
+    const density = canvasDensity();
+    const key = [width, height, geometry.drumSize.toFixed(1), geometry.cx, geometry.cy, density, guidePads().map(p => `${p.id}${p.x.toFixed(2)}${p.y.toFixed(2)}`).join(',')].join(':');
+    if (state.staticGuideCanvas && state.staticGuideKey === key) return state.staticGuideCanvas;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * density));
+    canvas.height = Math.max(1, Math.round(height * density));
+    const guideCtx = canvas.getContext('2d');
+    guideCtx.setTransform(density, 0, 0, density, 0, 0);
+    guidePads().forEach(pad => drawRadialGuide(guideCtx, width, height, geometry, pad));
+    state.staticGuideCanvas = canvas;
+    state.staticGuideKey = key;
+    return canvas;
+  }
+
+  // Everything that belongs behind the drum: stars, amoeba glow, halo and the faint rays.
+  function renderRadialBackdrop(ctx, width, height, now, delta) {
+    drawStars(ctx, width, height, now, delta);
+    const geometry = state.layout.drum;
+    if (!geometry) return;
+    drawAmoeba(ctx, geometry.cx, geometry.cy, geometry.drumSize, now);
+    drawDrumHalo(ctx, geometry.cx, geometry.cy, geometry.drumSize, now);
+    if (state.mode !== 'tuner' && state.view === 'radial') {
+      const guides = staticGuideLayer(width, height, geometry);
+      ctx.drawImage(guides, 0, 0, guides.width, guides.height, 0, 0, width, height);
+    }
+  }
+
+  /* ---------- note sprites ---------- */
+
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function cachedNoteSprite(kind, color, requestedWidth, requestedHeight, requestedBlur) {
+    const width = Math.max(8, Math.round(requestedWidth / 4) * 4);
+    const height = Math.max(8, Math.round(requestedHeight / 4) * 4);
+    const shadowBlur = Math.max(0, Math.round(requestedBlur / 4) * 4);
+    const density = canvasDensity();
+    const key = [kind, color, width, height, shadowBlur, density].join(':');
+    const existing = cacheGet(noteSpriteCache, key);
+    if (existing) return existing;
+    const padding = Math.ceil(shadowBlur * 1.75 + 4);
+    const cssWidth = width + padding * 2;
+    const cssHeight = height + padding * 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(cssWidth * density));
+    canvas.height = Math.max(1, Math.ceil(cssHeight * density));
+    const spriteCtx = canvas.getContext('2d');
+    spriteCtx.setTransform(density, 0, 0, density, 0, 0);
+    spriteCtx.translate(cssWidth / 2, cssHeight / 2);
+    const data = renderColorData(color);
+    const round = kind === 'round';
+    if (kind === 'lane') spriteCtx.fillStyle = color;
+    else {
+      const gradient = spriteCtx.createLinearGradient(-width * 0.42, -height * 0.45, width * 0.42, height * 0.45);
+      gradient.addColorStop(0, `rgb(${data.highlight.r},${data.highlight.g},${data.highlight.b})`);
+      gradient.addColorStop(0.3, `rgb(${data.light.r},${data.light.g},${data.light.b})`);
+      gradient.addColorStop(0.62, `rgb(${data.r},${data.g},${data.b})`);
+      gradient.addColorStop(1, `rgb(${data.light.r},${data.light.g},${data.light.b})`);
+      spriteCtx.fillStyle = gradient;
+    }
+    spriteCtx.shadowColor = color;
+    spriteCtx.shadowBlur = shadowBlur;
+    if (round) {
+      spriteCtx.beginPath();
+      spriteCtx.arc(0, 0, width / 2, 0, Math.PI * 2);
+    } else {
+      roundRect(spriteCtx, -width / 2, -height / 2, width, height, height / 2);
+    }
+    spriteCtx.fill();
+    spriteCtx.shadowBlur = 0;
+    if (kind !== 'lane') {
+      spriteCtx.strokeStyle = 'rgba(255,255,255,.28)';
+      spriteCtx.lineWidth = 1;
+      spriteCtx.stroke();
+    }
+    return cacheSet(noteSpriteCache, key, { canvas, cssWidth, cssHeight }, 320);
+  }
+
+  function drawCachedNoteSprite(ctx, sprite) {
+    ctx.drawImage(sprite.canvas, 0, 0, sprite.canvas.width, sprite.canvas.height, -sprite.cssWidth / 2, -sprite.cssHeight / 2, sprite.cssWidth, sprite.cssHeight);
+  }
+
+  function cachedNoteLabel(label, requestedFontSize, inkColor) {
+    const fontSize = Math.max(8, Math.round(requestedFontSize));
+    const density = canvasDensity();
+    const key = [label, fontSize, inkColor, density].join(':');
+    const existing = cacheGet(noteLabelSpriteCache, key);
+    if (existing) return existing;
+    const cssWidth = Math.ceil(Math.max(24, fontSize * 2.4));
+    const cssHeight = Math.ceil(Math.max(28, fontSize * 2.35));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(cssWidth * density));
+    canvas.height = Math.max(1, Math.ceil(cssHeight * density));
+    const labelCtx = canvas.getContext('2d');
+    labelCtx.setTransform(density, 0, 0, density, 0, 0);
+    labelCtx.fillStyle = inkColor;
+    labelCtx.font = `850 ${fontSize}px system-ui, sans-serif`;
+    labelCtx.textAlign = 'center';
+    labelCtx.textBaseline = 'middle';
+    labelCtx.fillText(label, cssWidth / 2, cssHeight / 2 + 0.5);
+    return cacheSet(noteLabelSpriteCache, key, { canvas, cssWidth, cssHeight }, 180);
+  }
+
+  function drawCachedNoteLabel(ctx, sprite, x, y) {
+    ctx.drawImage(sprite.canvas, 0, 0, sprite.canvas.width, sprite.canvas.height, x - sprite.cssWidth / 2, y - sprite.cssHeight / 2, sprite.cssWidth, sprite.cssHeight);
+  }
+
+  function particleSeed(noteId, index, salt = 0) {
+    const value = `${noteId}:${index}:${salt}`;
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i += 1) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0) / 4294967295;
+  }
+
+  // One reusable particle template is animated for every note; notes only get a phase offset.
+  const PARTICLE_TEMPLATE = Array.from({ length: 36 }, (_, index) => {
+    const wave = value => (Math.sin(value * 12.9898 + index * 78.233) * 43758.5453) % 1;
+    const unit = value => Math.abs(wave(value));
+    return { stream: index % 3 - 1, streamIndex: Math.floor(index / 3), side: unit(1.3), size: unit(2.7), phase: unit(4.1), speed: unit(6.9) };
+  });
+
+  function particlePhase(noteId) {
+    if (state.particlePhaseCache.has(noteId)) return state.particlePhaseCache.get(noteId);
+    const phase = particleSeed(noteId, 0, 91);
+    state.particlePhaseCache.set(noteId, phase);
+    return phase;
+  }
+
+  /* ---------- stage frame ---------- */
+
+  function renderStage(nowMs) {
+    const { w: width, h: height } = state.layout;
+    if (!width || !height || !state.parsed) return;
+    const now = nowMs / 1000;
+    const delta = Math.min(0.1, Math.max(0, now - (state.lastFrameAt || now)));
+    state.lastFrameAt = now;
+    const profile = visualPerformanceProfile();
+    frontCtx.clearRect(0, 0, width, height);
+
+    const withDrum = Boolean(state.layout.drum);
+    const backdropInterval = effectiveBackdropInterval(profile);
+    const backdropKind = state.view === 'radial' ? 'radial' : withDrum ? 'lanes-drum' : 'lanes';
+    if (backdropKind === 'lanes') {
+      const lane = laneGuideLayer(width, height);
+      if (state.backdropMode !== 'lanes' || lane.fresh) {
+        backCtx.clearRect(0, 0, width, height);
+        backCtx.drawImage(lane.canvas, 0, 0, lane.canvas.width, lane.canvas.height, 0, 0, width, height);
+      }
+    } else if (state.backdropMode !== backdropKind || !state.lastBackdropAt || !backdropInterval || nowMs - state.lastBackdropAt >= backdropInterval) {
+      const backdropDelta = Math.min(0.12, Math.max(0, (nowMs - (state.lastBackdropAt || nowMs)) / 1000));
+      backCtx.clearRect(0, 0, width, height);
+      if (backdropKind === 'lanes-drum') {
+        const lane = laneGuideLayer(width, height);
+        backCtx.drawImage(lane.canvas, 0, 0, lane.canvas.width, lane.canvas.height, 0, 0, width, height);
+      }
+      renderRadialBackdrop(backCtx, width, height, now, backdropDelta || delta);
+      state.lastBackdropAt = nowMs;
+    }
+    state.backdropMode = backdropKind;
+
+    if (state.mode !== 'tuner') {
+      if (state.view === 'radial') renderRadialFrame(frontCtx, width, height, profile, nowMs);
+      else renderLaneFrame(frontCtx, width, height, profile, nowMs);
+    }
+    drawEffects(nowMs);
+    state.effects = state.effects.filter(effect => nowMs - effect.at < 700);
+    state.laneFlash.forEach((value, key) => { if (nowMs - value.at > 420) state.laneFlash.delete(key); });
+  }
+
+  function noteAlpha(dt, travel, preview) {
+    // Notes emerge from semi-transparency, become solid in flight, and soften again
+    // as they reach the drum so the pad number stays readable.
+    const fadeIn = 0.16 + 0.84 * smooth(travel / 0.3);
+    const fadeNear = 1 - 0.42 * smooth((travel - 0.74) / 0.26);
+    const afterHit = dt < 0 ? Math.max(0, 1 + dt / 0.3) : 1;
+    const farEdge = dt > preview ? Math.max(0, 1 - (dt - preview) / 0.25) : 1;
+    return fadeIn * fadeNear * afterHit * farEdge;
+  }
+
+  function isHitResult(result) {
+    return result && result !== 'miss';
+  }
+
+  function renderRadialFrame(ctx, width, height, profile, nowMs) {
+    const geometry = state.layout.drum;
+    if (!geometry) return;
+    const preview = previewSeconds();
+    const t = state.playing ? songNow() : state.songTime;
+    const started = state.playing || state.songTime > 0.001;
+    const scale = geometry.scale;
+    const spb = state.parsed.spb;
+    const events = state.parsed.events;
+    const pending = state.mode === 'wait' ? events[nextPendingWaitIndex()] : null;
+    const from = firstEventIndexAtOrAfter(t - 0.48);
+    let to = from;
+    while (to < events.length && events[to].time <= t + preview) to += 1;
+    let visibleNotes = 0;
+    for (let i = from; i < to; i += 1) visibleNotes += events[i].items.length;
+    visibleNotes = Math.max(1, visibleNotes);
+    const particleCount = particleCountWithinBudget(profile.radialParticles, visibleNotes, profile);
+    const particleClock = particleCount ? performance.now() / 1000 : 0;
+    const noteIsMoving = state.playing && !state.holding;
+
+    // 1. Light up the rays that notes are flying along.
+    const strengths = new Map();
+    for (let i = from; i < to; i += 1) {
+      const event = events[i];
+      const dt = event.time - t;
+      if (!started && dt < 0.9) continue;
+      event.items.forEach(item => {
+        if (item.missing || isHitResult(state.results.get(item.id))) return;
+        const travel = Math.max(0, Math.min(1, 1 - dt / preview));
+        const hitFade = dt < 0 ? Math.max(0, 1 + dt / 0.2) : 1;
+        const strength = (0.32 + 0.68 * Math.pow(travel, 1.4)) * hitFade;
+        const previous = strengths.get(item.pad);
+        if (!previous || previous.strength < strength) strengths.set(item.pad, { strength, color: itemColor(item) });
+      });
+    }
+    ctx.save();
+    strengths.forEach((value, padId) => {
+      const pad = state.padMap.get(padId);
+      if (pad && value.strength > 0.01) drawRadialGuide(ctx, width, height, geometry, pad, value.strength, value.color);
+    });
+    ctx.restore();
+
+    // 2. The notes themselves.
+    for (let i = from; i < to; i += 1) {
+      const event = events[i];
+      const dt = event.time - t;
+      if (!started && dt < 0.9) continue;
+      const isPending = pending && pending.index === event.index;
+      event.items.forEach(item => {
+        if (item.missing) return;
+        const result = state.results.get(item.id);
+        if (isHitResult(result)) return;
+        if (listening() && dt < -0.3) return;
+        const pad = state.padMap.get(item.pad);
+        const target = padTarget(pad, geometry);
+        const targetRadius = target.distance;
+        const startRadius = Math.max(targetRadius + 75, distanceToStageEdge(geometry.cx, geometry.cy, target.dx, target.dy, width, height, 22));
+        const progress = Math.max(0, Math.min(1.18, 1 - dt / preview));
+        const eased = 1 - Math.pow(1 - Math.min(progress, 1), 1.25);
+        const radius = startRadius + (targetRadius - startRadius) * eased;
+        const x = geometry.cx + target.dx * radius;
+        const y = geometry.cy + target.dy * radius;
+        const travel = Math.max(0, Math.min(1, 1 - dt / preview));
+        const color = result === 'miss' ? WRONG_COLOR : itemColor(item);
+        const { highlight, light, r, g, b } = renderColorData(color);
+        const growth = 0.72 + Math.pow(travel, 0.72) * 0.48;
+        let alpha = noteAlpha(dt, travel, preview);
+        if (isPending && state.holding) alpha = Math.max(alpha, 0.82);
+        if (alpha <= 0.01) return;
+        const approach = Math.max(0, Math.min(1, 1 - Math.abs(dt) / 0.6));
+        // Round notes: the same gradient sprite as Ethereal Drum, drawn as a circle.
+        const diameter = Math.max(30, Math.min(40, 32 * scale + 8)) * growth * (1 + approach * 0.06);
+        const capsuleW = diameter * 1.15;
+        const capsuleH = diameter * 0.85;
+
+        // Approach ring: closes in on the pad during the last beat, like a vibration.
+        if (dt >= 0 && dt < spb * 1.2 && !(isPending && state.holding)) {
+          const k = dt / (spb * 1.2);
+          ctx.save();
+          ctx.globalAlpha = 0.42 * (1 - k * 0.5);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.4;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = profile.particleShadows ? 12 : 6;
+          ctx.beginPath();
+          ctx.arc(target.x, target.y, target.reach * (1.02 + k * 1.4), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        if (noteIsMoving && particleCount) {
+          const notePhase = particlePhase(item.id);
+          const perpendicularX = -target.dy;
+          const perpendicularY = target.dx;
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.shadowColor = `rgba(${r},${g},${b},.9)`;
+          if (!profile.particleShadows) ctx.shadowBlur = 0;
+          for (let particle = 0; particle < particleCount; particle += 1) {
+            const template = PARTICLE_TEMPLATE[particle];
+            const phaseSeed = (template.phase + notePhase) % 1;
+            const flow = (template.streamIndex / 12 + particleClock * (0.55 + template.speed * 0.24) + phaseSeed * 0.08) % 1;
+            const life = Math.sin(flow * Math.PI);
+            const centreTailStretch = template.stream === 0 ? 1.38 : 1;
+            const along = capsuleW * (0.25 + flow * 0.58) * centreTailStretch;
+            const streamGap = capsuleH * (0.3 + flow * 0.2);
+            const weave = Math.sin(particleClock * (1.7 + template.speed * 0.8) + phaseSeed * Math.PI * 2 + template.stream * 1.9) * capsuleH * 0.065;
+            const jitter = (template.side - 0.5) * capsuleH * 0.16;
+            const sideways = template.stream * streamGap + weave + jitter;
+            const particleX = x + target.dx * along + perpendicularX * sideways;
+            const particleY = y + target.dy * along + perpendicularY * sideways;
+            const twinkle = 0.55 + 0.45 * Math.abs(Math.sin(particleClock * (2.8 + template.size * 3.2) + phaseSeed * Math.PI * 2));
+            const particleSize = (0.55 + template.size * 1.5) * (0.6 + life * 0.65) * (0.72 + growth * 0.28);
+            ctx.globalAlpha = alpha * (0.16 + life * 0.7) * twinkle;
+            ctx.fillStyle = template.stream === 0 && template.streamIndex % 4 === 0
+              ? `rgb(${highlight.r},${highlight.g},${highlight.b})`
+              : `rgb(${light.r},${light.g},${light.b})`;
+            if (profile.particleShadows) ctx.shadowBlur = 5 + life * 7;
+            ctx.beginPath();
+            ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        // Impact ring as the note lands on its pad.
+        if (noteIsMoving && Math.abs(dt) < 0.26) {
+          const hit = 1 - Math.abs(dt) / 0.26;
+          ctx.save();
+          ctx.globalAlpha = hit * 0.55;
+          ctx.strokeStyle = `rgb(${r},${g},${b})`;
+          ctx.lineWidth = 2.4 * hit;
+          ctx.beginPath();
+          ctx.arc(target.x, target.y, Math.max(target.reach, (12 + (1 - hit) * 34) * scale), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        // While waiting, the target keeps pulsing.
+        if (isPending && state.holding) {
+          const phase = (nowMs % 900) / 900;
+          ctx.save();
+          ctx.globalAlpha = 0.6 * (1 - phase);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.arc(target.x, target.y, target.reach * (1.05 + phase * 0.9), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(x, y);
+        drawCachedNoteSprite(ctx, cachedNoteSprite('round', color, diameter, diameter, (10 + approach * 24) * Math.max(0.8, scale)));
+        ctx.restore();
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        const label = pad.label;
+        const labelSize = Math.max(13, Math.min(18, (14 + scale * 3) * growth));
+        drawCachedNoteLabel(ctx, cachedNoteLabel(label, label.length > 1 ? labelSize * 0.85 : labelSize, renderColorData(color).ink), x, y);
+        ctx.restore();
+      });
+    }
+  }
+
+  function laneGeometry() {
+    const { w, h, phoneLanes, lanesTop, lanesBottom } = state.layout;
+    const lanes = state.lanes;
+    const laneW = w / Math.max(1, lanes.length);
+    const centers = new Map();
+    lanes.forEach((pad, i) => centers.set(pad.id, laneW * (i + 0.5)));
+    const hitY = phoneLanes ? lanesBottom - 26 : h - 52;
+    return { laneW, centers, top: lanesTop, hitY };
+  }
+
+  function drawLaneGuides(ctx, width, height, geometry) {
+    const lanes = state.lanes.length;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,.035)';
+    ctx.beginPath();
+    for (let index = 0; index <= lanes; index += 1) {
+      ctx.moveTo(index * geometry.laneW, 0);
+      ctx.lineTo(index * geometry.laneW, geometry.hitY + 30);
+    }
+    ctx.stroke();
+    state.lanes.forEach((pad, index) => {
+      if (pad.kind === 'ding') ctx.fillStyle = 'rgba(196,181,253,.035)';
+      else ctx.fillStyle = pad.hand === 'L' ? 'rgba(56,189,248,.022)' : 'rgba(251,191,36,.018)';
+      ctx.fillRect(index * geometry.laneW, 0, geometry.laneW, geometry.hitY);
+    });
+    ctx.strokeStyle = 'rgba(94,234,212,.7)';
+    ctx.shadowColor = 'rgba(94,234,212,.5)';
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, geometry.hitY);
+    ctx.lineTo(width, geometry.hitY);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  function laneGuideLayer(width, height) {
+    const geometry = laneGeometry();
+    const density = canvasDensity();
+    const key = [width, height, state.lanes.map(p => p.id).join(','), geometry.hitY, density].join(':');
+    if (state.laneGuideCanvas && state.laneGuideKey === key) return { canvas: state.laneGuideCanvas, fresh: false };
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * density));
+    canvas.height = Math.max(1, Math.round(height * density));
+    const guideCtx = canvas.getContext('2d');
+    guideCtx.setTransform(density, 0, 0, density, 0, 0);
+    drawLaneGuides(guideCtx, width, height, geometry);
+    state.laneGuideCanvas = canvas;
+    state.laneGuideKey = key;
+    return { canvas, fresh: true };
+  }
+
+  function drawFallingNoteParticles(ctx, noteId, x, y, radius, noteHeight, color, alpha, particleCount, particleShadows, clock) {
+    const { r, g, b, trail } = renderColorData(color);
+    const notePhase = particlePhase(noteId);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.shadowColor = `rgba(${r},${g},${b},.9)`;
+    if (!particleShadows) ctx.shadowBlur = 0;
+    for (let particle = 0; particle < particleCount; particle += 1) {
+      const template = PARTICLE_TEMPLATE[particle];
+      const phaseSeed = (template.phase + notePhase) % 1;
+      const flow = (template.streamIndex / 9 + clock * (0.58 + template.speed * 0.26) + phaseSeed * 0.08) % 1;
+      const life = Math.sin(flow * Math.PI);
+      const tailLength = noteHeight * (0.34 + flow * 2.35) * (template.stream === 0 ? 1.18 : 1);
+      const spread = radius * (0.12 + flow * 0.42);
+      const weave = Math.sin(clock * (2 + template.speed) + phaseSeed * Math.PI * 2) * radius * 0.1;
+      const particleX = x + template.stream * spread + weave + (template.side - 0.5) * radius * 0.16;
+      const particleY = y - tailLength;
+      const twinkle = 0.55 + 0.45 * Math.abs(Math.sin(clock * (3 + template.size * 3) + phaseSeed * Math.PI * 2));
+      const particleSize = (0.65 + template.size * 1.45) * (0.62 + life * 0.68);
+      ctx.globalAlpha = alpha * (0.14 + life * 0.72) * twinkle;
+      ctx.fillStyle = template.stream === 0 && template.streamIndex % 3 === 0 ? '#ffffff' : `rgb(${trail.r},${trail.g},${trail.b})`;
+      if (particleShadows) ctx.shadowBlur = 5 + life * 7;
+      ctx.beginPath();
+      ctx.arc(particleX, particleY, particleSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function renderLaneFrame(ctx, width, height, profile, nowMs) {
+    const geometry = laneGeometry();
+    const { laneW, centers, top, hitY } = geometry;
+    const preview = previewSeconds();
+    const t = state.playing ? songNow() : state.songTime;
+    const spb = state.parsed.spb;
+    const travelPx = hitY - top;
+
+    // faint bar lines
+    ctx.save();
+    ctx.font = '700 10px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    state.parsed.bars.forEach((barBeat, index) => {
+      const dt = barBeat * spb - t;
+      if (dt < 0 || dt > preview) return;
+      const y = hitY - (dt / preview) * travelPx;
+      ctx.strokeStyle = 'rgba(167,139,250,.13)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(width, y + 0.5);
+      ctx.stroke();
+      if (index < state.parsed.bars.length - 1 && y > top + 12) {
+        ctx.fillStyle = 'rgba(167,139,250,.5)';
+        ctx.fillText(String(index + 1), 4, y - 3);
+      }
+    });
+    if (state.holding) {
+      ctx.strokeStyle = 'rgba(251,191,36,.7)';
+      ctx.shadowColor = 'rgba(251,191,36,.6)';
+      ctx.shadowBlur = 14;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, hitY);
+      ctx.lineTo(width, hitY);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // lane labels on the hit line
+    const labelR = Math.max(10, Math.min(laneW * 0.36, 17));
+    state.lanes.forEach(pad => {
+      const x = centers.get(pad.id);
+      const flash = state.laneFlash.get(pad.id);
+      const age = flash ? (nowMs - flash.at) / 420 : 1;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, hitY, labelR, 0, Math.PI * 2);
+      if (flash && age < 1) {
+        ctx.fillStyle = rgba(flash.color, 0.95 - age * 0.55);
+        ctx.shadowColor = flash.color;
+        ctx.shadowBlur = 18 * (1 - age);
+      } else {
+        ctx.fillStyle = pad.kind === 'perc' ? '#161c2c' : pad.kind === 'ding' ? '#2a2546' : '#1e2638';
+      }
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = pad.kind === 'perc' ? 'rgba(226,232,240,.4)' : 'rgba(255,255,255,.14)';
+      if (pad.kind === 'perc') ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = flash && age < 0.6 ? '#0b1020' : '#e8ecf6';
+      ctx.font = `800 ${Math.round(labelR * (pad.label.length > 1 ? 0.78 : 0.95))}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(pad.label, x, hitY + 1);
+      ctx.restore();
+    });
+
+    const events = state.parsed.events;
+    const pending = state.mode === 'wait' ? events[nextPendingWaitIndex()] : null;
+    const from = firstEventIndexAtOrAfter(t - 0.55);
+    let to = from;
+    while (to < events.length && events[to].time <= t + preview + 0.2) to += 1;
+    const particleCount = particleCountWithinBudget(profile.fallingParticles, Math.max(1, to - from), profile);
+    const particleClock = particleCount ? performance.now() / 1000 : 0;
+    const noteIsMoving = state.playing && !state.holding;
+    const started = state.playing || state.songTime > 0.001;
+    for (let i = from; i < to; i += 1) {
+      const event = events[i];
+      const dt = event.time - t;
+      if (!started && dt < 0.3) continue;
+      const items = event.items.filter(item => !item.missing && centers.has(item.pad) && !isHitResult(state.results.get(item.id)));
+      if (!items.length) continue;
+      if (listening() && dt < -0.25) continue;
+      const y = hitY - (dt / preview) * travelPx;
+      const travel = Math.max(0, Math.min(1, 1 - dt / preview));
+      const isPending = pending && pending.index === event.index;
+      let alpha = (0.18 + 0.82 * smooth(travel / 0.22)) * (dt < -0.2 ? Math.max(0, 1 + dt * 2) : 1) * (dt > preview ? Math.max(0, 1 - (dt - preview) / 0.2) : 1);
+      if (isPending && state.holding) alpha = 1;
+      if (alpha <= 0.01) continue;
+      const growth = 0.72 + Math.pow(travel, 0.72) * 0.48;
+      const baseD = Math.max(26, Math.min(40, laneW * 0.78));
+      const noteW = baseD * growth;
+      const noteH = noteW;
+      if (items.length > 1) {
+        const xs = items.map(item => centers.get(item.pad));
+        ctx.save();
+        ctx.globalAlpha = alpha * 0.6;
+        ctx.strokeStyle = 'rgba(226,232,240,.5)';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(Math.min(...xs), y);
+        ctx.lineTo(Math.max(...xs), y);
+        ctx.stroke();
+        ctx.restore();
+      }
+      items.forEach(item => {
+        const x = centers.get(item.pad);
+        const result = state.results.get(item.id);
+        const color = result === 'miss' ? WRONG_COLOR : itemColor(item);
+        if (noteIsMoving && particleCount) drawFallingNoteParticles(ctx, item.id, x, y, noteW / 2, noteH, color, alpha, particleCount, profile.particleShadows, particleClock);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(x, y);
+        drawCachedNoteSprite(ctx, cachedNoteSprite('round', color, noteW, noteW, Math.abs(dt) < 0.15 || (isPending && state.holding) ? 24 : 10));
+        ctx.restore();
+        if (isPending && state.holding) {
+          const phase = (nowMs % 900) / 900;
+          ctx.save();
+          ctx.globalAlpha = 0.75 * (1 - phase);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x, y, noteW / 2 + 4 + phase * 8, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        const label = state.padMap.get(item.pad).label;
+        const labelSize = Math.max(13, Math.min(18, Math.max(width * 0.04, 15) * growth));
+        drawCachedNoteLabel(ctx, cachedNoteLabel(label, label.length > 1 ? labelSize * 0.85 : labelSize, renderColorData(color).ink), x, y);
+        ctx.restore();
+      });
+    }
+  }
+
+  function drawEffects(nowMs) {
+    const ctx = frontCtx;
+    // Effects sit on the pad you played whenever the handpan is on the stage (also the phone
+    // lanes layout); only the desktop lanes, without a stage drum, show them on the hit line.
+    const lanes = state.view === 'lanes' && !state.layout.drum ? laneGeometry() : null;
+    state.effects.forEach(effect => {
+      let x;
+      let y;
+      let baseR;
+      if (lanes) {
+        x = lanes.centers.get(effect.padId);
+        if (x == null) return;
+        y = lanes.hitY;
+        baseR = Math.max(10, Math.min(lanes.laneW * 0.36, 17));
+      } else {
+        const pad = state.padMap.get(effect.padId);
+        if (!pad || !state.layout.drum) return;
+        const p = padScreen(pad);
+        x = p.x;
+        y = p.y;
+        baseR = Math.max(pad.rx, pad.ry) * state.layout.drum.drumSize / 2;
+      }
+      const age = (nowMs - effect.at) / 700;
+      if (age >= 1) return;
+      ctx.save();
+      if (effect.type === 'burst') {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.beginPath();
+        ctx.arc(x, y, baseR * (1 + age * 1.6), 0, Math.PI * 2);
+        ctx.strokeStyle = rgba(effect.color, 0.85 * (1 - age));
+        ctx.lineWidth = 3 * (1 - age) + 0.5;
+        ctx.stroke();
+        for (let k = 0; k < 8; k += 1) {
+          const a = (k / 8) * Math.PI * 2 + effect.at * 0.001;
+          const d = baseR * (1.1 + age * 2.2);
+          ctx.fillStyle = rgba(effect.color, 0.8 * (1 - age));
+          ctx.beginPath();
+          ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, 2.2 * (1 - age) + 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (effect.type === 'miss') {
+        ctx.strokeStyle = rgba(WRONG_COLOR, 0.9 * (1 - age));
+        ctx.lineWidth = 3;
+        const s = Math.min(14, baseR * 0.6);
+        ctx.beginPath();
+        ctx.moveTo(x - s, y - s - age * 14);
+        ctx.lineTo(x + s, y + s - age * 14);
+        ctx.moveTo(x + s, y - s - age * 14);
+        ctx.lineTo(x - s, y + s - age * 14);
+        ctx.stroke();
+      } else if (effect.type === 'text') {
+        ctx.font = '800 12px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = rgba(effect.color, 1 - age);
+        ctx.fillText(effect.text, x, y - baseR - 10 - age * 22);
+      }
+      ctx.restore();
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Microphone and tuner                                                */
+  /* ------------------------------------------------------------------ */
+
+  const mic = { on: false, stream: null, source: null, analyser: null, data: null, prev: [], floor: 0.006, loud: false, last: 0, raf: 0, pending: 0, lastRms: 0 };
+
+  function setMicStatus(message, stateName = '') {
+    els.micStatus.textContent = message;
+    els.micStatus.classList.remove('listening', 'heard', 'error');
+    if (stateName) els.micStatus.classList.add(stateName);
+  }
+
+  function updateMicUI() {
+    els.micBtn.classList.toggle('active', mic.on);
+    els.micBtn.setAttribute('aria-pressed', String(mic.on));
+    els.micBtn.innerHTML = `${MIC_ICON} Microphone ${mic.on ? 'on' : 'off'}`;
+    if (!mic.on) {
+      setMicStatus(state.mode === 'tuner' ? 'Turn on the microphone to tune' : 'Use in Practice, Wait, or Tuner mode');
+      if (state.mode === 'tuner') resetTunerDisplay();
+    }
+  }
+
+  async function startMic() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicStatus('Microphone unavailable', 'error');
+      showToast('Microphone access is unavailable here. Open the app through the START launcher (localhost) or HTTPS in Chrome or Edge.', 'warning');
+      return;
+    }
+    try {
+      const context = await ensureAudio();
+      if (!context) throw new Error('No audio');
+      mic.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
+      mic.source = context.createMediaStreamSource(mic.stream);
+      mic.analyser = context.createAnalyser();
+      mic.analyser.fftSize = 4096;
+      mic.analyser.smoothingTimeConstant = 0.12;
+      mic.source.connect(mic.analyser);
+      mic.data = new Float32Array(mic.analyser.fftSize);
+      mic.prev = [];
+      mic.floor = 0.006;
+      mic.on = true;
+      updateMicUI();
+      setMicStatus(state.mode === 'tuner' ? 'Tuner listening… strike one note' : 'Listening… play your handpan', 'listening');
+      if (state.mode === 'tuner') resetTunerDisplay('Listening for a clear pitch');
+      cancelAnimationFrame(mic.raf);
+      mic.raf = requestAnimationFrame(micLoop);
+      showToast('Microphone enabled. Strike one note at a time.', 'success');
+    } catch (error) {
+      mic.on = false;
+      updateMicUI();
+      const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError';
+      setMicStatus(denied ? 'Permission denied' : 'Could not start microphone', 'error');
+      showToast(denied ? 'Microphone permission was denied. Allow microphone access in the browser and try again.' : 'The microphone could not be started. Check that another app is not using it.', 'warning');
+    }
+  }
+
+  function stopMic() {
+    cancelAnimationFrame(mic.raf);
+    clearTimeout(mic.pending);
+    state.tunerToken += 1;
+    mic.stream?.getTracks().forEach(track => track.stop());
+    try { mic.source?.disconnect(); } catch (error) { /* ignored */ }
+    mic.on = false;
+    mic.stream = null;
+    mic.source = null;
+    mic.analyser = null;
+    updateMicUI();
+  }
+
+  async function toggleMic() {
+    if (mic.on) {
+      stopMic();
+      showToast('Microphone turned off.', 'success');
+      return;
+    }
+    await startMic();
+  }
+
+  function micLoop(now) {
+    if (!mic.on || !mic.analyser) return;
+    mic.analyser.getFloatTimeDomainData(mic.data);
+    // Onset detection looks only at the newest ~1024 samples, so a strike is seen quickly.
+    let recent = 0;
+    for (let i = mic.data.length - 1024; i < mic.data.length; i += 1) recent += mic.data[i] * mic.data[i];
+    const rms = Math.sqrt(recent / 1024);
+    mic.prev.push(Float32Array.from(mic.data));
+    if (mic.prev.length > 5) mic.prev.shift();
+    if (rms < mic.floor * 2) mic.floor = mic.floor * 0.98 + rms * 0.02;
+    const threshold = Math.max(0.014, mic.floor * 3.2);
+    // Compare with the quietest of the last few frames, so an attack that is split
+    // across two animation frames, or lands on a still-ringing note, is still caught.
+    mic.history = (mic.history || []).concat(rms).slice(-7);
+    const recentMin = Math.min(...mic.history.slice(0, -1), Infinity);
+    const rising = rms > threshold && rms > Math.min(recentMin, mic.lastRms || recentMin) * 1.6;
+    if ((rising || (rms > threshold && !mic.loud)) && now - mic.last > 110) {
+      mic.loud = true;
+      mic.last = now;
+      const before = mic.prev.length > 2 ? mic.prev[mic.prev.length - 3] : null;
+      clearTimeout(mic.pending);
+      mic.pending = setTimeout(() => analyseStrike(before), 70);
+    } else if (rms < threshold * 0.6) {
+      mic.loud = false;
+    }
+    mic.lastRms = rms;
+    mic.raf = requestAnimationFrame(micLoop);
+  }
+
+  function goertzel(samples, sampleRate, frequency) {
+    const omega = 2 * Math.PI * frequency / sampleRate;
+    const coeff = 2 * Math.cos(omega);
+    let q1 = 0; let q2 = 0;
+    const length = samples.length;
+    for (let i = 0; i < length; i += 1) {
+      const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (length - 1));
+      const q0 = coeff * q1 - q2 + samples[i] * w;
+      q2 = q1;
+      q1 = q0;
+    }
+    return Math.max(0, q1 * q1 + q2 * q2 - coeff * q1 * q2) / (length * length);
+  }
+
+  // Fresh (new since the strike) energy at each note's fundamental, octave and twelfth.
+  // Handpan partials are tuned, so the harmonic sum separates neighbours like A3 / Bb3.
+  function tonalEnergies(after, before, sampleRate) {
+    const nyquist = sampleRate / 2 - 100;
+    const fresh = f => {
+      if (f > nyquist) return 0;
+      const now = goertzel(after, sampleRate, f);
+      const prev = before ? goertzel(before, sampleRate, f) : 0;
+      return Math.max(0, now - prev * 0.85);
+    };
+    return state.pads.filter(p => p.kind !== 'perc').map(pad => {
+      const f = frequencyForMidi(pad.midi);
+      const f1 = fresh(f);
+      return { pad, f, fund: f1, sum: f1 + fresh(f * 2) * 0.8 + fresh(f * 3) * 0.5 };
+    });
+  }
+
+  function isPartialOfLower(entry, energies) {
+    return energies.some(other => {
+      if (other === entry || other.f >= entry.f) return false;
+      const ratio = entry.f / other.f;
+      return (Math.abs(ratio - 2) < 0.03 || Math.abs(ratio - 3) < 0.045) && other.fund > entry.fund * 0.22;
+    });
+  }
+
+  // Pure decision: which pad does this strike most likely belong to, given what we expect?
+  function chooseFromStrike(after, before, sampleRate, expected) {
+    const energies = tonalEnergies(after, before, sampleRate);
+    energies.forEach(entry => { entry.score = isPartialOfLower(entry, energies) ? entry.sum * 0.3 : entry.sum; });
+    const ranked = energies.slice().sort((a, b) => b.score - a.score);
+    const best = ranked[0];
+    const total = energies.reduce((sum, e) => sum + e.score, 0);
+    const clarity = best && total > 0 ? best.score / total : 0;
+    const strongest = Math.max(1e-12, ...energies.map(e => e.score));
+    const maxFund = Math.max(1e-12, ...energies.map(e => e.fund));
+    const tonalExpected = expected.filter(item => state.padMap.get(item.pad)?.kind !== 'perc');
+    const percExpected = expected.filter(item => state.padMap.get(item.pad)?.kind === 'perc');
+    for (const item of tonalExpected) {
+      const entry = energies.find(e => e.pad.id === item.pad);
+      if (!entry) continue;
+      const lowerOctaveHeard = isPartialOfLower(entry, energies) && !tonalExpected.some(other => other !== item && (energies.find(e => e.pad.id === other.pad)?.f || Infinity) < entry.f);
+      const ownFundamental = entry.fund >= maxFund * 0.12;
+      if (!lowerOctaveHeard && ownFundamental && (entry === best || entry.score >= strongest * 0.4)) return item.pad;
+    }
+    if (percExpected.length && (clarity < 0.55 || !tonalExpected.length)) return percExpected[0].pad;
+    if (best && clarity >= 0.3 && best.score > 1e-10) return best.pad.id;
+    return null;
+  }
+
+  function expectedItemsNow() {
+    if (!state.parsed) return [];
+    if (state.mode === 'wait') {
+      const pending = state.parsed.events[nextPendingWaitIndex()];
+      return pending ? pending.items.filter(item => !item.missing && !state.results.has(item.id)) : [];
+    }
+    const t = songNow();
+    const window = goodWindow();
+    const items = [];
+    for (let i = firstEventIndexAtOrAfter(t - window); i < state.parsed.events.length; i += 1) {
+      const event = state.parsed.events[i];
+      if (event.time > t + window) break;
+      event.items.forEach(item => { if (!item.missing && !state.results.has(item.id)) items.push(item); });
+    }
+    return items;
+  }
+
+  function analyseStrike(before) {
+    if (!mic.on || !mic.analyser) return;
+    mic.analyser.getFloatTimeDomainData(mic.data);
+    const sampleRate = audio.ctx.sampleRate;
+    if (state.mode === 'tuner') {
+      tunerStrike(Float32Array.from(mic.data), before, sampleRate);
+      return;
+    }
+    if (!state.playing) {
+      setMicStatus('Heard you · press Play to start', 'heard');
+      return;
+    }
+    const chosen = chooseFromStrike(mic.data, before, sampleRate, expectedItemsNow());
+    if (!chosen) {
+      setMicStatus('Strike heard · pitch unclear', 'error');
+      return;
+    }
+    const pad = state.padMap.get(chosen);
+    setMicStatus(`Heard ${pad.kind === 'perc' ? pad.name : `${pad.label} · ${pad.name}`}`, 'heard');
+    userHit(chosen, 'mic');
+  }
+
+  // Cents from the target pitch: scan ±80 cents of the fundamental in 2-cent steps and
+  // interpolate the peak. Looking only near the expected note keeps the strong handpan
+  // octave from being mistaken for the note.
+  function measureCents(samples, sampleRate, f0) {
+    const powers = [];
+    let bestIndex = 0;
+    for (let c = -80, i = 0; c <= 80; c += 2, i += 1) {
+      const power = goertzel(samples, sampleRate, f0 * Math.pow(2, c / 1200));
+      powers.push(power);
+      if (power > powers[bestIndex]) bestIndex = i;
+    }
+    if (bestIndex === 0 || bestIndex === powers.length - 1) return null;
+    let energy = 0;
+    for (let i = 0; i < samples.length; i += 1) energy += samples[i] * samples[i];
+    energy /= samples.length;
+    if (powers[bestIndex] < energy * 0.012) return null;
+    const a = powers[bestIndex - 1];
+    const b = powers[bestIndex];
+    const c = powers[bestIndex + 1];
+    const denom = a - 2 * b + c;
+    const shift = denom ? 0.5 * (a - c) / denom : 0;
+    return -80 + (bestIndex + Math.max(-1, Math.min(1, shift))) * 2;
+  }
+
+  function tunerStrike(samples, before, sampleRate) {
+    const chosen = chooseFromStrike(samples, before, sampleRate, []);
+    const pad = chosen ? state.padMap.get(chosen) : null;
+    if (!pad || pad.kind === 'perc') {
+      setMicStatus('Strike heard · pitch unclear', 'error');
+      resetTunerDisplay('Pitch unclear. Try one firm strike.');
+      return;
+    }
+    flashPad(pad.id, MIC_HEARD_COLOR, 900);
+    addEffect('burst', pad.id, MIC_HEARD_COLOR);
+    setMicStatus(`Heard ${pad.label} · ${pad.name}`, 'heard');
+    const token = (state.tunerToken += 1);
+    const readings = [];
+    const f0 = frequencyForMidi(pad.midi);
+    const measure = data => {
+      if (token !== state.tunerToken) return;
+      const cents = measureCents(data, sampleRate, f0);
+      if (cents !== null) readings.push(cents);
+      updateTunerDisplay(pad, readings);
+    };
+    measure(samples);
+    // The note keeps ringing, so take a few more readings and show the median.
+    [120, 260, 420, 650].forEach(delay => setTimeout(() => {
+      if (token !== state.tunerToken || !mic.analyser) return;
+      mic.analyser.getFloatTimeDomainData(mic.data);
+      measure(mic.data);
+    }, delay));
+  }
+
+  function resetTunerDisplay(message = 'Turn on the microphone to begin') {
+    els.tunerPanel.dataset.tone = 'neutral';
+    els.tunerLabel.textContent = '...';
+    els.tunerNoteName.textContent = mic.on ? 'Strike a note' : 'Microphone off';
+    els.tunerCents.textContent = message;
+    els.tunerHz.textContent = 'In tune';
+    els.tunerNeedle.style.left = '50%';
+    els.tunerMeter.setAttribute('aria-valuenow', '0');
+  }
+
+  function updateTunerDisplay(pad, readings) {
+    els.tunerLabel.textContent = pad.label;
+    els.tunerNoteName.textContent = pad.kind === 'ding' ? `Ding ${pad.name}` : pad.name;
+    if (!readings.length) {
+      els.tunerPanel.dataset.tone = 'neutral';
+      els.tunerCents.textContent = 'Pitch unstable. Let the note ring.';
+      els.tunerNeedle.style.left = '50%';
+      return;
+    }
+    const sorted = readings.slice().sort((a, b) => a - b);
+    const cents = sorted[Math.floor(sorted.length / 2)];
+    const rounded = Math.round(cents);
+    const inTune = Math.abs(rounded) <= 8;
+    const tone = inTune ? 'in-tune' : rounded < 0 ? 'flat' : 'sharp';
+    const direction = inTune ? 'in tune' : rounded < 0 ? 'flat' : 'sharp';
+    els.tunerPanel.dataset.tone = tone;
+    els.tunerCents.textContent = `${rounded > 0 ? '+' : ''}${rounded} cents, ${direction}`;
+    els.tunerHz.textContent = `${(frequencyForMidi(pad.midi) * Math.pow(2, cents / 1200)).toFixed(1)} Hz`;
+    els.tunerNeedle.style.left = `${50 + Math.max(-50, Math.min(50, rounded))}%`;
+    els.tunerMeter.setAttribute('aria-valuenow', String(rounded));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Results                                                             */
+  /* ------------------------------------------------------------------ */
+
+  function showResults() {
+    const parsed = state.parsed;
+    let perfect = 0; let good = 0; let miss = 0; let hit = 0;
+    const missedPads = new Map();
+    state.results.forEach((value, id) => {
+      if (value === 'perfect') perfect += 1;
+      else if (value === 'good') good += 1;
+      else if (value === 'hit') hit += 1;
+      else if (value === 'miss') {
+        miss += 1;
+        const [eventIndex, itemIndex] = id.split(':').map(Number);
+        const item = parsed.events[eventIndex]?.items[itemIndex];
+        if (item) {
+          const label = state.padMap.get(item.pad)?.label || item.pad;
+          missedPads.set(label, (missedPads.get(label) || 0) + 1);
+        }
+      }
+    });
+    const total = parsed.itemCount;
+    let accuracy;
+    let hits;
+    if (state.mode === 'wait') {
+      hits = hit;
+      accuracy = hit + state.wrong ? Math.round((hit / (hit + state.wrong)) * 100) : 0;
+    } else {
+      hits = perfect + good;
+      const judged = perfect + good + miss;
+      accuracy = judged + state.wrong ? Math.round(((perfect + good * 0.7) / (judged + state.wrong * 0.5)) * 100) : 0;
+    }
+    els.resultTitle.textContent = `${state.song.title} complete`;
+    els.resultSummary.textContent = accuracy >= 90 ? 'Beautiful, clean playing.' : accuracy >= 70 ? 'Nice work. A few strokes to polish.' : 'Good practice. Slow it down a little and go again.';
+    els.resultHitValue.textContent = `${Math.min(hits, total)}/${total}`;
+    els.resultAccuracyValue.textContent = `${accuracy}%`;
+    els.resultStreakValue.textContent = String(state.bestStreak);
+    const missedText = [...missedPads.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, count]) => `${label}${count > 1 ? ` ×${count}` : ''}`).join(' · ');
+    els.resultMistakes.textContent = state.mode === 'wait'
+      ? `${state.wrong} wrong ${state.wrong === 1 ? 'stroke' : 'strokes'} · ${formatTime((performance.now() - state.runStartedAt) / 1000)} at ${formatSpeed(state.speed)}×`
+      : missedText ? `Missed most often: ${missedText}. Loop that bar with A-B.` : `Perfect ${perfect} · Good ${good} · Wrong ${state.wrong}`;
+    renderRecommendedNext(state.song);
+    openDialog(els.resultDialog);
+    requestAnimationFrame(() => celebrateResults(els.resultSparkles, (accuracy || 0) / 100));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Song builder                                                        */
+  /* ------------------------------------------------------------------ */
+
+  const editor = { songId: null, hand: '', len: 1, drum: null, previewTimer: 0 };
+
+  function openEditor(song) {
+    editor.songId = song && song.folder === 'mine' ? song.id : null;
+    els.editorHeading.textContent = song ? (song.folder === 'mine' ? 'Edit song' : 'Edit a copy') : 'Create a song';
+    els.songTitleInput.value = song ? (song.folder === 'mine' ? song.title : `${song.title} (my version)`) : '';
+    els.songBpmInput.value = String(song ? song.bpm : 90);
+    els.songMeterInput.value = String(song ? song.beatsPerBar : 4);
+    if (song && ![...els.songMeterInput.options].some(o => o.value === String(song.beatsPerBar))) {
+      const option = document.createElement('option');
+      option.value = option.textContent = String(song.beatsPerBar);
+      els.songMeterInput.appendChild(option);
+      els.songMeterInput.value = option.value;
+    }
+    els.sequenceInput.value = song ? song.sequence : '';
+    els.deleteEditorBtn.hidden = !editor.songId;
+    els.saveSongBtn.textContent = song && song.folder !== 'mine' ? 'Save as my song' : 'Save song';
+    editor.drum = buildDrumSvg({ interactive: true, className: 'compose-svg', onTap: composeTap, showAllPerc: true });
+    els.composeDrum.replaceChildren(editor.drum.svg);
+    updateSequenceStatus();
+    openDialog(els.editorDialog);
+  }
+
+  function composeTap(padId) {
+    ensureAudio().then(() => playPad(padId, 0, 0.9)).catch(() => {});
+    const g = editor.drum.padEls.get(padId);
+    if (g) {
+      g.style.setProperty('--flash', MIC_HEARD_COLOR);
+      g.classList.add('flash');
+      setTimeout(() => g.classList.remove('flash'), 180);
+    }
+    // Slaps are written "S" plus the hand; the zone itself implies the hand.
+    let token;
+    if (padId === 'SL' || padId === 'SR') token = `S${padId === 'SR' ? 'R' : 'L'}`;
+    else token = `${padId}${editor.hand}`;
+    const lenSuffix = editor.len === 1 ? '' : `:${editor.len}`;
+    const input = els.sequenceInput;
+    const before = input.value.slice(0, input.selectionStart);
+    const after = input.value.slice(input.selectionEnd);
+    if (els.chordModeToggle.checked) {
+      const match = /(\S+)\s*$/.exec(before);
+      if (match && match[1] !== '|' && !/^[-0.](:|$)/.test(match[1])) {
+        const { core, duration } = splitToken(match[1]);
+        const combined = `${core}+${token}${duration === 1 ? '' : `:${duration}`}`;
+        const head = `${before.slice(0, match.index)}${combined} `;
+        input.value = head + after.replace(/^\s+/, '');
+        input.selectionStart = input.selectionEnd = head.length;
+        updateSequenceStatus();
+        return;
+      }
+    }
+    insertAtCursor(`${token}${lenSuffix}`);
+  }
+
+  function insertAtCursor(text) {
+    const input = els.sequenceInput;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const before = input.value.slice(0, start);
+    const after = input.value.slice(end);
+    const spacer = before && !/\s$/.test(before) ? ' ' : '';
+    const insert = `${spacer}${text} `;
+    input.value = before + insert + after.replace(/^\s+/, '');
+    const caret = before.length + insert.length;
+    input.selectionStart = input.selectionEnd = caret;
+    if (!window.matchMedia('(pointer: coarse)').matches) input.focus({ preventScroll: true });
+    updateSequenceStatus();
+  }
+
+  function removeLastToken() {
+    const input = els.sequenceInput;
+    const before = input.value.slice(0, input.selectionStart).replace(/\s+$/, '');
+    const after = input.value.slice(input.selectionEnd);
+    const trimmed = before.replace(/\S+$/, '');
+    input.value = trimmed + after;
+    input.selectionStart = input.selectionEnd = trimmed.length;
+    updateSequenceStatus();
+  }
+
+  function editorParsed() {
+    return parseSequence(els.sequenceInput.value, els.songBpmInput.value, els.songMeterInput.value, state.padMap);
+  }
+
+  function updateSequenceStatus() {
+    const parsed = editorParsed();
+    const parts = [];
+    if (parsed.events.length) parts.push(`${parsed.itemCount} strokes · ${Math.max(0, parsed.bars.length - 1)} bars · ${formatTime(parsed.duration)}`);
+    if (parsed.errors.length) parts.push(`Not understood: ${parsed.errors.slice(0, 4).join('  ')}${parsed.errors.length > 4 ? ' …' : ''}`);
+    if (parsed.missing.size) parts.push(`Not on ${SCALES[state.instrument.scale].name}: ${[...parsed.missing].join(', ')}`);
+    els.sequenceStatus.textContent = parts.join(' · ') || 'Tap the handpan or type strokes.';
+    els.sequenceStatus.dataset.tone = parsed.errors.length ? 'error' : parsed.missing.size ? 'warn' : 'ok';
+  }
+
+  async function previewEditorSong() {
+    if (audio.preview.length) {
+      cancelScheduledAudio(audio.preview);
+      els.previewSongBtn.textContent = '▶ Preview';
+      return;
+    }
+    const context = await ensureAudio();
+    if (!context) return;
+    const parsed = editorParsed();
+    const start = context.currentTime + 0.15;
+    parsed.events.forEach(event => event.items.forEach(item => { if (!item.missing) playPad(item.pad, start + event.time, 0.9, audio.preview); }));
+    els.previewSongBtn.textContent = '■ Stop preview';
+    clearTimeout(editor.previewTimer);
+    editor.previewTimer = setTimeout(() => {
+      els.previewSongBtn.textContent = '▶ Preview';
+      audio.preview.length = 0;
+    }, (parsed.duration + 0.6) * 1000);
+  }
+
+  function saveEditorSong(event) {
+    event.preventDefault();
+    const title = els.songTitleInput.value.trim();
+    const parsed = editorParsed();
+    if (!title) { els.songTitleInput.focus(); showToast('Give the song a title.', 'warning'); return; }
+    if (!parsed.events.length) { els.sequenceInput.focus(); showToast('Add at least one stroke.', 'warning'); return; }
+    if (parsed.errors.length) { showToast(`Fix the strokes that were not understood: ${parsed.errors.slice(0, 3).join(' ')}`, 'warning'); return; }
+    const data = {
+      title,
+      bpm: Math.min(260, Math.max(20, Math.round(Number(els.songBpmInput.value) || 90))),
+      beatsPerBar: Number(els.songMeterInput.value) || 4,
+      sequence: els.sequenceInput.value.trim()
+    };
+    let song;
+    if (editor.songId) {
+      song = state.mySongs.find(s => s.id === editor.songId);
+      Object.assign(song, data);
+    } else {
+      song = normaliseSong(data, 'mine');
+      state.mySongs.push(song);
+    }
+    saveMySongs();
+    cancelScheduledAudio(audio.preview);
+    closeDialog(els.editorDialog);
+    selectSong(song.id);
+    showToast('Song saved to My songs.', 'success');
+  }
+
+  function deleteSong(id) {
+    const song = state.mySongs.find(s => s.id === id);
+    if (!song) return;
+    if (!window.confirm(`Delete “${song.title}” from My songs? Export it first if you want a backup.`)) return;
+    state.mySongs = state.mySongs.filter(s => s.id !== id);
+    saveMySongs();
+    closeDialog(els.editorDialog);
+    selectSong(state.demoSongs[0]?.id);
+    showToast('Song deleted.', 'success');
+  }
+
+  function exportSong() {
+    const song = state.song;
+    if (!song) return;
+    const documentData = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || undefined, bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence } };
+    const blob = new Blob([JSON.stringify(documentData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${slugify(song.title) || 'handpan-song'}.handsong`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('Song exported.', 'success');
+  }
+
+  async function importSongFile(file) {
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const raw = data && data.song ? data.song : data;
+      const song = normaliseSong({ ...raw, id: undefined }, 'mine');
+      if (!song) throw new Error('missing title or strokes');
+      state.mySongs.push(song);
+      saveMySongs();
+      selectSong(song.id);
+      showToast(`Imported “${song.title}”.`, 'success');
+    } catch (error) {
+      showToast('That file is not a handpan song (.handsong).', 'warning');
+    } finally {
+      els.importFile.value = '';
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* My handpan                                                          */
+  /* ------------------------------------------------------------------ */
+
+  function openSettings() {
+    renderSettings();
+    openDialog(els.settingsDialog);
+  }
+
+  function renderSettingsDrum() {
+    const drum = buildDrumSvg({ interactive: true, className: 'settings-svg', showAllPerc: true, onTap: padId => { ensureAudio().then(() => playPad(padId)).catch(() => {}); } });
+    state.settingsDrum = drum;
+    els.settingsDrum.replaceChildren(drum.svg);
+    bindPercDrag(drum);
+  }
+
+  function renderSettings() {
+    const inst = state.instrument;
+    els.scaleCards.innerHTML = Object.values(SCALES).map(scale => {
+      const notes = [scale.ding, ...scale.top].join(' ');
+      const extra = scale.bottoms ? ` + ${inst.bottoms.join(' ')} below` : '';
+      return `<button type="button" class="scale-card${inst.scale === scale.id ? ' active' : ''}" data-scale="${scale.id}" role="radio" aria-checked="${inst.scale === scale.id}"><b>${scale.name}</b><span>${notes}${extra}</span></button>`;
+    }).join('');
+    const scale = SCALES[inst.scale];
+    if (scale.bottoms) {
+      els.bottomsConfig.hidden = false;
+      els.bottomsConfig.innerHTML = `<p class="settings-note">Bottom notes differ between makers. Pick the two on your drum:</p>
+        <div class="bottoms-row">${[0, 1].map(i => `<label>B${i + 1}<select data-bottom="${i}">${BOTTOM_CHOICES.map(n => `<option${n === inst.bottoms[i] ? ' selected' : ''}>${n}</option>`).join('')}</select></label>`).join('')}</div>`;
+    } else {
+      els.bottomsConfig.hidden = true;
+      els.bottomsConfig.innerHTML = '';
+    }
+    els.noteTable.innerHTML = state.pads.filter(p => p.kind !== 'perc').map(pad =>
+      `<div class="note-row"><b style="--note:${pad.color}">${pad.label}</b><span>${pad.name}</span><em>${frequencyForMidi(pad.midi).toFixed(1)} Hz</em><button type="button" class="note-play" data-play="${pad.id}" aria-label="Play ${pad.label}">▶</button></div>`
+    ).join('');
+    els.percToggle.checked = inst.percussion;
+    els.mirrorToggle.checked = inst.mirror;
+    els.mirrorToggle.disabled = !inst.percussion;
+    els.handColorsToggle.checked = inst.handColors;
+    els.noteNamesToggle.checked = inst.noteNames;
+    els.usedLanesToggle.checked = inst.usedLanes;
+    els.resetPercBtn.disabled = !inst.percussion;
+    updateLayoutCards();
+    renderSettingsDrum();
+  }
+
+  function bindPercDrag(drum) {
+    let drag = null;
+    drum.svg.addEventListener('pointerdown', event => {
+      const g = event.target.closest('.pad-perc');
+      if (!g) return;
+      drag = { id: g.getAttribute('data-pad'), g, pointer: event.pointerId };
+      drum.svg.setPointerCapture(event.pointerId);
+      g.classList.add('dragging');
+    });
+    drum.svg.addEventListener('pointermove', event => {
+      if (!drag || event.pointerId !== drag.pointer) return;
+      const point = drum.svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const local = point.matrixTransform(drum.svg.getScreenCTM().inverse());
+      let { x, y } = local;
+      const r = Math.hypot(x, y);
+      if (r > 0.95) { x *= 0.95 / r; y *= 0.95 / r; }
+      drag.x = x;
+      drag.y = y;
+      drag.g.setAttribute('transform', `translate(${x.toFixed(4)} ${y.toFixed(4)})`);
+    });
+    const end = event => {
+      if (!drag || event.pointerId !== drag.pointer) return;
+      drag.g.classList.remove('dragging');
+      if (Number.isFinite(drag.x)) {
+        const inst = state.instrument;
+        const mirrored = inst.mirror && (drag.id === 'T' || drag.id === 'K');
+        const stored = { x: mirrored ? -drag.x : drag.x, y: drag.y };
+        // Only the dragged zone is stored; the others keep following the layout.
+        inst.percPos[inst.scale] = { ...(inst.percPos[inst.scale] || {}), [drag.id]: stored };
+        applyInstrumentChange({ keepSettingsDrum: true });
+      }
+      drag = null;
+    };
+    drum.svg.addEventListener('pointerup', end);
+    drum.svg.addEventListener('pointercancel', end);
+  }
+
+  function applyInstrumentChange(options = {}) {
+    saveInstrument();
+    const wasPlaying = state.playing;
+    pausePlayback();
+    state.pads = buildPads(state.instrument);
+    state.padMap = new Map(state.pads.map(p => [p.id, p]));
+    const position = state.songTime;
+    if (state.song) {
+      state.parsed = parseSong(state.song);
+      resetRun(Math.min(position, state.parsed.duration));
+    }
+    rebuildLanes();
+    renderDrums();
+    renderSongHeader();
+    renderSongList();
+    if (els.settingsDialog.open) {
+      if (options.keepSettingsDrum) renderSettingsDrum();
+      else renderSettings();
+    }
+    audio.rendering = audio.ctx ? renderAllSounds() : null;
+    resizeCanvas();
+    if (wasPlaying) startPlayback();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Rotating the handpan                                                */
+  /* ------------------------------------------------------------------ */
+
+  const rotation = { raf: 0, current: null };
+
+  function rotationStep() {
+    return 360 / SCALES[state.instrument.scale].top.length / 2;
+  }
+
+  // Move the pads of the drums already on screen, without rebuilding them, so the
+  // rotation can animate smoothly (also during playback).
+  function setPadGeometry(pads) {
+    state.pads = pads;
+    state.padMap = new Map(pads.map(pad => [pad.id, pad]));
+    [...state.drums, editor.drum, state.settingsDrum].filter(Boolean).forEach(drum => drum.padEls.forEach((g, id) => {
+      const pad = state.padMap.get(id);
+      if (!pad) return;
+      g.setAttribute('transform', `translate(${pad.x.toFixed(4)} ${pad.y.toFixed(4)})`);
+      const inner = g.querySelector(':scope > g');
+      if (inner) inner.setAttribute('transform', `rotate(${pad.rot.toFixed(2)})`);
+    }));
+  }
+
+  function applyPadGeometry(pads) {
+    setPadGeometry(pads);
+    invalidateGuides();
+    requestFrame();
+  }
+
+  function animateRotationTo(targetSteps) {
+    const inst = state.instrument;
+    const count = SCALES[inst.scale].top.length;
+    const step = rotationStep();
+    const from = rotation.current ?? (inst.rotationSteps || 0) * step;
+    // Take the shorter way round.
+    let to = targetSteps * step;
+    while (to - from > 180) to -= 360;
+    while (from - to > 180) to += 360;
+    inst.rotationSteps = ((targetSteps % (count * 2)) + count * 2) % (count * 2);
+    cancelAnimationFrame(rotation.raf);
+    const started = performance.now();
+    const tick = now => {
+      const p = Math.min(1, (now - started) / 420);
+      const eased = 1 - Math.pow(1 - p, 3);
+      rotation.current = from + (to - from) * eased;
+      applyPadGeometry(buildPads(inst, rotation.current));
+      if (p < 1) {
+        rotation.raf = requestAnimationFrame(tick);
+        return;
+      }
+      rotation.current = null;
+      saveInstrument();
+      applyPadGeometry(buildPads(inst));
+      rebuildLanes();
+      renderDrums();
+      if (els.settingsDialog.open) renderSettings();
+    };
+    rotation.raf = requestAnimationFrame(tick);
+  }
+
+  function rotateDrum(direction = 1) {
+    const current = rotation.current !== null ? Math.round(rotation.current / rotationStep()) : (state.instrument.rotationSteps || 0);
+    animateRotationTo(current + direction);
+  }
+
+  function updateLayoutCards() {
+    const count = SCALES[state.instrument.scale].top.length;
+    const steps = ((state.instrument.rotationSteps % (count * 2)) + count * 2) % (count * 2);
+    els.layoutRow.querySelectorAll('[data-layout]').forEach(card => card.classList.toggle('active', Number(card.dataset.layout) === steps));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Song tape: the strokes as numbers along the bottom of the stage     */
+  /* ------------------------------------------------------------------ */
+
+  const tape = { parsed: null, key: '', events: [], pxPerBeat: 60, width: 0, playheadX: 0, lastX: null, visible: false, judgeTimer: 0 };
+
+  function tapeWanted() {
+    return state.view === 'radial' && state.mode !== 'tuner' && Boolean(state.parsed?.events.length);
+  }
+
+  function tapeLabel(padId) {
+    return state.padMap.get(padId)?.label || PERC_INFO[padId]?.label || padId;
+  }
+
+  function tapePitch(padId) {
+    const pad = state.padMap.get(padId);
+    if (!pad) return 0;
+    return pad.kind === 'perc' ? 200 : pad.midi || 0;
+  }
+
+  function buildTape() {
+    const parsed = state.parsed;
+    tape.parsed = parsed;
+    tape.key = `${state.instrument.handColors ? 'h' : 'n'}|${state.instrument.scale}`;
+    tape.events = [];
+    tape.lastX = null;
+    els.noteTapeTrack.replaceChildren();
+    if (!parsed || !parsed.events.length) return;
+    let minGap = Infinity;
+    for (let i = 1; i < parsed.events.length; i += 1) {
+      const gap = parsed.events[i].beat - parsed.events[i - 1].beat;
+      if (gap > 1e-3) minGap = Math.min(minGap, gap);
+    }
+    if (!Number.isFinite(minGap)) minGap = 1;
+    const ppb = Math.max(34, Math.min(96, 25 / minGap));
+    tape.pxPerBeat = ppb;
+    const frag = document.createDocumentFragment();
+    for (let beat = 0; beat <= Math.ceil(parsed.totalBeats); beat += 1) {
+      const tick = document.createElement('i');
+      tick.className = 'tape-beat';
+      tick.style.left = `${(beat * ppb).toFixed(1)}px`;
+      frag.appendChild(tick);
+    }
+    parsed.bars.slice(0, -1).forEach((beat, index) => {
+      const bar = document.createElement('i');
+      bar.className = 'tape-bar';
+      bar.style.left = `${(beat * ppb).toFixed(1)}px`;
+      bar.dataset.bar = String(index + 1);
+      frag.appendChild(bar);
+    });
+    parsed.events.forEach(event => {
+      const items = event.items.filter(item => !item.missing).sort((a, b) => tapePitch(b.pad) - tapePitch(a.pad));
+      if (!items.length) return;
+      const col = document.createElement('span');
+      col.className = `tape-ev${items.length > 1 ? ` chord chord-${Math.min(3, items.length)}` : ''}`;
+      col.style.left = `${(event.beat * ppb).toFixed(1)}px`;
+      const chips = items.map(item => {
+        const chip = document.createElement('b');
+        chip.textContent = tapeLabel(item.pad);
+        chip.style.setProperty('--c', itemColor(item));
+        col.appendChild(chip);
+        return { item, chip, cls: '' };
+      });
+      frag.appendChild(col);
+      tape.events.push({ event, col, chips, cls: '' });
+    });
+    els.noteTapeTrack.appendChild(frag);
+  }
+
+  function placeTape(layout, width, height) {
+    const show = tapeWanted();
+    tape.visible = show;
+    els.noteTape.hidden = !show;
+    if (!show) return;
+    const tapeH = width <= 760 ? 46 : 52;
+    // Sit just above whatever controls are anchored to the bottom of the stage.
+    const stage = els.noteStage.getBoundingClientRect();
+    let controlsTop = height;
+    [els.noteStage.querySelector('.rotate-drum-pair'), els.focusModeBtn, els.stageSongName].forEach(el => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const top = r.top - stage.top;
+      if (top > height * 0.55) controlsTop = Math.min(controlsTop, top);
+    });
+    const bottomGap = controlsTop < height ? height - controlsTop + 8 : 12;
+    const top = Math.round(height - bottomGap - tapeH);
+    els.noteTape.style.top = `${top}px`;
+    els.noteTape.style.height = `${tapeH}px`;
+    tape.width = Math.max(120, width - 24);
+    tape.playheadX = Math.round(tape.width * 0.3);
+    els.noteTape.style.setProperty('--playhead', `${tape.playheadX}px`);
+    tape.lastX = null;
+    // The handpan moves up (and only shrinks if it really has to) to clear the tape.
+    const drum = layout.drum;
+    if (!drum) return;
+    const ext = state.pads.some(pad => pad.kind === 'bottom') ? 0.66 : 0.53;
+    const maxBottom = top - 6;
+    const topReserve = width <= 900 ? 60 : 18;
+    if (drum.cy + drum.drumSize * ext > maxBottom) {
+      drum.drumSize = Math.max(170, Math.min(drum.drumSize, (maxBottom - topReserve) / (ext * 2)));
+      drum.cy = maxBottom - drum.drumSize * ext;
+      drum.scale = drum.drumSize / STAGE_DRUM_BASE;
+    }
+  }
+
+  function firstTapeIndexAt(beat) {
+    let lo = 0;
+    let hi = tape.events.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (tape.events[mid].event.beat < beat) lo = mid + 1; else hi = mid;
+    }
+    return lo;
+  }
+
+  function updateTape(songTime) {
+    if (!tape.visible) return;
+    if (tape.parsed !== state.parsed || tape.key !== `${state.instrument.handColors ? 'h' : 'n'}|${state.instrument.scale}`) buildTape();
+    if (!tape.events.length) return;
+    const ppb = tape.pxPerBeat;
+    const beat = songTime / state.parsed.spb;
+    const x = tape.playheadX - beat * ppb;
+    if (tape.lastX === null || Math.abs(x - tape.lastX) > 0.05) {
+      els.noteTapeTrack.style.transform = `translate3d(${x.toFixed(1)}px,0,0)`;
+      tape.lastX = x;
+    }
+    const judged = state.mode === 'practice' || state.mode === 'wait';
+    const waiting = state.mode === 'wait' && state.holding ? state.parsed.events[state.waitIdx] : null;
+    const from = Math.max(0, firstTapeIndexAt(beat - tape.playheadX / ppb - 2));
+    const to = Math.min(tape.events.length, firstTapeIndexAt(beat + (tape.width - tape.playheadX) / ppb + 2));
+    for (let i = from; i < to; i += 1) {
+      const entry = tape.events[i];
+      const ev = entry.event;
+      // "Now" only while the stroke is inside the playhead box.
+      const hold = Math.min(Math.max(0.3, Math.min(0.9, ev.durBeats * 0.85)), 17 / ppb);
+      let cls;
+      if (waiting === ev || (beat >= ev.beat - 0.06 && beat < ev.beat + hold)) cls = 'tape-ev now';
+      else if (beat >= ev.beat) cls = 'tape-ev past';
+      else cls = 'tape-ev';
+      if (entry.chips.length > 1) cls += ` chord chord-${Math.min(3, entry.chips.length)}`;
+      if (cls !== entry.cls) {
+        entry.col.className = cls;
+        entry.cls = cls;
+      }
+      entry.chips.forEach(chip => {
+        const result = judged ? state.results.get(chip.item.id) : null;
+        const c = result ? `r-${result}` : '';
+        if (c !== chip.cls) {
+          chip.chip.className = c;
+          chip.cls = c;
+        }
+      });
+    }
+  }
+
+  const JUDGE_TEXT = { perfect: 'Perfect', good: 'Good', hit: 'Nice', miss: 'Miss', wrong: 'Wrong note' };
+
+  // A small "Perfect ×12" / "Miss" pop above the tape, like a rhythm game.
+  function tapeJudge(kind) {
+    if (!JUDGE_TEXT[kind] || state.mode === 'tuner') return;
+    const el = els.noteTapeJudge;
+    const good = kind === 'perfect' || kind === 'good' || kind === 'hit';
+    el.innerHTML = `${JUDGE_TEXT[kind]}${good && state.streak >= 3 ? ` <em>×${state.streak}</em>` : ''}`;
+    el.dataset.kind = kind;
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+    clearTimeout(tape.judgeTimer);
+    tape.judgeTimer = setTimeout(() => el.classList.remove('pop'), 900);
+    const big = els.stageJudge;
+    big.innerHTML = el.innerHTML;
+    big.dataset.kind = kind;
+    big.classList.toggle('below-banner', state.mode === 'wait');
+    big.classList.remove('pop');
+    void big.offsetWidth;
+    big.classList.add('pop');
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Demo tour (Interstellar plays, the handpan drifts like a saucer)    */
+  /* ------------------------------------------------------------------ */
+
+  const STORAGE_TOUR_SEEN = 'ethereal-handpan-tour-seen-v1';
+  const SPIN_DEG_PER_SECOND = -4; // clockwise, one turn in 90 s
+  const spin = { active: false, start: 0, base: 0 };
+  const tour = { active: false, steps: [], index: 0, previous: null, positionRaf: 0 };
+
+  const TOUR_STEPS = [
+    {
+      target: '#noteStage', scroll: 'start',
+      title: 'Welcome to Ethereal Handpan',
+      text: 'Interstellar is playing. The handpan drifts through space while every stroke flies along its glowing ray to the field you play: blue for the left hand, amber for the right.'
+    },
+    {
+      target: '#noteTape',
+      title: 'The song tape',
+      text: 'The numbers along the bottom show what comes next and what you just played. In Practice and Wait for note they light up Perfect, Good or Miss, like a game.'
+    },
+    {
+      target: '.toolbar-controls .segmented',
+      title: 'Listen, practise, learn',
+      text: 'Listen just plays the song so you can relax. Practice scores your timing: Perfect, Good or Miss. Wait for note stops on every stroke until you play it. Tuner, on its own to the right, checks your handpan against A4 = 440 Hz.'
+    },
+    {
+      target: '.speed-control',
+      title: 'Slow it right down',
+      text: 'Any speed from 0.1x to 1.5x. Count-in gives you a bar of clicks before the song starts.'
+    },
+    {
+      target: '#micBtn',
+      title: 'Play your real handpan',
+      text: 'Turn on the microphone and the trainer listens to your drum. You can also tap the handpan on screen or use the keyboard: D, 1-9, T, K and S.'
+    },
+    {
+      target: '#noteStage .rotate-drum-pair',
+      title: 'Turn it to match yours',
+      text: 'Rotate the handpan left or right until the fields sit where yours do. My Handpan has the scale (D Kurd 9, 10 or 12), both layouts and the T, K and S positions.'
+    },
+    {
+      target: '#songList', sidebar: true,
+      title: 'Songs and grooves',
+      text: 'Demo songs, grooves and low-note pieces, with your own songs underneath in My songs.'
+    },
+    {
+      target: '#editBtn',
+      title: 'Song Builder',
+      text: 'Edit the selected song or start a new one: tap the handpan or type strokes like 4L 8R, chords with +, half beats with :0.5.'
+    },
+    {
+      target: '#focusModeBtn',
+      title: 'Focus mode',
+      text: 'On a phone or tablet, Focus mode gives the whole screen to the handpan, the song name and the tape.'
+    },
+    {
+      target: '#tourBtn',
+      title: 'Watch it again any time',
+      text: 'Tour replays this demo. ? opens the strokes, keys and notation help.'
+    }
+  ];
+
+  function startSpin() {
+    cancelAnimationFrame(rotation.raf);
+    spin.base = rotation.current ?? (state.instrument.rotationSteps || 0) * rotationStep();
+    spin.start = performance.now();
+    spin.active = true;
+    requestFrame();
+  }
+
+  function applySpin(nowMs) {
+    if (!spin.active) return;
+    rotation.current = spin.base + ((nowMs - spin.start) / 1000) * SPIN_DEG_PER_SECOND;
+    setPadGeometry(buildPads(state.instrument, rotation.current));
+    // Only the guide rays need redrawing; the starry backdrop keeps its own pace.
+    state.staticGuideCanvas = null;
+    state.staticGuideKey = '';
+  }
+
+  function stopSpin() {
+    if (!spin.active) return;
+    spin.active = false;
+    rotation.current = spin.base + ((performance.now() - spin.start) / 1000) * SPIN_DEG_PER_SECOND;
+    // Glide back to the layout the player chose.
+    animateRotationTo(state.instrument.rotationSteps || 0);
+  }
+
+  function tourSeen() {
+    try { return localStorage.getItem(STORAGE_TOUR_SEEN) === 'true'; } catch (error) { return false; }
+  }
+
+  function markTourSeen() {
+    try { localStorage.setItem(STORAGE_TOUR_SEEN, 'true'); } catch (error) { /* ignored */ }
+  }
+
+  function elementVisible(el) {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+  }
+
+  function tourTarget(step) {
+    return step ? document.querySelector(step.target) : null;
+  }
+
+  function positionTour() {
+    if (!tour.active) return;
+    const target = tourTarget(tour.steps[tour.index]);
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const padding = 7;
+    const focusLeft = Math.max(4, rect.left - padding);
+    const focusTop = Math.max(4, rect.top - padding);
+    const focusRight = Math.min(window.innerWidth - 4, rect.right + padding);
+    const focusBottom = Math.min(window.innerHeight - 4, rect.bottom + padding);
+    const focusWidth = Math.max(28, focusRight - focusLeft);
+    const focusHeight = Math.max(28, focusBottom - focusTop);
+    Object.assign(els.tourFocusRing.style, { left: `${focusLeft}px`, top: `${focusTop}px`, width: `${focusWidth}px`, height: `${focusHeight}px` });
+    const setShade = (el, left, top, width, height) => {
+      Object.assign(el.style, { left: `${Math.max(0, left)}px`, top: `${Math.max(0, top)}px`, width: `${Math.max(0, width)}px`, height: `${Math.max(0, height)}px` });
+    };
+    setShade(els.tourShadeTop, 0, 0, window.innerWidth, focusTop);
+    setShade(els.tourShadeRight, focusRight, focusTop, window.innerWidth - focusRight, focusHeight);
+    setShade(els.tourShadeBottom, 0, focusBottom, window.innerWidth, window.innerHeight - focusBottom);
+    setShade(els.tourShadeLeft, 0, focusTop, focusLeft, focusHeight);
+    cancelAnimationFrame(tour.positionRaf);
+    tour.positionRaf = requestAnimationFrame(() => {
+      const cardWidth = els.tourCard.offsetWidth || 350;
+      const cardHeight = els.tourCard.offsetHeight || 190;
+      const edge = 14;
+      const left = Math.min(Math.max(edge, rect.left), Math.max(edge, window.innerWidth - cardWidth - edge));
+      let top = rect.bottom + 16;
+      if (top + cardHeight > window.innerHeight - edge) top = rect.top - cardHeight - 16;
+      // A tall target (the stage on a phone): put the card over its lower part instead.
+      if (top < edge) top = window.innerHeight - cardHeight - edge;
+      top = Math.max(edge, Math.min(top, window.innerHeight - cardHeight - edge));
+      els.tourCard.style.left = `${left}px`;
+      els.tourCard.style.top = `${top}px`;
+    });
+  }
+
+  function renderTourStep() {
+    const step = tour.steps[tour.index];
+    if (!step) return;
+    const narrow = window.innerWidth <= 1100;
+    if (narrow) setSidebar(Boolean(step.sidebar));
+    els.tourProgress.textContent = `${tour.index + 1} of ${tour.steps.length}`;
+    els.tourTitle.textContent = step.title;
+    els.tourText.textContent = step.text;
+    els.tourBackBtn.hidden = tour.index === 0;
+    els.tourNextBtn.textContent = tour.index === tour.steps.length - 1 ? 'Finish' : 'Next';
+    const target = tourTarget(step);
+    if (target) {
+      const r = target.getBoundingClientRect();
+      const fits = r.top >= 0 && r.bottom <= window.innerHeight;
+      // On a phone the stage goes to the top of the screen so the card fits underneath.
+      const toTop = step.scroll === 'start' && window.innerWidth <= 760 && r.top > 12;
+      if (toTop) window.scrollTo({ top: window.scrollY + r.top - 8, behavior: 'smooth' });
+      else if (!fits) target.scrollIntoView({ block: step.scroll || 'center', behavior: 'smooth' });
+    }
+    positionTour();
+    setTimeout(positionTour, 300);
+    setTimeout(positionTour, 650);
+  }
+
+  async function unlockTourAudio() {
+    if (!tour.active) return;
+    const context = await ensureAudio();
+    if (!context || context.state !== 'running') return;
+    els.tourSoundBtn.hidden = true;
+    if (state.playing && state.clock !== 'audio') {
+      // Visuals were running on the page clock (no sound allowed yet): hand over to the audio clock.
+      const t = songNow();
+      state.clock = 'audio';
+      seekTo(t, { keepResults: true });
+    }
+  }
+
+  function startTour() {
+    if (tour.active) return;
+    document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
+    tour.previous = {
+      songId: state.song?.id,
+      mode: state.mode,
+      view: state.view,
+      speed: state.speed,
+      songTime: state.songTime,
+      sidebarOpen: els.sidebar.classList.contains('open')
+    };
+    stopPlayback(false);
+    if (state.mode !== 'listen') setMode('listen');
+    if (state.view !== 'radial') setView('radial', { silent: true, keepPref: true });
+    setSpeed(1);
+    const song = state.demoSongs.find(item => /^interstellar/i.test(item.title)) || state.demoSongs[0];
+    if (song) selectSong(song.id);
+    tour.active = true;
+    tour.index = 0;
+    tour.steps = TOUR_STEPS;
+    els.tourOverlay.hidden = false;
+    els.tourSoundBtn.hidden = Boolean(audio.ctx && audio.ctx.state === 'running');
+    startSpin();
+    // Let the layout settle (view/mode changes resize the stage) before measuring targets.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      tour.steps = TOUR_STEPS.filter(step => step.sidebar || elementVisible(tourTarget(step)));
+      renderTourStep();
+    }));
+    startPlayback().then(() => {
+      if (tour.active) els.tourSoundBtn.hidden = state.clock === 'audio';
+    }).catch(() => {});
+    setTimeout(() => els.tourNextBtn.focus(), 60);
+  }
+
+  function finishTour() {
+    if (!tour.active) return;
+    tour.active = false;
+    markTourSeen();
+    els.tourOverlay.hidden = true;
+    clearTimeout(state.loopTimer);
+    stopPlayback(false);
+    stopSpin();
+    const previous = tour.previous;
+    tour.previous = null;
+    if (!previous) return;
+    if (window.innerWidth <= 1100) setSidebar(previous.sidebarOpen);
+    if (previous.songId && previous.songId !== state.song?.id) selectSong(previous.songId);
+    else resetRun(0);
+    if (previous.view !== state.view) setView(previous.view, { silent: true, keepPref: true });
+    if (previous.mode !== state.mode) setMode(previous.mode);
+    setSpeed(previous.speed);
+  }
+
+  function nextTourStep() {
+    if (tour.index >= tour.steps.length - 1) {
+      finishTour();
+      return;
+    }
+    tour.index += 1;
+    renderTourStep();
+  }
+
+  function previousTourStep() {
+    if (tour.index === 0) return;
+    tour.index -= 1;
+    renderTourStep();
+  }
+
+  function maybeStartTour() {
+    if (tourSeen()) return;
+    setTimeout(() => {
+      if (!tour.active && !document.querySelector('dialog[open]')) startTour();
+    }, 700);
+  }
+
+  function bindTourEvents() {
+    els.tourBtn.addEventListener('click', () => { startTour(); unlockTourAudio(); });
+    els.tourNextBtn.addEventListener('click', nextTourStep);
+    els.tourBackBtn.addEventListener('click', previousTourStep);
+    els.tourSkipBtn.addEventListener('click', finishTour);
+    els.tourSoundBtn.addEventListener('click', unlockTourAudio);
+    // Any touch on the tour is a user gesture, so the sound can start.
+    els.tourOverlay.addEventListener('pointerdown', () => { unlockTourAudio(); });
+    window.addEventListener('keydown', event => {
+      if (!tour.active) return;
+      unlockTourAudio();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        finishTour();
+      } else if (event.key === 'ArrowRight' || event.key === 'Enter') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        nextTourStep();
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        previousTourStep();
+      } else if (event.key !== 'Tab') {
+        // The page behind the tour is not playable.
+        event.stopImmediatePropagation();
+      }
+    }, true);
+    window.addEventListener('resize', positionTour);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && tour.active && !state.playing) startPlayback().catch(() => {});
+    });
+    window.addEventListener('scroll', () => { if (tour.active) positionTour(); }, { passive: true });
+  }
+
+  // Session complete: a soft burst of glowing particles around the tick, then a few
+  // sparkles that keep twinkling while the card is open.
+  function celebrateResults(canvas, strength = 1) {
+    if (!canvas || !canvas.getContext) return;
+    const dialog = canvas.closest('dialog');
+    const card = canvas.parentElement;
+    const icon = card.querySelector('.result-icon');
+    const ctx = canvas.getContext('2d');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = canvas.clientWidth || card.clientWidth;
+    const h = canvas.clientHeight || 160;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cx = w / 2;
+    const cy = icon ? icon.offsetTop + icon.offsetHeight / 2 - canvas.offsetTop : 55;
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const colors = ['#5eead4', '#99f6e4', '#c4b5fd', '#a78bfa', '#fbbf24', '#38bdf8', '#f9a8d4'];
+    const level = Math.max(0.25, Math.min(1, strength));
+    const particles = [];
+    const burst = reduced ? 0 : Math.round(34 + 46 * level);
+    for (let i = 0; i < burst; i += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 55 + Math.random() * 150;
+      particles.push({
+        x: cx + Math.cos(angle) * 22, y: cy + Math.sin(angle) * 22,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed * 0.8 - 18,
+        life: 1.1 + Math.random() * 1.2, age: 0, size: 1 + Math.random() * 2.4,
+        color: colors[(Math.random() * colors.length) | 0], spin: Math.random() * 6
+      });
+    }
+    const sparkles = Array.from({ length: reduced ? 6 : 14 }, (_, i) => ({
+      angle: (i / (reduced ? 6 : 14)) * Math.PI * 2 + Math.random() * 0.4,
+      radius: 40 + Math.random() * 34, size: 0.8 + Math.random() * 1.6,
+      phase: Math.random() * Math.PI * 2, speed: 1.4 + Math.random() * 1.8,
+      color: colors[(Math.random() * colors.length) | 0]
+    }));
+    cancelAnimationFrame(canvas._celebrateRaf || 0);
+    let last = performance.now();
+    const started = last;
+    const tick = now => {
+      if (!canvas.isConnected || (dialog && !dialog.open)) { ctx.clearRect(0, 0, w, h); return; }
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const t = (now - started) / 1000;
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = 'lighter';
+      const drag = Math.pow(0.18, dt);
+      particles.forEach(p => {
+        p.age += dt;
+        if (p.age >= p.life) return;
+        p.vx *= drag; p.vy = p.vy * drag - 10 * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        const k = 1 - p.age / p.life;
+        const r = p.size * (0.6 + 0.4 * k);
+        const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 4);
+        glow.addColorStop(0, p.color);
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = k * 0.55;
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r * 4, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = k;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.55, 0, Math.PI * 2); ctx.fill();
+      });
+      const fadeIn = Math.min(1, t / 0.6);
+      sparkles.forEach(s => {
+        const a = s.angle + t * 0.12;
+        const x = cx + Math.cos(a) * s.radius * 1.35;
+        const y = cy + Math.sin(a) * s.radius * 0.62;
+        const tw = 0.5 + 0.5 * Math.sin(t * s.speed + s.phase);
+        const size = s.size * (0.6 + tw);
+        ctx.globalAlpha = fadeIn * (0.25 + 0.65 * tw);
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x - size * 2.2, y); ctx.lineTo(x + size * 2.2, y);
+        ctx.moveTo(x, y - size * 2.2); ctx.lineTo(x, y + size * 2.2);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x, y, size * 0.5, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      canvas._celebrateRaf = requestAnimationFrame(tick);
+    };
+    canvas._celebrateRaf = requestAnimationFrame(tick);
+  }
+
+  /* ---------- Recommended next (with Ethereal Drum's little album covers) ---------- */
+
+  function stableSongHash(song) {
+    const value = String(song?.id || song?.title || 'song');
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i += 1) { hash ^= value.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+    return hash >>> 0;
+  }
+
+  function songCoverMarkup(song) {
+    const hash = stableSongHash(song);
+    const theme = hash % 8;
+    const symbols = ['✦', '☾', '✿', '♫', '✧', '☁', '❋', '♪'];
+    const symbol = symbols[(hash >>> 3) % symbols.length];
+    return `<span class="album-cover cover-theme-${theme}" aria-hidden="true"><i>${symbol}</i><b></b></span>`;
+  }
+
+  function songNoteSet(song) {
+    return new Set([...parseSong(song).used].filter(id => state.padMap.get(id)?.kind !== 'perc'));
+  }
+
+  function recommendNextSong(current) {
+    if (!current) return null;
+    const order = { easy: 0, medium: 1, hard: 2, expert: 3 };
+    const currentLevel = songDifficulty(parseSong(current)).level;
+    const currentNotes = songNoteSet(current);
+    return allSongs().filter(song => song && song.id !== current.id).map(song => {
+      const difficulty = songDifficulty(parseSong(song));
+      const notes = songNoteSet(song);
+      const intersection = [...currentNotes].filter(note => notes.has(note)).length;
+      const union = new Set([...currentNotes, ...notes]).size || 1;
+      const coverage = currentNotes.size ? intersection / currentNotes.size : 0;
+      const distance = Math.abs((order[difficulty.level] ?? 0) - (order[currentLevel] ?? 0));
+      const difficultyScore = distance === 0 ? 10 : distance === 1 ? 4 : 0;
+      const tempoScore = Math.max(0, 2.5 - Math.abs((Number(song.bpm) || 90) - (Number(current.bpm) || 90)) / 35);
+      return { song, difficulty, intersection, score: difficultyScore + (intersection / union) * 9 + coverage * 4 + tempoScore };
+    }).sort((a, b) => b.score - a.score || b.intersection - a.intersection || a.song.title.localeCompare(b.song.title))[0] || null;
+  }
+
+  function renderRecommendedNext(song) {
+    const rec = recommendNextSong(song);
+    state.recommendedSongId = rec?.song?.id || null;
+    els.resultRecommendation.hidden = !rec;
+    if (!rec) { els.resultRecommendedBtn.innerHTML = ''; return; }
+    const next = rec.song;
+    const shared = rec.intersection === 1 ? '1 shared note' : `${rec.intersection} shared notes`;
+    els.resultRecommendedBtn.innerHTML = `${songCoverMarkup(next)}<span class="result-recommended-copy"><span><strong>${escapeHtml(next.title)}</strong><em class="difficulty-badge" data-level="${rec.difficulty.level}">${rec.difficulty.label}</em></span><small>${shared} · ${next.bpm} BPM</small></span><b class="result-recommended-arrow" aria-hidden="true">→</b>`;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Dialogs, toast, sidebar, focus mode                                 */
+  /* ------------------------------------------------------------------ */
+
+  function openDialog(dialog) {
+    if (typeof dialog.showModal === 'function') {
+      if (!dialog.open) dialog.showModal();
+    } else {
+      dialog.setAttribute('open', '');
+    }
+  }
+
+  function closeDialog(dialog) {
+    if (typeof dialog.close === 'function') dialog.close();
+    else dialog.removeAttribute('open');
+  }
+
+  function isPopoverOpen(element) {
+    try { return element.matches(':popover-open'); } catch (error) { return element.classList.contains('show'); }
+  }
+
+  function hideToast() {
+    clearTimeout(showToast.timer);
+    try {
+      if (typeof els.toast.hidePopover === 'function' && isPopoverOpen(els.toast)) els.toast.hidePopover();
+      else els.toast.classList.remove('show');
+    } catch (error) {
+      els.toast.classList.remove('show');
+    }
+  }
+
+  function showToast(message, type = 'info') {
+    els.toast.textContent = message;
+    els.toast.classList.remove('warning', 'success');
+    if (type === 'warning' || type === 'success') els.toast.classList.add(type);
+    clearTimeout(showToast.timer);
+    try {
+      if (typeof els.toast.showPopover === 'function') {
+        if (isPopoverOpen(els.toast)) els.toast.hidePopover();
+        els.toast.showPopover();
+      } else {
+        els.toast.classList.add('show');
+      }
+    } catch (error) {
+      els.toast.classList.add('show');
+    }
+    showToast.timer = window.setTimeout(hideToast, type === 'warning' ? 3600 : 2400);
+  }
+
+  function setSidebar(open) {
+    els.sidebar.classList.toggle('open', open);
+  }
+
+  function setFocusMode(enabled) {
+    state.focusMode = Boolean(enabled) && window.innerWidth <= 1100;
+    document.body.classList.toggle('focus-mode', state.focusMode);
+    els.focusModeBtn.classList.toggle('active', state.focusMode);
+    els.focusModeBtn.setAttribute('aria-pressed', String(state.focusMode));
+    els.focusModeBtn.setAttribute('aria-label', state.focusMode ? 'Exit focus mode' : 'Enter focus mode');
+    els.focusModeBtn.title = state.focusMode ? 'Exit focus mode' : 'Focus mode';
+    els.focusModeBtn.innerHTML = `<span aria-hidden="true">${state.focusMode ? '×' : '⛶'}</span><b>${state.focusMode ? 'Exit Focus' : 'Focus Mode'}</b>`;
+    requestAnimationFrame(() => resizeCanvas());
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Utilities                                                           */
+  /* ------------------------------------------------------------------ */
+
+  function formatTime(seconds) {
+    const total = Math.max(0, Math.round(seconds));
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+  }
+
+  function slugify(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Events                                                              */
+  /* ------------------------------------------------------------------ */
+
+  function bindEvents() {
+    els.menuBtn.addEventListener('click', () => setSidebar(true));
+    els.sidebarClose.addEventListener('click', () => setSidebar(false));
+    els.sidebarScrim.addEventListener('click', () => setSidebar(false));
+    els.songList.addEventListener('click', event => {
+      const button = event.target.closest('[data-song-id]');
+      if (button) selectSong(button.dataset.songId, { closeSidebar: true });
+    });
+    els.songSearch.addEventListener('input', () => { state.search = els.songSearch.value; renderSongList(); });
+    els.newSongBtn.addEventListener('click', () => { setSidebar(false); openEditor(null); });
+    els.importBtn.addEventListener('click', () => els.importFile.click());
+    els.importFile.addEventListener('change', () => importSongFile(els.importFile.files[0]));
+    els.exportBtn.addEventListener('click', exportSong);
+    els.deleteBtn.addEventListener('click', () => state.song && deleteSong(state.song.id));
+    els.editBtn.addEventListener('click', () => openEditor(state.song));
+    els.settingsBtn.addEventListener('click', openSettings);
+    els.helpBtn.addEventListener('click', () => openDialog(els.helpDialog));
+    els.mobileViewToggleBtn.addEventListener('click', () => setView(state.view === 'lanes' ? 'radial' : 'lanes'));
+    els.focusModeBtn.addEventListener('click', () => setFocusMode(!state.focusMode));
+    // One click turns the drum clockwise by half a step (layout 1 -> layout 2 -> ...).
+    [els.rotateLeftBtn, els.composeRotateLeftBtn].forEach(button => button.addEventListener('click', () => rotateDrum(1)));
+    [els.rotateRightBtn, els.composeRotateRightBtn].forEach(button => button.addEventListener('click', () => rotateDrum(-1)));
+    els.layoutRow.addEventListener('click', event => {
+      const card = event.target.closest('[data-layout]');
+      const turn = event.target.closest('[data-rotate]');
+      if (card) {
+        // Go to the chosen layout by the shortest turn from where the drum is now.
+        const count = SCALES[state.instrument.scale].top.length;
+        const current = state.instrument.rotationSteps || 0;
+        let target = Number(card.dataset.layout);
+        while (target - current > count) target -= count * 2;
+        while (current - target > count) target += count * 2;
+        animateRotationTo(target);
+      } else if (turn) {
+        rotateDrum(Number(turn.dataset.rotate));
+      }
+    });
+
+    document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+    document.querySelectorAll('.view-segment').forEach(button => button.addEventListener('click', () => {
+      if (button.dataset.view !== state.view) setView(button.dataset.view);
+    }));
+    document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => {
+      const dialog = $(button.dataset.closeDialog);
+      if (dialog === els.editorDialog) {
+        cancelScheduledAudio(audio.preview);
+        els.previewSongBtn.textContent = '▶ Preview';
+      }
+      closeDialog(dialog);
+    }));
+
+    els.playBtn.addEventListener('click', () => { togglePlayback().catch(() => showToast('Could not start audio.', 'warning')); });
+    els.stopBtn.addEventListener('click', () => stopPlayback(true));
+    els.loopBtn.addEventListener('click', () => {
+      state.loop = !state.loop;
+      if (state.loop) state.abLoop = false;
+      updateTransportUI();
+      updateABLoopUI();
+      savePrefs();
+      showToast(state.loop ? 'Whole-song loop enabled.' : 'Whole-song loop disabled.', 'success');
+    });
+    els.metronomeBtn.addEventListener('click', () => {
+      state.metronome = !state.metronome;
+      if (state.playing) state.schedBeat = Math.ceil(songNow() / state.parsed.spb - 1e-6);
+      updateTransportUI();
+      savePrefs();
+    });
+    els.guideBtn.addEventListener('click', () => {
+      state.guide = !state.guide;
+      updateTransportUI();
+      savePrefs();
+      showToast(state.guide ? 'Guide sound on: the app plays each note quietly.' : 'Guide sound off.', 'success');
+    });
+    els.countInToggle.checked = state.countIn;
+    els.countInToggle.addEventListener('change', () => { state.countIn = els.countInToggle.checked; savePrefs(); });
+    els.micBtn.addEventListener('click', () => toggleMic());
+
+    els.speedRange.addEventListener('input', () => setSpeed(els.speedRange.value));
+    document.querySelectorAll('[data-speed]').forEach(button => button.addEventListener('click', () => setSpeed(button.dataset.speed)));
+
+    els.progress.addEventListener('pointerdown', () => { state.dragProgress = true; });
+    els.progress.addEventListener('input', () => {
+      if (!state.parsed) return;
+      const time = (Number(els.progress.value) / 1000) * state.parsed.duration;
+      seekTo(time);
+      els.elapsedLabel.textContent = formatTime(time / state.speed);
+    });
+    els.progress.addEventListener('change', () => { state.dragProgress = false; });
+    window.addEventListener('pointerup', () => { state.dragProgress = false; });
+
+    els.setABtn.addEventListener('click', () => setLoopPoint('A'));
+    els.setBBtn.addEventListener('click', () => setLoopPoint('B'));
+    els.abLoopBtn.addEventListener('click', toggleABLoop);
+    els.clearABBtn.addEventListener('click', clearABLoop);
+
+    // Song builder
+    els.editorForm.addEventListener('submit', saveEditorSong);
+    els.sequenceInput.addEventListener('input', updateSequenceStatus);
+    els.songBpmInput.addEventListener('input', updateSequenceStatus);
+    els.appendRestBtn.addEventListener('click', () => insertAtCursor(editor.len === 1 ? '-' : `-:${editor.len}`));
+    els.appendBarBtn.addEventListener('click', () => insertAtCursor('|'));
+    els.undoTokenBtn.addEventListener('click', removeLastToken);
+    els.previewSongBtn.addEventListener('click', () => previewEditorSong());
+    els.deleteEditorBtn.addEventListener('click', () => editor.songId && deleteSong(editor.songId));
+    els.editorDialog.addEventListener('close', () => { cancelScheduledAudio(audio.preview); els.previewSongBtn.textContent = '▶ Preview'; });
+    els.editorDialog.querySelectorAll('[data-hand]').forEach(button => button.addEventListener('click', () => {
+      editor.hand = button.dataset.hand;
+      els.editorDialog.querySelectorAll('[data-hand]').forEach(b => b.classList.toggle('active', b === button));
+    }));
+    els.editorDialog.querySelectorAll('[data-len]').forEach(button => button.addEventListener('click', () => {
+      editor.len = Number(button.dataset.len);
+      els.editorDialog.querySelectorAll('[data-len]').forEach(b => b.classList.toggle('active', b === button));
+    }));
+
+    // My handpan
+    els.scaleCards.addEventListener('click', event => {
+      const card = event.target.closest('[data-scale]');
+      if (!card) return;
+      state.instrument.scale = card.dataset.scale;
+      applyInstrumentChange();
+      showToast(`${SCALES[state.instrument.scale].name} selected.`, 'success');
+    });
+    els.bottomsConfig.addEventListener('change', event => {
+      const select = event.target.closest('[data-bottom]');
+      if (!select) return;
+      state.instrument.bottoms[Number(select.dataset.bottom)] = select.value;
+      applyInstrumentChange();
+    });
+    els.noteTable.addEventListener('click', event => {
+      const button = event.target.closest('[data-play]');
+      if (button) ensureAudio().then(() => playPad(button.dataset.play)).catch(() => {});
+    });
+    els.percToggle.addEventListener('change', () => { state.instrument.percussion = els.percToggle.checked; applyInstrumentChange(); });
+    els.mirrorToggle.addEventListener('change', () => { state.instrument.mirror = els.mirrorToggle.checked; applyInstrumentChange(); });
+    els.resetPercBtn.addEventListener('click', () => { delete state.instrument.percPos[state.instrument.scale]; applyInstrumentChange(); });
+    els.handColorsToggle.addEventListener('change', () => {
+      state.instrument.handColors = els.handColorsToggle.checked;
+      saveInstrument();
+      state.nextKey = '';
+      updateNextHint(true);
+      state.dirty = true;
+      requestFrame();
+    });
+    els.noteNamesToggle.addEventListener('change', () => { state.instrument.noteNames = els.noteNamesToggle.checked; applyInstrumentChange(); });
+    els.usedLanesToggle.addEventListener('change', () => { state.instrument.usedLanes = els.usedLanesToggle.checked; saveInstrument(); rebuildLanes(); requestFrame(); });
+
+    // Results
+    els.resultReplayBtn.addEventListener('click', () => { closeDialog(els.resultDialog); resetRun(0); startPlayback(); });
+    els.resultSlowerBtn.addEventListener('click', () => {
+      closeDialog(els.resultDialog);
+      setSpeed(Math.max(MIN_SPEED, state.speed - 0.1), true);
+      resetRun(0);
+      startPlayback();
+    });
+    els.resultRecommendedBtn.addEventListener('click', () => {
+      const id = state.recommendedSongId;
+      if (!id || !findSong(id)) return;
+      closeDialog(els.resultDialog);
+      selectSong(id);
+      startPlayback();
+    });
+    els.resultNextBtn.addEventListener('click', () => {
+      closeDialog(els.resultDialog);
+      const list = allSongs();
+      const index = list.findIndex(song => song.id === state.song?.id);
+      selectSong(list[(index + 1) % list.length].id);
+    });
+
+    bindTourEvents();
+    els.difficultyFilter.addEventListener('click', event => {
+      const chip = event.target.closest('[data-level]');
+      if (!chip) return;
+      state.levelFilter = chip.dataset.level;
+      els.difficultyFilter.querySelectorAll('[data-level]').forEach(b => b.classList.toggle('active', b === chip));
+      renderSongList();
+    });
+    document.addEventListener('keydown', keyboardHandler);
+    window.addEventListener('resize', () => {
+      if (state.focusMode && window.innerWidth > 1100) setFocusMode(false);
+      resizeCanvas();
+    });
+    if ('ResizeObserver' in window) new ResizeObserver(() => resizeCanvas()).observe(els.noteStage);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && state.playing) pausePlayback();
+      if (!document.hidden) requestFrame();
+    });
+  }
+
+  function keyboardHandler(event) {
+    if (document.querySelector('dialog[open]')) return;
+    if (event.target.matches('input:not([type="range"]):not([type="checkbox"]), textarea, select') || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.code === 'Space') {
+      // A focused button already reacts to Space itself.
+      if (event.target.closest('button')) return;
+      event.preventDefault();
+      togglePlayback().catch(() => {});
+      return;
+    }
+    if (event.key === '[' || event.key === ']') {
+      event.preventDefault();
+      setSpeed(state.speed + (event.key === ']' ? 0.05 : -0.05), true);
+      return;
+    }
+    if (event.repeat) return;
+    const key = event.key.toLowerCase();
+    let padId = KEY_MAP[key];
+    if (key === 's') {
+      // S plays the slap the song is asking for; Shift+S is always the right-hand slap.
+      const slap = nextUpcomingEvent()?.items.find(item => item.pad === 'SL' || item.pad === 'SR');
+      padId = event.shiftKey ? 'SR' : slap ? slap.pad : 'SL';
+    }
+    if (padId && state.padMap.has(padId)) {
+      event.preventDefault();
+      userHit(padId, 'key');
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Init                                                                */
+  /* ------------------------------------------------------------------ */
+
+  function init() {
+    state.pads = buildPads(state.instrument);
+    state.padMap = new Map(state.pads.map(p => [p.id, p]));
+    loadSongs();
+    bindEvents();
+    setView(state.view, { silent: true });
+    updateModeUI();
+    setSpeed(state.speed);
+    selectSong(prefs.selectedId);
+    resizeCanvas();
+    updateTransportUI();
+    try {
+      if (window.OfflineAudioContext || window.webkitOfflineAudioContext) audio.rendering = renderAllSounds();
+    } catch (error) { /* ignored */ }
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+      navigator.serviceWorker.register('service-worker.js').catch(() => {});
+    }
+    maybeStartTour();
+    window.__handpanTrainer = { tour, startTour, finishTour, songNow, state, audio, chooseFromStrike, measureCents, parseSequence, buildPads, laneOrder, userHit, setMode, setView, setSpeed, seekTo, startPlayback, pausePlayback, tunerStrike };
+  }
+
+  init();
+})();

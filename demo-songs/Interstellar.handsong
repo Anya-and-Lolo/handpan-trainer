@@ -1,0 +1,12 @@
+{
+  "format": "ethereal-handpan-song-v1",
+  "song": {
+    "title": "Interstellar",
+    "artist": "Hans Zimmer · handpan arrangement",
+    "bpm": 120,
+    "beatsPerBar": 3,
+    "scale": "D Kurd",
+    "sequence": "# A - pedal A with the rising D E F G\n4L 8R - | 4L 8R - | 5R 8L - | 5R 8L - | 6L 8R - | 6L 8R - | 7R 8L - | 7R 8L 5R |\n4L 8R - | 4L 8R - | 5R 8L - | 5R 8L - | 6L 8R - | 6L 8R - | 7R 8L - | 7R 8L - | - - - - |\n# B - two-hand chords\n4L+2R 8R - | 4L+2R 8R - | 3L+5R 8L - | 3L+5R 8L - | 6L+4R 8R - | 6L+4R 8R - | 5L+7R 8L - | 5L+7R 8L 5R |\n4L+2R 8R - | 4L+2R 8R - | 3L+5R 8L - | 3L+5R 8L - | 6L+4R 8R - | 6L+4R 8R - | 5L+7R 8L - | 5L+7R 8L - |",
+    "order": 1
+  }
+}
