@@ -3184,3 +3184,57 @@ body[data-mode="practice"] .practice-options, body[data-mode="wait"] .practice-o
 .install-card p { line-height:1.5; }
 .rv-row { max-width:720px; }
 @media (max-width:760px) { .sequence-label-row .text-mode-btn { margin-left:0; } }
+/* The app logo: the same little handpan as the loading screen, slowly turning. */
+.brand-mark.hp-brand { width:42px; height:42px; padding:0; background:none; border:0; box-shadow:none; flex:none; }
+.hp-logo-svg { width:100%; height:100%; display:block; filter:drop-shadow(0 0 10px rgba(109,130,246,.45)); animation:hpMarkSpin 9s linear infinite; }
+/* Tuner: no play controls on the stage. */
+.trainer-grid.tuner-mode .stage-dock, .trainer-grid.tuner-mode .speed-cycle-btn { display:none !important; }
+/* Swipe the tape to move through the song. */
+.note-tape .tape-window { pointer-events:auto; touch-action:pan-y; cursor:grab; }
+.note-tape .tape-window.scrubbing { cursor:grabbing; border-color:rgba(94,234,212,.45); }
+/* Song boxes: same box size for every bar, centred. */
+.rv-inner { width:min(100%, var(--rv-width, 100%)); margin:0 auto; display:grid; gap:7px; }
+.rv-row { max-width:none; }
+.rhythm-view { padding:10px 8px; }
+
+/* v14: song boxes with a little more air between them. */
+.rv-inner { gap:10px; }
+.rv-grid { grid-template-rows:minmax(62px,auto); }
+.rv-beat { margin:0 4px; }
+.rv-cell { margin:6px 6px 5px; }
+.rv-cell.narrow { margin-left:4px; margin-right:4px; }
+.rv-section { margin-top:8px; }
+
+/* Song Builder buttons: two by two beside the handpan on desktop and tablet. */
+@media (min-width:761px) {
+  .compose-buttons { grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; width:min(100%, 440px); justify-self:center; }
+  .compose-buttons .soft-btn { min-height:48px; font-size:15px; }
+}
+
+/* Speed: one green dropdown, on one line with Count-in and the microphone. */
+.speed-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px 18px; }
+.speed-control { flex-wrap:nowrap; }
+.speed-row > p { flex-basis:auto; }
+.speed-row select.speed-select {
+  -webkit-appearance:none; appearance:none; min-width:78px; padding:6px 30px 6px 12px; border-radius:10px;
+  border:1px solid rgba(94,234,212,.45); background-color:rgba(94,234,212,.12); color:var(--accent-2); font-weight:850; font-size:13px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%235eead4' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 10px center; background-size:11px 8px; cursor:pointer;
+}
+.speed-row select.speed-select:hover { background-color:rgba(94,234,212,.18); }
+.speed-row select.speed-select option { background:#161c2c; color:var(--text); }
+
+/* Ko-fi support button, as in Ethereal Drum. */
+.donate-btn {
+  min-height:36px; display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:0 12px 0 9px;
+  border:1px solid rgba(255,255,255,.1); border-radius:10px; background:rgba(255,255,255,.055); color:var(--text);
+  font-size:11px; font-weight:800; text-decoration:none; box-shadow:inset 0 1px rgba(255,255,255,.025);
+  transition:transform .16s ease, border-color .16s ease, background .16s ease;
+}
+.donate-btn:hover { transform:translateY(-1px); border-color:rgba(255,93,55,.42); background:rgba(255,93,55,.09); }
+.donate-btn img { width:21px; height:21px; object-fit:contain; display:block; }
+@media (max-width:1100px) {
+  .donate-btn { width:40px; height:40px; min-height:40px; padding:0; }
+  .donate-btn span { display:none; }
+  .donate-btn img { width:23px; height:23px; }
+}

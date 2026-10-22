@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#111827" />
   <meta name="description" content="A handpan / hand drum song trainer with drum-centre guidance, falling lanes, Wait for note practice, a tuner and D T K S percussion strokes." />
   <title>Hand Drum Trainer</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1.1 -1.1 2.2 2.2'%3E%3Ccircle r='1' fill='%232a3044' stroke='%23c4b5fd' stroke-width='.08'/%3E%3Cellipse rx='.34' ry='.3' fill='%238b7ae6'/%3E%3Ccircle cy='.66' r='.16' fill='%23ffffff55'/%3E%3Ccircle cx='-.55' cy='.38' r='.14' fill='%23ffffff55'/%3E%3Ccircle cx='.55' cy='.38' r='.14' fill='%23ffffff55'/%3E%3Ccircle cx='-.6' cy='-.25' r='.13' fill='%23ffffff55'/%3E%3Ccircle cx='.6' cy='-.25' r='.13' fill='%23ffffff55'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1.05 -1.05 2.1 2.1'%3E%3Ccircle r='1' fill='%23111827' stroke='%238b7cf0' stroke-opacity='.7' stroke-width='.06'/%3E%3Ccircle r='.3' fill='%23a78bfa'/%3E%3Ccircle cx='0.310' cy='-0.537' r='.15' fill='%23fbbf24'/%3E%3Ccircle cx='0.620' cy='0.000' r='.15' fill='%23a78bfa'/%3E%3Ccircle cx='0.310' cy='0.537' r='.15' fill='%23a78bfa'/%3E%3Ccircle cx='-0.310' cy='0.537' r='.15' fill='%23a78bfa'/%3E%3Ccircle cx='-0.620' cy='0.000' r='.15' fill='%2338bdf8'/%3E%3Ccircle cx='-0.310' cy='-0.537' r='.15' fill='%23a78bfa'/%3E%3C/svg%3E" />
   <link rel="apple-touch-icon" href="app-files/icon-192.png" />
   <link rel="manifest" href="app-files/manifest.webmanifest" />
   <link rel="stylesheet" href="app-files/styles.css" />
@@ -25,7 +25,7 @@
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <div class="brand-row">
-        <div class="brand-mark handpan-brand" aria-hidden="true"><svg viewBox="-1.1 -1.1 2.2 2.2"><circle r="1" class="bm-shell"/><ellipse rx=".34" ry=".3" class="bm-ding"/><circle cx="0" cy=".66" r=".16" class="bm-pad"/><circle cx="-.5" cy=".42" r=".14" class="bm-pad"/><circle cx=".5" cy=".42" r=".14" class="bm-pad"/><circle cx="-.64" cy="-.12" r=".13" class="bm-pad"/><circle cx=".64" cy="-.12" r=".13" class="bm-pad"/><circle cx="-.4" cy="-.56" r=".12" class="bm-pad"/><circle cx=".4" cy="-.56" r=".12" class="bm-pad"/></svg></div>
+        <div class="brand-mark hp-brand" aria-hidden="true"><svg class="hp-logo-svg" viewBox="-1.05 -1.05 2.1 2.1"><circle r="1" fill="#111827" stroke="#8b7cf0" stroke-opacity=".55" stroke-width=".035"/><circle r=".77" fill="none" stroke="#5eead4" stroke-opacity=".35" stroke-width=".03"/><circle r=".27" fill="#a78bfa" fill-opacity=".2" stroke="#a78bfa" stroke-width=".07"/><circle cx="0.000" cy="-0.615" r=".115" fill="#a78bfa"/><circle cx="0.435" cy="-0.435" r=".115" fill="#fbbf24"/><circle cx="0.615" cy="-0.000" r=".115" fill="#a78bfa"/><circle cx="0.435" cy="0.435" r=".115" fill="#a78bfa"/><circle cx="0.000" cy="0.615" r=".115" fill="#a78bfa"/><circle cx="-0.435" cy="0.435" r=".115" fill="#a78bfa"/><circle cx="-0.615" cy="0.000" r=".115" fill="#38bdf8"/><circle cx="-0.435" cy="-0.435" r=".115" fill="#a78bfa"/></svg></div>
         <div>
           <h1>Ethereal Handpan</h1>
           <p>Hand drum trainer</p>
@@ -72,6 +72,10 @@
           </div>
         </div>
         <div class="top-actions">
+          <a class="donate-btn" href="https://ko-fi.com/anya_and_lolo" target="_blank" rel="noopener noreferrer" aria-label="Donate on Ko-fi" title="Support Ethereal Handpan on Ko-fi">
+            <img src="app-files/kofi-logo.webp" alt="" aria-hidden="true" />
+            <span>Donate</span>
+          </a>
           <button class="soft-btn compact tour-btn" id="tourBtn" type="button" aria-label="Play the demo tour" title="Demo tour: Interstellar plays while the app is shown step by step">
             <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.8 8.9a3.3 3.3 0 1 1 4.7 3c-.9.5-1.5 1.2-1.5 2.2v.7"></path><circle cx="12" cy="18.4" r=".8" fill="currentColor"></circle></svg>
             <span>Tour</span>
@@ -221,15 +225,15 @@
 
           <div class="speed-row">
             <div class="speed-control">
-              <label for="speedRange">Speed</label>
-              <input id="speedRange" type="range" min="0.1" max="1.5" step="0.05" value="1" aria-describedby="speedValue" />
-              <output id="speedValue" for="speedRange">1×</output>
-              <div class="speed-chips" role="group" aria-label="Speed presets">
-                <button type="button" data-speed="0.25">0.25×</button>
-                <button type="button" data-speed="0.5">0.5×</button>
-                <button type="button" data-speed="0.75">0.75×</button>
-                <button type="button" data-speed="1">1×</button>
-              </div>
+              <label for="speedSelect">Speed</label>
+              <select id="speedSelect" class="speed-select">
+                <option value="0.25">0.25×</option>
+                <option value="0.5">0.5×</option>
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option>
+              </select>
             </div>
             <div class="speed-row-tail">
               <label class="toggle-label">

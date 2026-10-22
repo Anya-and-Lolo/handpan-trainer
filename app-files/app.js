@@ -69,7 +69,7 @@
     'stageDrumWrap', 'stageHandLegend', 'rotateLeftBtn', 'rotateRightBtn', 'composeRotateLeftBtn', 'composeRotateRightBtn', 'layoutRow', 'totalNotesLabel', 'tempoLabel', 'mobileScoreValue', 'mobileScorePill', 'mobileStreakValue', 'mobileStreakPill', 'mobileNotesLeftValue',
     'waitBanner', 'waitBannerNotes', 'tunerPanel', 'tunerLabel', 'tunerNoteName', 'tunerCents', 'tunerMeter', 'tunerNeedle', 'tunerHz', 'countIn',
     'elapsedLabel', 'durationLabel', 'progress', 'abMarkerA', 'abMarkerB', 'setABtn', 'setBBtn', 'abLoopBtn', 'clearABBtn', 'abLoopStatus',
-    'loopBtn', 'stopBtn', 'playBtn', 'metronomeBtn', 'guideBtn', 'speedRange', 'speedValue', 'countInToggle', 'micBtn', 'micStatus', 'modeHint',
+    'loopBtn', 'stopBtn', 'playBtn', 'metronomeBtn', 'guideBtn', 'speedSelect', 'countInToggle', 'micBtn', 'micStatus', 'modeHint',
     'practiceCard', 'instrumentTitle', 'keyboardHint', 'drumWrap', 'nextNoteValue', 'nextNoteTime', 'strokeKey',
     'editorDialog', 'editorForm', 'editorHeading', 'songTitleInput', 'songBpmInput', 'songMeterInput', 'chordModeToggle', 'composeDrum',
     'appendRestBtn', 'appendBarBtn', 'undoTokenBtn', 'previewSongBtn', 'sequenceInput', 'sequenceStatus', 'saveSongBtn', 'deleteEditorBtn',
@@ -632,9 +632,18 @@
     tone.frequency.value = Math.min(10000, f * 10);
     tone.Q.value = 0.3;
     out.connect(tone).connect(context.destination);
+    // Phone and tablet speakers hardly play anything below ~250 Hz, so there the low notes
+    // (above all the ding, D3 = 147 Hz) get stronger overtones: the ear still hears the
+    // same pitch, now through the octave and fifth above it.
+    const smallSpeaker = window.matchMedia?.('(pointer: coarse)').matches;
+    const low = f < 260;
     const partials = isDing
-      ? [[1, 1, 0.012, 5.4], [1.0028, 0.3, 0.012, 4.8], [2, 0.42, 0.006, 3.6], [3, 0.16, 0.004, 2.2], [4.02, 0.04, 0.003, 0.9]]
-      : [[1, 1, 0.009, 4.4], [1.0024, 0.24, 0.009, 3.8], [2, 0.48, 0.005, 3.0], [3, 0.18, 0.004, 1.8], [4.03, 0.05, 0.003, 0.7]];
+      ? (smallSpeaker
+        ? [[1, 1, 0.012, 5.4], [1.0028, 0.3, 0.012, 4.8], [2, 1.05, 0.006, 4.0], [3, 0.55, 0.004, 2.8], [4.02, 0.24, 0.003, 1.5], [5.03, 0.08, 0.003, 0.8]]
+        : [[1, 1, 0.012, 5.4], [1.0028, 0.3, 0.012, 4.8], [2, 0.42, 0.006, 3.6], [3, 0.16, 0.004, 2.2], [4.02, 0.04, 0.003, 0.9]])
+      : (smallSpeaker && low
+        ? [[1, 1, 0.009, 4.4], [1.0024, 0.24, 0.009, 3.8], [2, 0.8, 0.005, 3.2], [3, 0.34, 0.004, 2.0], [4.03, 0.1, 0.003, 0.9]]
+        : [[1, 1, 0.009, 4.4], [1.0024, 0.24, 0.009, 3.8], [2, 0.48, 0.005, 3.0], [3, 0.18, 0.004, 1.8], [4.03, 0.05, 0.003, 0.7]]);
     partials.forEach(([ratio, amp, attack, decay]) => {
       const freq = f * ratio;
       if (freq > sampleRate / 2 - 200) return;
@@ -1479,7 +1488,9 @@
       if (event.time >= t - 0.25) {
         event.items.forEach(item => {
           if (item.missing) return;
-          flashPad(item.pad, itemColor(item), Math.max(150, Math.min(380, event.durBeats * state.parsed.spb * 600 / state.speed)));
+          // The moment of the stroke: the field lights up in its colour with a ring of sparks.
+          flashPad(item.pad, itemColor(item), Math.max(240, Math.min(480, event.durBeats * state.parsed.spb * 700 / state.speed)));
+          addEffect('burst', item.pad, itemColor(item));
         });
       }
       state.flashIdx += 1;
@@ -1586,7 +1597,11 @@
 
   function userHit(padId, source = 'tap') {
     if (!state.padMap.has(padId)) return;
-    if (source !== 'mic') ensureAudio().then(() => playPad(padId, 0, 1)).catch(() => {});
+    if (source !== 'mic') {
+      ensureAudio().then(() => playPad(padId, 0, 1)).catch(() => {});
+      // The phone's own speaker plays this note; the microphone must not count it again.
+      mic.echoUntil = performance.now() + 380;
+    }
     const pad = state.padMap.get(padId);
     if (!state.playing || state.mode === 'tuner' || state.mode === 'listen' || !state.parsed) {
       flashPad(padId, source === 'mic' ? MIC_HEARD_COLOR : padColor(pad), source === 'mic' ? 600 : 200);
@@ -1834,10 +1849,14 @@
     if (mode === 'tuner') {
       if (state.view !== 'radial') setView('radial', { silent: true, keepPref: true });
       resetTunerDisplay(mic.on ? 'Listening for a clear pitch' : 'Turn on the microphone to begin');
-      if (!mic.on) startMic();
+      if (!mic.on) { mic.autoByTuner = true; startMic(); }
     } else if (previous === 'tuner' && prefs.view === 'lanes' && state.view !== 'lanes') {
       setView('lanes', { silent: true });
     }
+    // The tuner switched the microphone on by itself: switch it off again when you leave.
+    // Listen never uses the microphone.
+    if (mode !== 'tuner' && mic.on && (mic.autoByTuner || mode === 'listen')) stopMic();
+    if (mode !== 'tuner') mic.autoByTuner = false;
     updateModeUI();
     updateNextHint(true);
     savePrefs();
@@ -1868,6 +1887,22 @@
     requestAnimationFrame(() => resizeCanvas());
   }
 
+  // The dropdown lists the usual speeds; any other speed (from the [ ] keys) shows as
+  // its own extra entry.
+  function syncSpeedSelect() {
+    const select = els.speedSelect;
+    if (!select) return;
+    select.querySelector('option[data-custom]')?.remove();
+    let option = [...select.options].find(o => Math.abs(Number(o.value) - state.speed) < 0.001);
+    if (!option) {
+      option = new Option(`${formatSpeed(state.speed)}×`, String(state.speed));
+      option.dataset.custom = '1';
+      const after = [...select.options].find(o => Number(o.value) > state.speed);
+      select.insertBefore(option, after || null);
+    }
+    select.value = option.value;
+  }
+
   function setSpeed(value, announce = false) {
     state.speed = clampSpeed(value);
     if (state.playing) {
@@ -1879,10 +1914,8 @@
       state.schedIdx = firstEventIndexAtOrAfter(t);
       state.schedBeat = Math.ceil(t / state.parsed.spb - 1e-6);
     }
-    els.speedRange.value = String(state.speed);
-    els.speedValue.textContent = `${formatSpeed(state.speed)}×`;
+    syncSpeedSelect();
     els.speedCycleValue.textContent = `${formatSpeed(state.speed)}×`;
-    document.querySelectorAll('[data-speed]').forEach(button => button.classList.toggle('active', Math.abs(Number(button.dataset.speed) - state.speed) < 0.001));
     updateTempoLabel();
     savePrefs();
     if (announce) showToast(`Speed ${formatSpeed(state.speed)}× · ${Math.round((state.parsed?.bpm || 0) * state.speed)} BPM`, 'success');
@@ -2191,7 +2224,7 @@
     } else if (phoneLanes) {
       // Lanes on top, the handpan under them, like the handpan apps on a phone.
       const lanesBottom = Math.round(height * 0.5);
-      const available = height - lanesBottom - 28;
+      const available = height - lanesBottom - 28 - (window.innerWidth <= 760 ? 66 : 0);
       const hasBottoms = state.pads.some(pad => pad.kind === 'bottom');
       const drumSize = Math.max(170, Math.min(width - 40, available / (hasBottoms ? 1.3 : 1.12), 330));
       layout.lanesBottom = lanesBottom;
@@ -3173,6 +3206,7 @@
   }
 
   async function toggleMic() {
+    mic.autoByTuner = false;
     if (mic.on) {
       stopMic();
       showToast('Microphone turned off.', 'success');
@@ -3298,6 +3332,8 @@
       tunerStrike(Float32Array.from(mic.data), before, sampleRate);
       return;
     }
+    if (state.mode === 'listen') return;
+    if (performance.now() < (mic.echoUntil || 0)) return;
     if (!state.playing) {
       setMicStatus('Heard you · press Play to start', 'heard');
       return;
@@ -3469,6 +3505,7 @@
     els.composeDrum.replaceChildren(editor.drum.svg);
     updateSequenceStatus();
     openDialog(els.editorDialog);
+    requestAnimationFrame(() => renderRhythmView());
   }
 
   function composeTap(padId) {
@@ -3599,6 +3636,40 @@
     els.rhythmView.querySelectorAll('.now, .done').forEach(cell => cell.classList.remove('now', 'done'));
   }
 
+  /* ---------- Swipe the song tape to move through the song ---------- */
+
+  function bindTapeScrub() {
+    const strip = els.noteTape.querySelector('.tape-window');
+    let drag = null;
+    strip.addEventListener('pointerdown', event => {
+      if (!state.parsed || !tape.visible) return;
+      drag = { id: event.pointerId, x0: event.clientX, t0: state.playing ? songNow() : state.songTime, wasPlaying: state.playing, moved: false };
+      strip.setPointerCapture?.(event.pointerId);
+    });
+    strip.addEventListener('pointermove', event => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.x0;
+      if (!drag.moved && Math.abs(dx) < 6) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        if (drag.wasPlaying) pausePlayback();
+        strip.classList.add('scrubbing');
+      }
+      const time = drag.t0 - (dx / tape.pxPerBeat) * state.parsed.spb;
+      seekTo(Math.max(0, Math.min(state.parsed.duration - 0.01, time)));
+      requestFrame();
+    });
+    const end = event => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const resume = drag.moved && drag.wasPlaying;
+      strip.classList.remove('scrubbing');
+      drag = null;
+      if (resume) startPlayback();
+    };
+    strip.addEventListener('pointerup', end);
+    strip.addEventListener('pointercancel', end);
+  }
+
   /* ---------- Loading screen ---------- */
 
   function loaderProgress(done, total) {
@@ -3727,11 +3798,15 @@
     const caret = els.sequenceInput.selectionEnd;
     const atEnd = !text.slice(caret).trim();
     const label = item => state.padMap.get(item.pad)?.label || PERC_INFO[item.pad]?.label || item.pad;
+    const maxBeats = Math.max(...rows.map(row => Math.ceil(row.end - row.start - 1e-6)), 1);
+    const room = (view.clientWidth || 340) - 40;
+    const beatW = Math.max(50, Math.min(124, Math.floor(room / Math.max(maxBeats, 4))));
+    view.style.setProperty('--rv-width', `${maxBeats * beatW + 22}px`);
     const html = rows.map((row, r) => {
       const beats = Math.max(1, Math.ceil(row.end - row.start - 1e-6));
       const columns = beats * sub;
       let inner = '';
-      for (let b = 0; b < beats; b += 1) inner += `<i class="rv-beat" style="grid-column:${b * sub + 1} / span ${sub}" data-n="${(Math.round(row.start + b) % meter) + 1}"></i>`;
+      for (let b = 0; b < beats; b += 1) inner += `<i class="rv-beat" style="grid-column:${b * sub + 1} / span ${sub}" data-n="${b + 1}"></i>`;
       cells.forEach(cell => {
         if (cell.kind === 'bar' || cell.dur <= 0) return;
         if (cell.beat < row.start - 1e-6 || cell.beat >= row.end - 1e-6) return;
@@ -3751,11 +3826,10 @@
           inner += `<button type="button" class="rv-cell stroke${items.length > 1 ? ' chord' : ''}${narrow}${cursor}" ${pos} data-event="${cell.eventIndex}"><span class="rv-notes">${notes}</span><span class="rv-hands">${hands}</span><span class="rv-del" aria-label="Remove">×</span></button>`;
         }
       });
-      const width = Math.min(100, (beats / meter) * 100);
       const head = (headings.get(r) || []).map(t => `<p class="rv-section">${escapeHtml(t)}</p>`).join('');
-      return `${head}<div class="rv-row"><span class="rv-bar-num">${r + 1}</span><div class="rv-grid" style="grid-template-columns:repeat(${columns}, minmax(0,1fr)); width:${width}%">${inner}</div></div>`;
+      return `${head}<div class="rv-row"><span class="rv-bar-num">${r + 1}</span><div class="rv-grid" style="grid-template-columns:repeat(${columns}, minmax(0,1fr)); width:${beats * beatW}px">${inner}</div></div>`;
     }).join('');
-    view.innerHTML = html;
+    view.innerHTML = `<div class="rv-inner">${html}</div>`;
   }
 
   function bindRhythmView() {
@@ -4252,7 +4326,7 @@
     {
       target: '#noteTape',
       title: 'The song tape',
-      text: 'The numbers along the bottom show what comes next and what you just played. In Practice and Wait for note they light up Perfect, Good or Miss, like a game.'
+      text: 'The notes along the bottom show what is coming and what you just played. Swipe it to jump back or forward in the song. In Practice every note lights up Perfect, Good or Miss.'
     },
     {
       target: '.toolbar-controls .segmented',
@@ -4267,17 +4341,17 @@
     {
       target: '.speed-control',
       title: 'Slow it right down',
-      text: 'Any speed from 0.1x to 1.5x. Count-in gives you a bar of clicks before the song starts.'
+      text: 'Pick a slower speed while you learn, then speed up. Count-in gives you a bar of clicks before the song starts.'
     },
     {
       target: '#micBtn',
       title: 'Play your real handpan',
-      text: 'Turn on the microphone and the trainer listens to your drum. You can also tap the handpan on screen or use the keyboard: D, 1-9, T, K and S.'
+      text: 'Got a handpan? Turn on the microphone and the trainer listens to you play. No handpan nearby? Tap the notes on screen (or your keyboard) and play it like a game.'
     },
     {
       target: '#noteStage .rotate-drum-pair',
       title: 'Turn it to match yours',
-      text: 'Rotate the handpan left or right until the fields sit where yours do. My Handpan has the scale (D Kurd 9, 10 or 12), both layouts and the T, K and S positions.'
+      text: 'Spin the handpan until the notes sit where yours do. In My Handpan you pick your scale (D Kurd 9, 10 or 12) and where you tap T, K and S.'
     },
     {
       target: '#songList', sidebar: true,
@@ -4287,7 +4361,7 @@
     {
       target: '#editBtn',
       title: 'Song Builder',
-      text: 'Edit the selected song or start a new one: tap the handpan or type strokes like 4L 8R, chords with +, half beats with :0.5.'
+      text: 'Make your own songs! Every note you tap on the handpan drops into a box, one box per beat (a quick half-beat note takes half a box). Tap a box to slip a note in after it, × to take it out, and ▶ Play to hear your tune.'
     },
     {
       target: '#focusModeBtn',
@@ -4916,8 +4990,7 @@
     els.countInToggle.addEventListener('change', () => { state.countIn = els.countInToggle.checked; savePrefs(); });
     els.micBtn.addEventListener('click', () => toggleMic());
 
-    els.speedRange.addEventListener('input', () => setSpeed(els.speedRange.value));
-    document.querySelectorAll('[data-speed]').forEach(button => button.addEventListener('click', () => setSpeed(button.dataset.speed)));
+    els.speedSelect.addEventListener('change', () => setSpeed(els.speedSelect.value));
 
     els.progress.addEventListener('pointerdown', () => { state.dragProgress = true; });
     els.progress.addEventListener('input', () => {
@@ -5009,6 +5082,7 @@
 
     bindTourEvents();
     bindRhythmView();
+    bindTapeScrub();
     els.difficultyFilter.addEventListener('click', event => {
       const chip = event.target.closest('[data-level]');
       if (!chip) return;
@@ -5021,6 +5095,7 @@
       if (state.focusMode && window.innerWidth > 1100) setFocusMode(false);
       fitPhoneStage();
       resizeCanvas();
+      if (els.editorDialog.open) renderRhythmView();
     });
     if ('ResizeObserver' in window) new ResizeObserver(() => resizeCanvas()).observe(els.noteStage);
     document.addEventListener('visibilitychange', () => {

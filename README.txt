@@ -58,8 +58,10 @@ Tuner          turns on the microphone and shows which note you struck and
                how many cents it is from A4 = 440 Hz (median of several
                readings while the note rings).
 
-Speed goes from 0.1x to 1.5x (slider, the preset chips, or [ and ] on the
-keyboard).
+Speed: pick 0.25x to 1.5x in the green Speed list, or nudge it with [ and ]
+on the keyboard (0.1x to 1.5x).
+
+Donate opens the Ko-fi page (same as in Ethereal Drum).
 
 Display: Drum centre (notes fly along glowing rays to the handpan, with the
 same stars, glow and particle trails as Ethereal Drum) or Falling lanes. On a
@@ -72,6 +74,8 @@ a little of what you just played on the left and what comes next on the right,
 chords stacked. In Practice and Wait for note each stroke lights up teal
 (Perfect), violet (Good) or red (Miss), with a "Perfect x12" pop like a game.
 In Focus Mode the song name sits under the tape.
+Swipe the tape left or right (finger or mouse) to move back or forward in
+the song.
 
 Demo tour: the first time you open the app, Interstellar plays while the
 handpan slowly drifts round like a saucer in space and a short tour points out
@@ -94,7 +98,10 @@ HOW TO PLAY ALONG
 - Keyboard: Space play/pause, D ding, 1-9 tone fields, 0 and - bottom notes,
   T K S strokes (S plays the slap the song asks for, Shift+S the right one),
   [ ] speed
-- Microphone (beta): turn it on and play your real handpan. Tone fields are
+- Microphone (beta): turn it on in Practice and play your real handpan. Listen
+  never uses the microphone, and the tuner switches it off again when you leave
+  it. Notes you tap on screen are not counted twice when the phone's speaker
+  plays them. Tone fields are
   recognised by pitch; any clear percussive hit counts for T, K or S. Use
   headphones in Demo so the app does not hear itself. The browser asks for
   permission the first time.
