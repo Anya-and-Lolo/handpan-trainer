@@ -25,7 +25,7 @@
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <div class="brand-row">
-        <div class="brand-mark hp-brand" aria-hidden="true"><svg class="hp-logo-svg" viewBox="-1.05 -1.05 2.1 2.1"><circle r="1" fill="#111827" stroke="#8b7cf0" stroke-opacity=".55" stroke-width=".035"/><circle r=".77" fill="none" stroke="#5eead4" stroke-opacity=".35" stroke-width=".03"/><circle r=".27" fill="#a78bfa" fill-opacity=".2" stroke="#a78bfa" stroke-width=".07"/><circle cx="0.000" cy="-0.615" r=".115" fill="#a78bfa"/><circle cx="0.435" cy="-0.435" r=".115" fill="#fbbf24"/><circle cx="0.615" cy="-0.000" r=".115" fill="#a78bfa"/><circle cx="0.435" cy="0.435" r=".115" fill="#a78bfa"/><circle cx="0.000" cy="0.615" r=".115" fill="#a78bfa"/><circle cx="-0.435" cy="0.435" r=".115" fill="#a78bfa"/><circle cx="-0.615" cy="0.000" r=".115" fill="#38bdf8"/><circle cx="-0.435" cy="-0.435" r=".115" fill="#a78bfa"/></svg></div>
+        <div class="brand-mark hp-brand" aria-hidden="true"><svg class="hp-logo-svg" viewBox="-1.05 -1.05 2.1 2.1"><circle r="1" fill="#111827" stroke="#8b7cf0" stroke-opacity=".6" stroke-width=".035"/><circle r=".74" fill="none" stroke="#5eead4" stroke-opacity=".35" stroke-width=".03"/><circle r=".26" fill="#a78bfa" fill-opacity=".2" stroke="#a78bfa" stroke-width=".07"/><circle cx="0.000" cy="-0.570" r=".115" fill="#a78bfa"/><circle cx="0.403" cy="-0.403" r=".115" fill="#fbbf24"/><circle cx="0.570" cy="0.000" r=".115" fill="#a78bfa"/><circle cx="0.403" cy="0.403" r=".115" fill="#a78bfa"/><circle cx="0.000" cy="0.570" r=".115" fill="#a78bfa"/><circle cx="-0.403" cy="0.403" r=".115" fill="#a78bfa"/><circle cx="-0.570" cy="0.000" r=".115" fill="#38bdf8"/><circle cx="-0.403" cy="-0.403" r=".115" fill="#a78bfa"/></svg></div>
         <div>
           <h1>Ethereal Handpan</h1>
           <p>Hand drum trainer</p>
@@ -36,6 +36,10 @@
       <div class="sidebar-actions">
         <button class="primary-btn" id="newSongBtn">＋ New song</button>
         <button class="soft-btn" id="importBtn">Import song</button>
+        <button class="library-btn" id="libraryBtn" type="button">
+          <span><b aria-hidden="true">♫</b> Community songs</span>
+          <em id="libraryCountBadge">0</em>
+        </button>
         <input id="importFile" type="file" accept=".handsong,.json" hidden />
       </div>
 
@@ -76,12 +80,10 @@
             <img src="app-files/kofi-logo.webp" alt="" aria-hidden="true" />
             <span>Donate</span>
           </a>
-          <button class="soft-btn compact tour-btn" id="tourBtn" type="button" aria-label="Play the demo tour" title="Demo tour: Interstellar plays while the app is shown step by step">
-            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.8 8.9a3.3 3.3 0 1 1 4.7 3c-.9.5-1.5 1.2-1.5 2.2v.7"></path><circle cx="12" cy="18.4" r=".8" fill="currentColor"></circle></svg>
-            <span>Tour</span>
-          </button>
-          <button class="icon-btn help-tour-btn" id="helpBtn" type="button" aria-label="Strokes, keys and notation help" title="Help: strokes, keys and notation"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10.3 5.2 7.6 4.7 4.5 5v12.6c3.1-.3 5.8.2 7.5 1.5 1.7-1.3 4.4-1.8 7.5-1.5V5c-3.1-.3-5.8.2-7.5 1.5z"></path><path d="M12 6.5v12.6"></path></svg></button>
+          <button class="soft-btn compact tour-btn" id="tourBtn" type="button" aria-label="Play the demo tour" title="Demo tour: a song plays while the app is shown step by step"><b class="tour-q" aria-hidden="true">?</b><span>Tour</span></button>
+          <button class="soft-btn compact learn-btn" id="helpBtn" type="button" aria-label="Learn: strokes, keys and notation" title="Learn: strokes, keys and notation"><svg class="btn-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10.3 5.2 7.6 4.7 4.5 5v12.6c3.1-.3 5.8.2 7.5 1.5 1.7-1.3 4.4-1.8 7.5-1.5V5c-3.1-.3-5.8.2-7.5 1.5z"></path><path d="M12 6.5v12.6"></path></svg><span class="btn-text">Learn</span></button>
           <button class="soft-btn compact install-btn" id="installBtn" type="button" aria-label="Install the app" title="Install as an app" hidden><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 19.5h14"></path></svg><span>Install</span></button>
+          <button class="soft-btn compact fullscreen-btn" id="fullscreenBtn" type="button" aria-label="Full screen" title="Full screen: hide the system bars"><svg class="fs-enter" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg><svg class="fs-exit" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg></button>
           <button class="soft-btn compact top-new-btn" id="topNewSongBtn" type="button" aria-label="New song" title="New song"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13"></path></svg></button>
           <button class="soft-btn compact" id="editBtn" aria-label="Edit song"><svg class="btn-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"></path><path d="M13.5 6.5l4 4"></path></svg><span class="btn-text">Edit song</span></button>
           <button class="soft-btn compact" id="settingsBtn" aria-label="My Handpan"><svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.1"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg><span class="btn-text">My Handpan</span></button>
@@ -206,7 +208,8 @@
               <button class="mini-loop-btn accent" id="abLoopBtn" type="button" aria-pressed="false" disabled>Loop A-B</button>
               <button class="mini-loop-btn clear" id="clearABBtn" type="button" disabled>Clear</button>
             </div>
-            <span class="ab-loop-status" id="abLoopStatus">Set A and B from the timeline to practise a section.</span>
+            <button class="hint-btn" type="button" data-hint="Loop a tricky part: play to where it starts and tap Set A, play on and tap Set B, then Loop A-B repeats just that part." aria-label="How the A-B loop works">?</button>
+            <span class="ab-loop-status" id="abLoopStatus"></span>
           </div>
 
           <div class="transport">
@@ -241,9 +244,10 @@
                 <span>Count-in</span>
               </label>
               <button class="mic-toggle" id="micBtn" type="button" aria-pressed="false"></button>
-              <span class="mic-status" id="micStatus" aria-live="polite">Use in Practice, Wait, or Tuner mode</span>
+              <button class="hint-btn" type="button" data-hint="Turn the microphone on to play your real handpan: the app hears which note you strike. It works in Practice, Wait for note and Tuner. Listen never uses it." aria-label="About the microphone">?</button>
+              <span class="mic-status" id="micStatus" aria-live="polite"></span>
             </div>
-            <p id="modeHint">Listen and watch the strokes.</p>
+            <p id="modeHint">Listen and watch the notes, nothing is scored.</p>
           </div>
         </div>
 
@@ -528,7 +532,78 @@
 
   <div class="toast" id="toast" popover="manual" role="alert" aria-live="assertive"></div>
 
+  <button class="sound-wake" id="soundWakeBtn" type="button" hidden>
+    <span class="sound-wake-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" fill-opacity=".18"></path><path class="w1" d="M16.5 8.5a5 5 0 0 1 0 7"></path><path class="w2" d="M19 6a8.5 8.5 0 0 1 0 12"></path></svg></span>
+    <span class="sound-wake-text"><b>Tap to wake up the sound ✨</b><small>…or touch any note and hear it sing</small></span>
+  </button>
+  <div class="hint-pop" id="hintPop" role="tooltip" hidden></div>
+  <dialog id="songLibraryDialog" class="dialog large-dialog song-library-dialog">
+    <div class="song-library-shell">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">COMMUNITY GALLERY</p>
+          <h2>Community songs</h2>
+        </div>
+        <button type="button" class="icon-btn" data-close-dialog="songLibraryDialog" aria-label="Close">×</button>
+      </div>
+      <div class="library-tabs difficulty-library-tabs" role="tablist" aria-label="Filter community songs by difficulty">
+        <button type="button" class="library-tab active" id="libraryTabAll" data-library-tab="all" role="tab" aria-selected="true">All <span id="communitySongsCount">0</span></button>
+        <button type="button" class="library-tab" id="libraryTabEasy" data-library-tab="easy" role="tab" aria-selected="false">Easy <span id="communityEasyCount">0</span></button>
+        <button type="button" class="library-tab" id="libraryTabMedium" data-library-tab="medium" role="tab" aria-selected="false">Medium <span id="communityMediumCount">0</span></button>
+        <button type="button" class="library-tab" id="libraryTabHard" data-library-tab="hard" role="tab" aria-selected="false">Hard <span id="communityHardCount">0</span></button>
+        <button type="button" class="library-tab" id="libraryTabExpert" data-library-tab="expert" role="tab" aria-selected="false">Expert <span id="communityExpertCount">0</span></button>
+      </div>
+      <label class="library-search">
+        <span>Search community songs</span>
+        <input id="librarySearch" type="search" placeholder="Search by song name..." />
+      </label>
+      <div class="library-community-banner" id="libraryCommunityBanner">
+        <div><strong>Community gallery</strong><span>Play songs other handpan players made, or send one of yours for review.</span></div>
+        <button type="button" class="community-info-btn library-community-action" id="libraryCommunityInfoBtn">Share my song</button>
+      </div>
+      <div class="album-grid" id="libraryGrid" aria-live="polite"></div>
+      <div class="library-empty" id="libraryEmpty" hidden></div>
+    </div>
+  </dialog>
+
+  <dialog id="communityDialog" class="dialog community-dialog">
+    <form method="dialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">CURATED COLLECTION</p>
+          <h2>Share a song</h2>
+        </div>
+        <button type="button" class="icon-btn" data-close-dialog="communityDialog" aria-label="Close">×</button>
+      </div>
+      <div class="community-dialog-copy">
+        <p>Anyone can play the community songs, no account needed. Visitors cannot change the gallery itself.</p>
+        <h3>Send one of your songs for review</h3>
+        <ol>
+          <li>Make or import the song, so it is in My songs.</li>
+          <li>Select it and tap Send selected song.</li>
+          <li>Wait until the upload reaches 100%.</li>
+        </ol>
+        <p>Your song goes to a private review folder. It appears in the gallery once it is approved; sending does not guarantee it will be published.</p>
+        <p class="community-selection" id="communitySelection"></p>
+        <div class="community-upload-progress" id="communityUploadProgress" hidden aria-live="polite">
+          <div class="community-upload-status">
+            <span id="communityUploadStatus">Preparing submission...</span>
+            <strong id="communityUploadPercent">0%</strong>
+          </div>
+          <div class="community-progress-track" id="communityProgressTrack" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <i id="communityProgressFill"></i>
+          </div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="soft-btn" data-close-dialog="communityDialog">Close</button>
+        <button type="button" class="primary-btn" id="submitCommunityBtn">Send selected song</button>
+      </div>
+    </form>
+  </dialog>
+
   <script src="app-files/song-catalog.js"></script>
+  <script src="app-files/community-upload-config.js"></script>
   <script src="app-files/app.js"></script>
 </body>
 </html>

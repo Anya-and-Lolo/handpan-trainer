@@ -166,3 +166,35 @@ On GitHub Pages it works the same way as Ethereal Drum: commit .handsong files
 into demo-songs and the workflow rebuilds the catalogue. Copy
 scripts/song-catalog.github-workflow.yml to .github/workflows/song-catalog.yml
 once when you create the repository.
+
+
+COMMUNITY SONGS
+---------------
+Side menu > Community songs: anyone can play them, no account needed.
+"Share my song" (in that window) sends one of your own songs (My songs) for review.
+
+Where sent songs go: the same private Google Drive review folder as Ethereal
+Drum, through the same Google Apps Script. Handpan songs arrive as
+handpan-<title>-<date>.handsong.
+
+One-time setup, so the script also accepts handpan songs:
+  1. Open script.google.com and the Ethereal Drum upload project.
+  2. Replace all its code with app-files/owner-tools/GOOGLE_DRIVE_UPLOAD_SCRIPT.gs
+     (the same file is in the Tongue Drum folder), then Save.
+  3. Deploy > Manage deployments > pencil (Edit) > Version: New version > Deploy.
+     The web-app link stays the same, so nothing else changes.
+No Cloudflare is involved.
+
+Publishing an approved song: download it from Drive and put it in
+community-songs/. On GitHub: Add file > Upload files, inside community-songs.
+The "Update song catalog" action (.github/workflows/song-catalog.yml) rebuilds
+app-files/song-catalog.js and GitHub Pages updates a minute or two later.
+(Settings > Actions > General > Workflow permissions must be "Read and write",
+as for Ethereal Drum.) On your computer, START_TRAINER does the same live.
+
+TABLETS AND PHONES
+------------------
+On a tablet the song list slides in from the left (☰) and everything fits on
+one screen. The ⛶ button hides the system bars (clock, battery). On a phone the
+Play button on the stage opens the full-screen practice view.
+The little ? buttons explain the A-B loop and the microphone.

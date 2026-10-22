@@ -1,15 +1,17 @@
-const CACHE = 'ethereal-handpan-trainer-v14';
+const CACHE = 'ethereal-handpan-trainer-v15';
 const SHELL = [
   './',
   './index.html',
   './app-files/styles.css',
   './app-files/app.js',
   './app-files/song-catalog.js',
+  './app-files/community-upload-config.js',
   './app-files/manifest.webmanifest',
   './app-files/fonts/fredoka-latin-600-normal.woff2',
   './app-files/fonts/fredoka-latin-700-normal.woff2',
   './app-files/icon-192.png',
   './app-files/icon-512.png',
+  './app-files/icon-maskable-512.png',
   './app-files/kofi-logo.webp'
 ];
 

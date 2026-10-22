@@ -79,7 +79,10 @@
     'resultReplayBtn', 'resultSlowerBtn', 'resultNextBtn', 'resultRecommendation', 'resultRecommendedBtn', 'toast',
     'tourBtn', 'installBtn', 'installDialog', 'installHelpText', 'startupLoader', 'startupLoaderStatus', 'startupLoaderFill', 'startupLoaderCount', 'textModeBtn', 'rhythmView', 'topNewSongBtn', 'practiceOptions', 'waitToggle', 'micChipBtn', 'stageDock', 'dockLoopBtn', 'dockPlayBtn', 'dockMetronomeBtn', 'speedCycleBtn', 'speedCycleValue', 'songSwitchDialog', 'switchKeepBtn', 'switchChooseBtn', 'composePreviewStrip', 'stageJudge', 'difficultyFilter', 'resultSparkles', 'noteTape', 'noteTapeTrack', 'noteTapeJudge', 'stageSongName',
     'tourOverlay', 'tourShadeTop', 'tourShadeRight', 'tourShadeBottom', 'tourShadeLeft', 'tourFocusRing', 'tourCard', 'tourProgress',
-    'tourTitle', 'tourText', 'tourSkipBtn', 'tourBackBtn', 'tourNextBtn', 'tourSoundBtn'
+    'tourTitle', 'tourText', 'tourSkipBtn', 'tourBackBtn', 'tourNextBtn', 'tourSoundBtn',
+    'libraryBtn', 'libraryCountBadge', 'songLibraryDialog', 'libraryTabAll', 'libraryTabEasy', 'libraryTabMedium', 'libraryTabHard', 'libraryTabExpert', 'librarySearch', 'libraryGrid', 'libraryEmpty', 'libraryCommunityBanner', 'libraryCommunityInfoBtn',
+    'communitySongsCount', 'communityEasyCount', 'communityMediumCount', 'communityHardCount', 'communityExpertCount', 'communityDialog', 'communitySelection', 'communityUploadProgress', 'communityUploadStatus', 'communityUploadPercent', 'communityProgressTrack', 'communityProgressFill', 'submitCommunityBtn',
+    'soundWakeBtn', 'hintPop', 'fullscreenBtn'
   ].forEach(id => { els[id] = $(id); });
 
   /* ------------------------------------------------------------------ */
@@ -556,7 +559,20 @@
     reverb.buffer = makeImpulse(context, 2.6, 2.8);
     bus.connect(dry).connect(master);
     bus.connect(reverb).connect(wet).connect(master);
-    master.connect(compressor).connect(context.destination);
+    // Phone and tablet speakers are small and quiet: a little more level there, and a
+    // limiter at the end so several ringing notes together never clip and crackle.
+    if (window.matchMedia?.('(pointer: coarse)').matches) {
+      master.gain.value = 1.3;
+      const limiter = context.createDynamicsCompressor();
+      limiter.threshold.value = -3;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.002;
+      limiter.release.value = 0.12;
+      master.connect(compressor).connect(limiter).connect(context.destination);
+    } else {
+      master.connect(compressor).connect(context.destination);
+    }
     audio.ctx = context;
     audio.bus = bus;
     audio.master = master;
@@ -622,7 +638,7 @@
   async function renderToneSound(midi, isDing) {
     const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!Offline) return null;
-    const sampleRate = 44100;
+    const sampleRate = audio.ctx?.sampleRate || 44100;
     const seconds = isDing ? 5.6 : 4.6;
     const context = new Offline(1, Math.ceil(sampleRate * seconds), sampleRate);
     const f = frequencyForMidi(midi);
@@ -673,7 +689,7 @@
   async function renderPercSound(id) {
     const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!Offline) return null;
-    const sampleRate = 44100;
+    const sampleRate = audio.ctx?.sampleRate || 44100;
     const seconds = id === 'S' ? 1.6 : 1.2;
     const context = new Offline(1, Math.ceil(sampleRate * seconds), sampleRate);
     const out = context.createGain();
@@ -729,6 +745,30 @@
     return normaliseBuffer(buffer, id === 'S' ? 0.62 : 0.5);
   }
 
+  // Phone and tablet speakers drop almost everything below ~300 Hz, so the ding (147 Hz)
+  // and the lowest notes sound much quieter than the rest. Measure how much of each
+  // note a small speaker can actually play and lift the quiet ones to match.
+  function boostForSmallSpeaker(buffer) {
+    if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+    const data = buffer.getChannelData(0);
+    const n = Math.min(data.length, Math.round(buffer.sampleRate * 1.2));
+    const a = Math.exp(-2 * Math.PI * 320 / buffer.sampleRate);
+    let px = 0, py = 0, pz = 0, all = 0, high = 0;
+    for (let i = 0; i < n; i += 1) {
+      const x = data[i];
+      const y = a * (py + x - px);   // two one-pole high-pass stages at 320 Hz
+      const z = a * (pz + y - py);
+      px = x; py = y; pz = z;
+      all += x * x;
+      high += z * z;
+    }
+    if (!all) return;
+    const audible = Math.sqrt(high / all);
+    const gain = Math.max(1, Math.min(2.6, Math.pow(0.78 / Math.max(audible, 0.05), 1.1)));
+    if (gain <= 1.02) return;
+    for (let i = 0; i < data.length; i += 1) data[i] *= gain;
+  }
+
   async function renderAllSounds() {
     const wanted = [];
     const seen = new Set();
@@ -759,6 +799,7 @@
       loaderProgress(done, total);
       try {
         const buffer = pad.kind === 'perc' ? await renderPercSound(pad.sound || pad.id) : await renderToneSound(pad.midi, pad.kind === 'ding');
+        if (buffer && pad.kind !== 'perc') boostForSmallSpeaker(buffer);
         if (buffer) audio.buffers.set(key, buffer);
       } catch (error) {
         /* fall back to live synthesis */
@@ -786,6 +827,34 @@
     list.length = 0;
   }
 
+  // A real handpan note struck again does not ring twice: the earlier ring is damped.
+  // Without this two copies of the same note drift in and out of phase (a whooshing,
+  // crackly sound when a note is tapped quickly several times).
+  function chokeSameNote(padId, voice) {
+    if (!audio.voices) audio.voices = new Map();
+    const now = audio.ctx.currentTime;
+    const list = (audio.voices.get(padId) || []).filter(v => v.end > now);
+    list.forEach(v => {
+      if (v.choked) return;
+      if (v.start < voice.start - 0.004) {
+        v.choked = true;
+        try {
+          v.gain.gain.setTargetAtTime(0, voice.start, 0.014);
+          v.source.stop(voice.start + 0.12);
+        } catch (error) { /* already stopped */ }
+      } else if (v.start > voice.start + 0.004 && !voice.choked) {
+        voice.choked = true;
+        try {
+          voice.gain.gain.setTargetAtTime(0, v.start, 0.014);
+          voice.source.stop(v.start + 0.12);
+        } catch (error) { /* already stopped */ }
+      }
+    });
+    voice.end = voice.start + (voice.source.buffer ? voice.source.buffer.duration : 6);
+    list.push(voice);
+    audio.voices.set(padId, list);
+  }
+
   function playPad(padId, when = 0, velocity = 1, list = audio.scheduled) {
     const context = audio.ctx;
     if (!context || context.state !== 'running') return;
@@ -794,7 +863,7 @@
     const start = Math.max(context.currentTime, when || 0);
     const buffer = audio.buffers.get(soundKeyForPad(pad));
     const gain = context.createGain();
-    gain.gain.value = velocity;
+    gain.gain.setValueAtTime(velocity, start);
     gain.connect(audio.bus);
     if (buffer) {
       const source = context.createBufferSource();
@@ -802,6 +871,7 @@
       source.connect(gain);
       source.start(start);
       trackSource(source, start, list);
+      if (pad.kind !== 'perc') chokeSameNote(pad.id, { source, gain, start });
       return;
     }
     // Live fallback while the offline renders are still being prepared.
@@ -836,7 +906,7 @@
   async function renderClickSound(accent) {
     const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!Offline) return null;
-    const sampleRate = 44100;
+    const sampleRate = audio.ctx?.sampleRate || 44100;
     const seconds = 0.12;
     const context = new Offline(1, Math.ceil(sampleRate * seconds), sampleRate);
     const f = accent ? 1860 : 1570;
@@ -913,24 +983,27 @@
       sequence,
       order: Number(raw.order) || 999,
       folder,
-      builtIn: folder === 'demo'
+      builtIn: folder === 'demo' || folder === 'community',
+      communitySubmittedFingerprint: folder === 'mine' ? String(raw.communitySubmittedFingerprint || '') : ''
     };
   }
 
   function loadSongs() {
     const catalog = Array.isArray(window.HANDPAN_DEMO_SONGS) && window.HANDPAN_DEMO_SONGS.length ? window.HANDPAN_DEMO_SONGS : FALLBACK_SONGS;
     state.demoSongs = catalog.map(song => normaliseSong(song, 'demo')).filter(Boolean).sort((a, b) => a.order - b.order || a.title.localeCompare(b.title));
+    const community = Array.isArray(window.HANDPAN_COMMUNITY_SONGS) ? window.HANDPAN_COMMUNITY_SONGS : [];
+    state.communitySongs = community.map(song => normaliseSong(song, 'community')).filter(Boolean).sort((a, b) => a.title.localeCompare(b.title));
     const mine = readJson(STORAGE_SONGS, []);
     state.mySongs = (Array.isArray(mine) ? mine : []).map(song => normaliseSong(song, 'mine')).filter(Boolean);
   }
 
   function saveMySongs() {
-    const ok = writeJson(STORAGE_SONGS, state.mySongs.map(({ id, title, artist, bpm, beatsPerBar, sequence }) => ({ id, title, artist, bpm, beatsPerBar, sequence })));
+    const ok = writeJson(STORAGE_SONGS, state.mySongs.map(({ id, title, artist, bpm, beatsPerBar, sequence, communitySubmittedFingerprint }) => ({ id, title, artist, bpm, beatsPerBar, sequence, communitySubmittedFingerprint })));
     if (!ok) showToast('This browser blocked saving. Export the song to keep it.', 'warning');
   }
 
   function allSongs() {
-    return [...state.demoSongs, ...state.mySongs];
+    return [...state.demoSongs, ...(state.communitySongs || []), ...state.mySongs];
   }
 
   function findSong(id) {
@@ -1823,12 +1896,13 @@
     document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode || (button.dataset.mode === 'practice' && state.mode === 'wait')));
     els.waitToggle.checked = state.mode === 'wait' || (state.mode !== 'practice' && state.waitPref);
     const hints = {
-      listen: 'Sit back and listen: the song plays and the handpan lights up. Tap along if you like, nothing is scored.',
-      practice: 'Play along in time on screen, on the keyboard or with the microphone. Every stroke is scored: Perfect, Good or Miss.',
-      wait: 'The notes fly in and wait for you. Play each stroke to move on — play in time and it never stops.',
-      tuner: 'Strike one note at a time. The note lights up and the meter shows how many cents it is from 440 Hz tuning.'
+      listen: 'Listen and watch the notes, nothing is scored.',
+      practice: 'Play along on screen, keyboard, or with the microphone.',
+      wait: 'The song waits for each note. Play it to move on.',
+      tuner: 'Strike one note at a time. The note lights up and the pitch meter will respond.'
     };
     els.modeHint.textContent = hints[state.mode];
+    if (typeof fitPhoneStage === 'function') requestAnimationFrame(() => fitPhoneStage());
     const tuner = state.mode === 'tuner';
     els.trainerGrid.classList.toggle('tuner-mode', tuner);
     els.tunerPanel.hidden = !tuner;
@@ -1996,7 +2070,7 @@
     const barOf = time => Math.round(time / parsed.spb / parsed.beatsPerBar) + 1;
     if (hasA && hasB) els.abLoopStatus.textContent = state.abLoop ? `Looping bars ${barOf(state.loopA)}–${barOf(state.loopB) - 1}.` : `Bars ${barOf(state.loopA)}–${barOf(state.loopB) - 1} are ready. Press Loop A-B.`;
     else if (hasA) els.abLoopStatus.textContent = `A is at bar ${barOf(state.loopA)}. Move on and set B.`;
-    else els.abLoopStatus.textContent = 'Set A and B from the timeline to practise a section.';
+    else els.abLoopStatus.textContent = '';
   }
 
   /* ------------------------------------------------------------------ */
@@ -3689,7 +3763,307 @@
       setTimeout(() => els.startupLoader.remove(), 320);
       fitPhoneStage();
       resizeCanvas();
+      maybeShowSoundWake();
     }, 380);
+  }
+
+  /* ---------- Waking the sound up ---------- */
+
+  // Browsers keep sound off until the first touch, so a fresh page plays silently. A
+  // friendly button invites that first touch.
+  function soundIsAwake() {
+    return Boolean(audio.ctx && audio.ctx.state === 'running');
+  }
+
+  function maybeShowSoundWake() {
+    const activated = navigator.userActivation ? navigator.userActivation.hasBeenActive : false;
+    els.soundWakeBtn.hidden = activated || soundIsAwake();
+  }
+
+  function wakeSound() {
+    els.soundWakeBtn.hidden = true;
+    ensureAudio().then(() => { if (tour.active) unlockTourAudio(); }).catch(() => {});
+  }
+
+  /* ---------- Little "?" explanations ---------- */
+
+  function bindHints() {
+    const pop = els.hintPop;
+    let owner = null;
+    const hide = () => { pop.hidden = true; owner?.classList.remove('open'); owner = null; };
+    const show = button => {
+      if (owner === button) { hide(); return; }
+      hide();
+      owner = button;
+      button.classList.add('open');
+      pop.textContent = button.dataset.hint || '';
+      pop.hidden = false;
+      const r = button.getBoundingClientRect();
+      const w = Math.min(300, window.innerWidth - 24);
+      pop.style.width = `${w}px`;
+      const left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width / 2 - w / 2));
+      pop.style.left = `${left}px`;
+      const h = pop.offsetHeight;
+      const above = r.top - h - 10;
+      pop.style.top = `${above > 8 ? above : r.bottom + 10}px`;
+    };
+    document.querySelectorAll('.hint-btn').forEach(button => {
+      button.addEventListener('click', event => { event.stopPropagation(); show(button); });
+      button.addEventListener('mouseenter', () => { if (window.matchMedia?.('(hover: hover)').matches && owner !== button) show(button); });
+      button.addEventListener('mouseleave', () => { if (window.matchMedia?.('(hover: hover)').matches && owner === button) hide(); });
+    });
+    document.addEventListener('pointerdown', event => { if (owner && !event.target.closest('.hint-btn')) hide(); });
+    window.addEventListener('scroll', hide, { passive: true });
+    window.addEventListener('resize', hide);
+  }
+
+  /* ---------- Full screen (tablets) ---------- */
+
+  function bindFullscreen() {
+    const root = document.documentElement;
+    const supported = Boolean(root.requestFullscreen && document.fullscreenEnabled);
+    els.fullscreenBtn.hidden = !supported;
+    if (!supported) return;
+    const sync = () => {
+      const on = Boolean(document.fullscreenElement);
+      els.fullscreenBtn.classList.toggle('active', on);
+      els.fullscreenBtn.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+      els.fullscreenBtn.title = on ? 'Leave full screen' : 'Full screen: hide the system bars';
+      setTimeout(fitPhoneStage, 120);
+    };
+    els.fullscreenBtn.addEventListener('click', () => {
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+      else root.requestFullscreen({ navigationUI: 'hide' }).catch(() => showToast('Full screen is not available here.', 'warning'));
+    });
+    document.addEventListener('fullscreenchange', sync);
+  }
+
+  /* ---------- Community gallery ---------- */
+
+  const COMMUNITY_UPLOAD_URL = String(window.ETHEREAL_COMMUNITY_UPLOAD_URL || '').trim();
+  const COMMUNITY_STATUS_CALLBACK = 'etherealCommunityUploadStatus';
+  let communityUploadRequest = null;
+  const library = { tab: 'all' };
+
+  function communityFingerprint(song) {
+    if (!song) return '';
+    const source = ['hp1', String(song.title || '').trim(), String(Number(song.bpm) || ''), String(song.beatsPerBar || 4), String(song.sequence || '').trim()].join('\u001f');
+    let hash = 2166136261;
+    for (let i = 0; i < source.length; i += 1) { hash ^= source.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+    return `hp1-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+  }
+
+  function songUnderReview(song) {
+    return Boolean(song && song.folder === 'mine' && song.communitySubmittedFingerprint && song.communitySubmittedFingerprint === communityFingerprint(song));
+  }
+
+  function updateLibraryCounts() {
+    const songs = state.communitySongs || [];
+    const counts = { easy: 0, medium: 0, hard: 0, expert: 0 };
+    songs.forEach(song => { const level = songDifficulty(parseSong(song)).level; if (level in counts) counts[level] += 1; });
+    els.libraryCountBadge.textContent = String(songs.length);
+    els.communitySongsCount.textContent = String(songs.length);
+    els.communityEasyCount.textContent = String(counts.easy);
+    els.communityMediumCount.textContent = String(counts.medium);
+    els.communityHardCount.textContent = String(counts.hard);
+    els.communityExpertCount.textContent = String(counts.expert);
+  }
+
+  function renderSongLibrary() {
+    updateLibraryCounts();
+    const tab = library.tab;
+    const query = String(els.librarySearch.value || '').trim().toLowerCase();
+    const songs = (state.communitySongs || []).filter(song => {
+      const level = songDifficulty(parseSong(song)).level;
+      return (tab === 'all' || level === tab) && `${song.title} ${song.artist}`.toLowerCase().includes(query);
+    });
+    const tabs = { all: els.libraryTabAll, easy: els.libraryTabEasy, medium: els.libraryTabMedium, hard: els.libraryTabHard, expert: els.libraryTabExpert };
+    Object.entries(tabs).forEach(([key, button]) => { button.classList.toggle('active', key === tab); button.setAttribute('aria-selected', String(key === tab)); });
+    els.libraryGrid.innerHTML = '';
+    songs.forEach(song => {
+      const parsed = parseSong(song);
+      const difficulty = songDifficulty(parsed);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = `album-card${state.song && song.id === state.song.id ? ' selected' : ''}`;
+      card.innerHTML = `${songCoverMarkup(song)}<span class="album-copy"><span class="album-title-row"><strong>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span><small>${song.bpm} BPM · ${parsed.itemCount} strokes</small><span class="album-source">${escapeHtml(song.artist || 'Community gallery')}</span></span>`;
+      card.addEventListener('click', () => { selectSong(song.id, { closeSidebar: true }); els.songLibraryDialog.close(); });
+      els.libraryGrid.appendChild(card);
+    });
+    els.libraryEmpty.hidden = songs.length > 0;
+    if (!songs.length) {
+      if (query) els.libraryEmpty.innerHTML = '<strong>No matches</strong><span>Try another song name or difficulty.</span>';
+      else if (tab !== 'all') els.libraryEmpty.innerHTML = `<strong>No ${tab[0].toUpperCase() + tab.slice(1)} community songs yet</strong><span>Try another difficulty, or check back when more songs are approved.</span>`;
+      else els.libraryEmpty.innerHTML = '<strong>No community songs yet</strong><span>Approved .handsong files in the community-songs folder appear here.</span>';
+    }
+  }
+
+  function openSongLibrary() {
+    library.tab = 'all';
+    els.librarySearch.value = '';
+    renderSongLibrary();
+    openDialog(els.songLibraryDialog);
+  }
+
+  function setCommunityProgress(percent, status, tone = '') {
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
+    els.communityUploadProgress.hidden = false;
+    els.communityUploadProgress.classList.toggle('success', tone === 'success');
+    els.communityUploadProgress.classList.toggle('error', tone === 'error');
+    els.communityUploadStatus.textContent = status;
+    els.communityUploadPercent.textContent = tone === 'error' ? 'Failed' : `${Math.round(value)}%`;
+    els.communityProgressFill.style.width = `${value}%`;
+    els.communityProgressTrack.setAttribute('aria-valuenow', String(Math.round(value)));
+  }
+
+  function resetCommunityProgress() {
+    if (communityUploadRequest) return;
+    els.communityUploadProgress.hidden = true;
+    els.communityUploadProgress.classList.remove('success', 'error');
+    els.communityProgressFill.style.width = '0%';
+  }
+
+  function setCommunitySelection(song, message) {
+    els.communitySelection.replaceChildren();
+    if (song?.title) {
+      const strong = document.createElement('strong');
+      strong.className = 'community-selected-song';
+      strong.textContent = `Selected song: ${song.title}`;
+      els.communitySelection.appendChild(strong);
+    }
+    if (message) {
+      const span = document.createElement('span');
+      span.className = 'community-selection-detail';
+      span.textContent = message;
+      els.communitySelection.appendChild(span);
+    }
+  }
+
+  function openCommunityDialog() {
+    const song = state.song;
+    const own = Boolean(song && song.folder === 'mine');
+    const configured = /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/u.test(COMMUNITY_UPLOAD_URL);
+    const underReview = own && songUnderReview(song);
+    els.submitCommunityBtn.disabled = !(own && configured && !communityUploadRequest && !underReview);
+    els.submitCommunityBtn.textContent = underReview ? 'Song under review' : 'Send selected song';
+    if (!configured) setCommunitySelection(null, 'Sending songs is not available right now.');
+    else if (underReview) setCommunitySelection(song, 'This version is already waiting for review. Edit the song to send a new version.');
+    else if (own) setCommunitySelection(song, 'Ready to send for review.');
+    else setCommunitySelection(null, 'First select one of your own songs in My songs.');
+    resetCommunityProgress();
+    openDialog(els.communityDialog);
+  }
+
+  function validCommunityOrigin(origin) {
+    try {
+      const url = new URL(origin);
+      return url.protocol === 'https:' && (url.hostname === 'script.google.com' || url.hostname.endsWith('.googleusercontent.com'));
+    } catch (error) { return false; }
+  }
+
+  function pollCommunityStatus(nonce) {
+    if (!communityUploadRequest || communityUploadRequest.nonce !== nonce) return;
+    const script = document.createElement('script');
+    const url = new URL(COMMUNITY_UPLOAD_URL);
+    url.searchParams.set('nonce', nonce);
+    url.searchParams.set('callback', COMMUNITY_STATUS_CALLBACK);
+    url.searchParams.set('status-check', String(Date.now()));
+    script.src = url.href;
+    script.async = true;
+    script.onload = script.onerror = () => script.remove();
+    document.head.appendChild(script);
+  }
+
+  window[COMMUNITY_STATUS_CALLBACK] = response => {
+    const request = communityUploadRequest;
+    if (!request || !response || response.pending || response.nonce !== request.nonce) return;
+    finishCommunityUpload(request.nonce, Boolean(response.ok), String(response.message || ''));
+  };
+
+  function finishCommunityUpload(nonce, ok, message) {
+    const request = communityUploadRequest;
+    if (!request || request.nonce !== nonce) return;
+    clearInterval(request.progressTimer);
+    clearInterval(request.pollTimer);
+    clearTimeout(request.timeoutTimer);
+    window.removeEventListener('message', request.onMessage);
+    request.form.remove();
+    setTimeout(() => request.frame.remove(), 80);
+    communityUploadRequest = null;
+    const song = state.song;
+    if (ok) {
+      if (song && song.folder === 'mine') {
+        song.communitySubmittedFingerprint = communityFingerprint(song);
+        saveMySongs();
+      }
+      setCommunityProgress(100, message || 'Song sent for review.', 'success');
+      els.submitCommunityBtn.textContent = 'Song under review';
+      els.submitCommunityBtn.disabled = true;
+      setCommunitySelection(song, 'Sent! It is waiting for review. Edit the song to send a new version.');
+      showToast(message || 'Song sent for review.', 'success');
+      return;
+    }
+    setCommunityProgress(request.progress, message || 'Upload failed. Please try again.', 'error');
+    els.submitCommunityBtn.textContent = 'Try again';
+    els.submitCommunityBtn.disabled = false;
+    showToast(message || 'The song could not be sent.', 'warning');
+  }
+
+  function submitCommunitySong() {
+    const song = state.song;
+    if (!song || song.folder !== 'mine') { showToast('Select one of your own songs first.', 'warning'); return; }
+    if (!COMMUNITY_UPLOAD_URL || communityUploadRequest) return;
+    if (songUnderReview(song)) { showToast('This version is already waiting for review.', 'warning'); return; }
+    const payload = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || '', bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence, folder: 'community' } };
+    const nonce = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `community-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const frame = document.createElement('iframe');
+    frame.name = `community-upload-${nonce.replace(/[^a-z0-9]/gi, '')}`;
+    frame.title = 'Community upload';
+    frame.hidden = true;
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = COMMUNITY_UPLOAD_URL;
+    form.target = frame.name;
+    form.acceptCharset = 'UTF-8';
+    form.hidden = true;
+    [['payload', JSON.stringify(payload)], ['nonce', nonce], ['website', '']].forEach(([name, value]) => {
+      const field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = name;
+      field.value = value;
+      form.appendChild(field);
+    });
+    const onMessage = event => {
+      if (!validCommunityOrigin(event.origin)) return;
+      const data = event.data;
+      if (!data || data.type !== 'ethereal-community-upload' || data.nonce !== nonce) return;
+      finishCommunityUpload(nonce, Boolean(data.ok), String(data.message || ''));
+    };
+    communityUploadRequest = { nonce, frame, form, onMessage, progress: 6, progressTimer: 0, pollTimer: 0, timeoutTimer: 0 };
+    window.addEventListener('message', onMessage);
+    document.body.append(frame, form);
+    els.submitCommunityBtn.disabled = true;
+    els.submitCommunityBtn.textContent = 'Sending...';
+    setCommunityProgress(6, 'Uploading song...');
+    communityUploadRequest.progressTimer = setInterval(() => {
+      const request = communityUploadRequest;
+      if (!request || request.nonce !== nonce) return;
+      request.progress = Math.min(92, request.progress + Math.max(1, (92 - request.progress) * 0.08));
+      setCommunityProgress(request.progress, 'Uploading song...');
+    }, 220);
+    communityUploadRequest.timeoutTimer = setTimeout(() => finishCommunityUpload(nonce, false, 'The upload timed out. Please try again.'), 45000);
+    form.submit();
+    pollCommunityStatus(nonce);
+    communityUploadRequest.pollTimer = setInterval(() => pollCommunityStatus(nonce), 800);
+  }
+
+  function bindCommunity() {
+    updateLibraryCounts();
+    els.libraryBtn.addEventListener('click', openSongLibrary);
+    els.libraryCommunityInfoBtn.addEventListener('click', () => { els.songLibraryDialog.close(); openCommunityDialog(); });
+    els.submitCommunityBtn.addEventListener('click', submitCommunitySong);
+    els.librarySearch.addEventListener('input', renderSongLibrary);
+    document.querySelectorAll('[data-library-tab]').forEach(button => button.addEventListener('click', () => { library.tab = button.dataset.libraryTab; renderSongLibrary(); }));
   }
 
   /* ---------- Install as an app ---------- */
@@ -4222,9 +4596,18 @@
     if (width <= 760) {
       // Phones: centre the handpan in the space between the stats row and the tape.
       const room = maxBottom - topReserve;
-      const wanted = Math.max(drum.drumSize, Math.min(width * 0.8, 360));
+      const wanted = Math.max(drum.drumSize, Math.min(width * 0.94, 440));
       drum.drumSize = Math.max(170, Math.min(wanted, (room - 8) / (0.53 + ext)));
-      drum.cy = topReserve + drum.drumSize * 0.53 + Math.max(0, (room - drum.drumSize * (0.53 + ext)) / 2);
+      drum.cy = topReserve + drum.drumSize * 0.53 + Math.max(0, (room - drum.drumSize * (0.53 + ext)) * 0.62);
+      drum.scale = drum.drumSize / STAGE_DRUM_BASE;
+      return;
+    }
+    if (document.body.classList.contains('tablet-fit')) {
+      // Tablets: the handpan grows into the stage that now fills the screen.
+      const top = 56;
+      const room = maxBottom - top;
+      drum.drumSize = Math.max(170, Math.min(Math.max(drum.drumSize, Math.min(width * 0.62, 600)), (room - 8) / (0.53 + ext)));
+      drum.cy = top + drum.drumSize * 0.53 + Math.max(0, (room - drum.drumSize * (0.53 + ext)) / 2);
       drum.scale = drum.drumSize / STAGE_DRUM_BASE;
       return;
     }
@@ -4818,8 +5201,35 @@
 
   // On a phone the start screen has no scrolling: the stage takes whatever height is left
   // under the header and the mode buttons.
+  // Tablets (touch screens wider than a phone): the song list slides in from the left like
+  // on a phone, and the stage takes exactly the height that is left, so nothing scrolls.
+  function isTablet() {
+    return window.innerWidth > 760 && window.innerHeight >= 520 && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+  }
+
+  function fitTabletStage() {
+    const stage = els.noteStage;
+    const before = stage.style.height;
+    stage.style.height = '';
+    stage.style.minHeight = '';
+    const card = stage.closest('.trainer-card');
+    const panel = document.querySelector('.main-panel');
+    const viewport = window.visualViewport?.height || window.innerHeight;
+    const stageRect = stage.getBoundingClientRect();
+    const below = card.getBoundingClientRect().bottom - stageRect.bottom;
+    const padBottom = parseFloat(getComputedStyle(panel).paddingBottom) || 10;
+    const top = stageRect.top + window.scrollY;
+    const height = Math.max(300, Math.floor(viewport - top - below - padBottom - 2));
+    stage.style.height = `${height}px`;
+    stage.style.minHeight = `${height}px`;
+    if (before !== stage.style.height) requestAnimationFrame(() => resizeCanvas());
+  }
+
   function fitPhoneStage() {
     const stage = els.noteStage;
+    const tablet = isTablet() && !state.focusMode;
+    document.body.classList.toggle('tablet-fit', tablet);
+    if (tablet) { fitTabletStage(); return; }
     if (!isPhone() || state.focusMode) {
       stage.style.height = '';
       stage.style.minHeight = '';
@@ -4892,6 +5302,18 @@
     els.editBtn.addEventListener('click', () => openEditor(state.song));
     els.settingsBtn.addEventListener('click', openSettings);
     els.helpBtn.addEventListener('click', () => openDialog(els.helpDialog));
+    bindHints();
+    bindFullscreen();
+    bindCommunity();
+    els.soundWakeBtn.addEventListener('click', wakeSound);
+    // Any first touch, click or key wakes the sound and hides the invitation.
+    const firstGesture = () => {
+      if (!els.soundWakeBtn.hidden) wakeSound();
+      window.removeEventListener('pointerdown', firstGesture, true);
+      window.removeEventListener('keydown', firstGesture, true);
+    };
+    window.addEventListener('pointerdown', firstGesture, true);
+    window.addEventListener('keydown', firstGesture, true);
     els.mobileViewToggleBtn.addEventListener('click', () => setView(state.view === 'lanes' ? 'radial' : 'lanes'));
     els.focusModeBtn.addEventListener('click', () => setFocusMode(!state.focusMode));
     // One click turns the drum clockwise by half a step (layout 1 -> layout 2 -> ...).

@@ -4,12 +4,13 @@ on:
   push:
     paths:
       - 'demo-songs/**'
+      - 'community-songs/**'
       - 'scripts/build-song-catalog.py'
       - '.github/workflows/song-catalog.yml'
   workflow_dispatch:
 
 # Keep Settings > Pages on: Deploy from a branch > main > /(root).
-# This workflow regenerates app-files/song-catalog.js from demo-songs/*.handsong and
+# This workflow regenerates app-files/song-catalog.js from demo-songs/ and community-songs/ and
 # asks Pages to rebuild, because commits made with GITHUB_TOKEN do not trigger it.
 permissions:
   contents: write
@@ -34,7 +35,7 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Build song catalog
+      - name: Build demo and community song catalog
         run: python scripts/build-song-catalog.py
 
       - name: Commit generated catalog

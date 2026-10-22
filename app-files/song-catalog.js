@@ -1,4 +1,4 @@
-window.HANDPAN_CATALOG_VERSION = '1792568424625364787';
+window.HANDPAN_CATALOG_VERSION = '1792655869834397695';
 window.HANDPAN_DEMO_SONGS = [
  {
   "title": "Interstellar",
@@ -119,5 +119,29 @@ window.HANDPAN_DEMO_SONGS = [
   "id": "demo-jingle-bells",
   "builtIn": true,
   "folder": "demo"
+ }
+];
+window.HANDPAN_COMMUNITY_SONGS = [
+ {
+  "title": "Ode to Joy",
+  "artist": "Beethoven · 1824",
+  "bpm": 100,
+  "beatsPerBar": 4,
+  "scale": "D Kurd",
+  "sequence": "# The famous tune, all on the tone fields\n5R 5R 6L 7R | 7R 6L 5R 4L | 3R 3R 4L 5R | 5R:1.5 4L:0.5 4L:2 |\n5R 5R 6L 7R | 7R 6L 5R 4L | 3R 3R 4L 5R | 4L:1.5 3R:0.5 DL+3R:2 |",
+  "id": "community-ode-to-joy",
+  "builtIn": true,
+  "folder": "community"
+ },
+ {
+  "title": "Twinkle, Twinkle, Little Star",
+  "artist": "1806 · a lullaby everyone knows",
+  "bpm": 96,
+  "beatsPerBar": 4,
+  "scale": "D Kurd",
+  "sequence": "3R 3R 7R 7R | 8L 8L 7R:2 | 6L 6L 5R 5R | 4L 4L 3R:2 |\n7R 7R 6L 6L | 5R 5R 4L:2 | 7R 7R 6L 6L | 5R 5R 4L:2 |\n3R 3R 7R 7R | 8L 8L 7R:2 | 6L 6L 5R 5R | 4L 4L DL+3R:2 |",
+  "id": "community-twinkle-twinkle",
+  "builtIn": true,
+  "folder": "community"
  }
 ];

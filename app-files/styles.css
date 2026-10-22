@@ -3238,3 +3238,113 @@ body[data-mode="practice"] .practice-options, body[data-mode="wait"] .practice-o
   .donate-btn span { display:none; }
   .donate-btn img { width:23px; height:23px; }
 }
+
+/* ===== v15 (shared by Ethereal Handpan and Ethereal Drum) ===== */
+/* Tour: the bold "?" plus the word. */
+.tour-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; color:var(--accent-2); }
+.tour-q { display:block; font-size:18px; font-weight:850; line-height:1; color:var(--accent-2); }
+.learn-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; color:var(--accent-2); }
+.learn-btn svg { display:block; flex:none; }
+
+/* Little "?" buttons that explain a control instead of a line of text. */
+.hint-btn {
+  flex:none; width:22px; height:22px; min-height:0; padding:0; display:inline-grid; place-items:center; border-radius:50%;
+  border:1px solid rgba(94,234,212,.38); background:rgba(94,234,212,.08); color:var(--accent-2);
+  font-size:12px; font-weight:900; line-height:1; cursor:pointer;
+}
+.hint-btn:hover, .hint-btn.open { background:rgba(94,234,212,.2); border-color:rgba(94,234,212,.62); }
+.hint-pop {
+  position:fixed; z-index:460; padding:10px 12px; border-radius:12px; border:1px solid rgba(94,234,212,.35);
+  background:#0f1626; color:#dbe4f3; font-size:13px; line-height:1.45; box-shadow:0 14px 34px rgba(0,0,0,.45); pointer-events:none;
+}
+.hint-pop[hidden] { display:none; }
+.ab-loop-status:empty { display:none; }
+.mic-status:not(.listening):not(.heard):not(.error) { display:none; }
+.speed-row { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px 18px; }
+.speed-control { display:flex; align-items:center; gap:10px; }
+.speed-row-tail { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; }
+.speed-row > p#modeHint { flex-basis:100%; width:100%; min-width:0; margin:0; text-align:center; }
+
+/* "Tap to wake up the sound": browsers keep sound off until the first touch. */
+.sound-wake {
+  position:fixed; left:50%; top:max(14px, env(safe-area-inset-top)); transform:translateX(-50%); z-index:450;
+  display:flex; align-items:center; gap:12px; max-width:calc(100vw - 24px); padding:9px 18px 9px 10px; border-radius:999px;
+  border:1px solid rgba(94,234,212,.55); background:linear-gradient(135deg, rgba(23,32,58,.97), rgba(46,30,86,.97));
+  color:#f1f5f9; text-align:left; cursor:pointer; animation:wakePulse 1.8s ease-in-out infinite;
+}
+.sound-wake[hidden] { display:none; }
+.sound-wake-icon { width:44px; height:44px; flex:none; display:grid; place-items:center; border-radius:50%; background:rgba(94,234,212,.16); color:#5eead4; }
+.sound-wake-icon .w1 { animation:wakeWave 1.2s ease-in-out infinite; }
+.sound-wake-icon .w2 { animation:wakeWave 1.2s ease-in-out .3s infinite; }
+.sound-wake-text { display:grid; gap:2px; min-width:0; }
+.sound-wake-text b { font-size:15px; font-weight:850; }
+.sound-wake-text small { color:#b9c4dc; font-size:12.5px; }
+@keyframes wakePulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(94,234,212,.45), 0 14px 34px rgba(0,0,0,.5); }
+  50% { box-shadow:0 0 0 12px rgba(94,234,212,0), 0 14px 34px rgba(0,0,0,.5); }
+}
+@keyframes wakeWave { 0%,100% { opacity:.2; } 50% { opacity:1; } }
+
+/* Full screen on tablets: hides the system bars (clock, battery) at the top. */
+.fullscreen-btn { display:none; align-items:center; justify-content:center; color:#c4b5fd; }
+.fullscreen-btn .fs-exit { display:none; }
+.fullscreen-btn.active .fs-enter { display:none; }
+.fullscreen-btn.active .fs-exit { display:block; }
+body.tablet-fit .fullscreen-btn:not([hidden]) { display:inline-flex; }
+
+/* Tablets: songs slide in from the left (as on a phone) and everything fits on one screen. */
+body.tablet-fit .app-shell { grid-template-columns:1fr; }
+body.tablet-fit .sidebar {
+  position:fixed; inset:0 auto 0 0; width:min(88vw,340px); transform:translateX(-105%);
+  transition:transform .25s ease; box-shadow:20px 0 60px rgba(0,0,0,.45);
+}
+body.tablet-fit .sidebar.open { transform:translateX(0); }
+body.tablet-fit .sidebar-close, body.tablet-fit .menu-btn { display:grid; place-items:center; }
+body.tablet-fit .sidebar-scrim {
+  display:block; position:fixed; inset:0; z-index:19; padding:0; border:0; background:rgba(4,7,13,.62);
+  opacity:0; pointer-events:none; transition:opacity .22s ease;
+}
+body.tablet-fit .sidebar.open + .sidebar-scrim { opacity:1; pointer-events:auto; }
+body.tablet-fit .main-panel { padding:10px 16px 10px; }
+body.tablet-fit .topbar { min-height:50px; margin-bottom:10px; }
+body.tablet-fit .trainer-grid { grid-template-columns:minmax(0,1fr) minmax(250px,290px); align-items:stretch; }
+body.tablet-fit .trainer-grid.radial-layout, body.tablet-fit .trainer-grid.tuner-mode { grid-template-columns:minmax(0,1fr); }
+body.tablet-fit .trainer-grid:not(.radial-layout):not(.tuner-mode) .practice-card { display:flex; flex-direction:column; position:relative; top:auto; padding:14px; }
+body.tablet-fit .trainer-card {
+  display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center;
+  grid-template-areas:"tb tb tb" "st st st" "pr pr pr" "ab tr sp";
+}
+body.tablet-fit .trainer-toolbar { grid-area:tb; }
+body.tablet-fit .note-stage { grid-area:st; }
+body.tablet-fit .progress-wrap { grid-area:pr; padding-top:8px; padding-bottom:2px; }
+body.tablet-fit .ab-loop-row { grid-area:ab; justify-self:start; display:flex; align-items:center; gap:8px; padding:4px 0 12px 14px; }
+body.tablet-fit .ab-loop-controls { display:grid; grid-template-columns:repeat(2, auto); gap:6px; }
+body.tablet-fit .ab-loop-status { display:none; }
+body.tablet-fit .transport { grid-area:tr; padding:2px 8px 12px; }
+body.tablet-fit .speed-row { grid-area:sp; justify-self:end; justify-content:flex-end; max-width:330px; gap:8px 12px; padding:4px 14px 12px 0; }
+body.tablet-fit .speed-row-tail { justify-content:flex-end; gap:10px; }
+body.tablet-fit .speed-row > p#modeHint { display:none; }
+
+/* Handpan only (v15) */
+.top-actions .learn-btn { color:var(--accent-2); }
+@media (min-width:761px) {
+  /* Song Builder: the handpan sits right next to the four buttons, the pair centred. */
+  .compose-row { grid-template-columns:300px minmax(0,440px); justify-content:center; column-gap:36px; }
+  .compose-buttons { width:100%; justify-self:stretch; }
+}
+@media (max-width:760px) { .sound-wake-text small { display:none; } }
+
+/* v15 fixes */
+.top-actions .fullscreen-btn { display:none; }
+body.tablet-fit .top-actions .fullscreen-btn:not([hidden]) { display:inline-flex; }
+.top-actions .learn-btn .btn-icon { display:block; }
+.sound-wake { top:30vh; }
+body.tablet-fit .speed-row { max-width:400px; }
+body.tablet-fit .trainer-grid:not(.radial-layout):not(.tuner-mode) { grid-template-columns:minmax(0,1fr) minmax(270px,320px); }
+body.tablet-fit .practice-card .drum-wrap { flex:1 1 auto; }
+/* v15b: tablet controls in two tidy rows on the right */
+body.tablet-fit .trainer-card { grid-template-columns:minmax(0,.8fr) auto minmax(0,1.2fr); }
+body.tablet-fit .speed-row { display:grid; grid-template-columns:auto auto; align-items:center; justify-content:end; justify-items:end; gap:8px 10px; max-width:none; }
+body.tablet-fit .speed-row-tail { display:contents; }
+body.tablet-fit .speed-row .mic-status { grid-column:1 / -1; }
+body.tablet-fit .speed-row .mic-status { display:none; }
