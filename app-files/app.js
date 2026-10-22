@@ -3777,7 +3777,9 @@
 
   function maybeShowSoundWake() {
     const activated = navigator.userActivation ? navigator.userActivation.hasBeenActive : false;
-    els.soundWakeBtn.hidden = activated || soundIsAwake();
+    // Only on phones and tablets; on a computer the first click wakes the sound anyway.
+    const touch = Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+    els.soundWakeBtn.hidden = !touch || activated || soundIsAwake();
   }
 
   function wakeSound() {
