@@ -173,9 +173,11 @@ COMMUNITY SONGS
 Side menu > Community songs: anyone can play them, no account needed.
 "Share my song" (in that window) sends one of your own songs (My songs) for review.
 
-Where sent songs go: the same private Google Drive review folder as Ethereal
-Drum, through the same Google Apps Script. Handpan songs arrive as
-handpan-<title>-<date>.handsong.
+Where sent songs go: through the same Google Apps Script as Ethereal Drum,
+but into their own Google Drive folder, "Handpan Community Submissions". The
+script creates it next to the tongue drum folder the first time a handpan song
+arrives. Tongue drum songs keep going to their folder (you can rename it to
+"Tonguedrum Community Submissions"; the script finds it by its ID).
 
 One-time setup, so the script also accepts handpan songs:
   1. Open script.google.com and the Ethereal Drum upload project.
@@ -187,10 +189,12 @@ No Cloudflare is involved.
 
 Publishing an approved song: download it from Drive and put it in
 community-songs/. On GitHub: Add file > Upload files, inside community-songs.
-The "Update song catalog" action (.github/workflows/song-catalog.yml) rebuilds
+The "Update song catalog" action rebuilds
 app-files/song-catalog.js and GitHub Pages updates a minute or two later.
-(Settings > Actions > General > Workflow permissions must be "Read and write",
-as for Ethereal Drum.) On your computer, START_TRAINER does the same live.
+For that, the action must be in the repository once: on GitHub choose
+Add file > Create new file, type .github/workflows/song-catalog.yml as the name
+and paste in scripts/song-catalog.github-workflow.yml. (Settings > Actions >
+General > Workflow permissions must be "Read and write", as for Ethereal Drum.) On your computer, START_TRAINER does the same live.
 
 TABLETS AND PHONES
 ------------------
