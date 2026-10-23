@@ -4598,7 +4598,7 @@
     if (width <= 760) {
       // Phones: centre the handpan in the space between the stats row and the tape.
       const room = maxBottom - topReserve;
-      const wanted = Math.max(drum.drumSize, Math.min(width * 0.94, 440));
+      const wanted = Math.max(drum.drumSize, Math.min(width * 0.86, 400));
       drum.drumSize = Math.max(170, Math.min(wanted, (room - 8) / (0.53 + ext)));
       drum.cy = topReserve + drum.drumSize * 0.53 + Math.max(0, (room - drum.drumSize * (0.53 + ext)) * 0.62);
       drum.scale = drum.drumSize / STAGE_DRUM_BASE;

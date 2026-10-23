@@ -1,6 +1,9 @@
 /* Ethereal Drum + Ethereal Handpan Community submission receiver.
- * One script serves both apps: tongue drum songs arrive as .drumsong files and
- * handpan songs as .handsong files (their names start with "handpan-").
+ * One script serves both apps, each with its own review folder:
+ *   tongue drum songs (.drumsong) -> the folder below (SUBMISSION_FOLDER_ID),
+ *     e.g. "Tonguedrum Community Submissions" (renaming it is fine, the ID stays);
+ *   handpan songs (.handsong) -> "Handpan Community Submissions", created
+ *     automatically next to it on the first handpan submission.
  * Paste this entire file into a new Google Apps Script project.
  * The review-folder ID is already configured below.
  * After editing an existing web app, deploy a new version from
@@ -8,6 +11,7 @@
  */
 
 const SUBMISSION_FOLDER_ID = '1zW2BAsbo6P_U6hUoVlvdSW3PvHsI3bBQ';
+const HANDPAN_FOLDER_NAME = 'Handpan Community Submissions';
 const MAX_SONG_BYTES = 60000;
 const UPLOAD_STATUS_SECONDS = 600;
 const STATUS_CALLBACK = 'etherealCommunityUploadStatus';
@@ -55,11 +59,11 @@ function doPost(event) {
         return replyToTrainer_(nonce, true, message);
       }
 
-      const folder = DriveApp.getFolderById(SUBMISSION_FOLDER_ID);
+      const handpan = document.format === 'ethereal-handpan-song-v1';
+      const folder = handpan ? handpanFolder_() : DriveApp.getFolderById(SUBMISSION_FOLDER_ID);
       const timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmmss');
       const unique = Utilities.getUuid().slice(0, 8);
-      const handpan = document.format === 'ethereal-handpan-song-v1';
-      const filename = `${handpan ? 'handpan-' : ''}${safeFilename_(document.song.title)}-${timestamp}-${unique}.${handpan ? 'handsong' : 'drumsong'}`;
+      const filename = `${safeFilename_(document.song.title)}-${timestamp}-${unique}.${handpan ? 'handsong' : 'drumsong'}`;
       folder.createFile(filename, JSON.stringify(document, null, 2), MimeType.PLAIN_TEXT);
       cache.put(duplicateKey, '1', DUPLICATE_GUARD_SECONDS);
     } finally {
@@ -73,6 +77,28 @@ function doPost(event) {
     saveUploadStatus_(nonce, { nonce: nonce, ok: false, message: 'The song could not be submitted. Please try again later.' });
     return replyToTrainer_(nonce, false, 'The song could not be submitted. Please try again later.');
   }
+}
+
+// The handpan review folder sits next to the tongue drum one. It is found by name (or
+// created) once, then remembered by its ID, so renaming or moving it later is fine.
+function handpanFolder_() {
+  const properties = PropertiesService.getScriptProperties();
+  const savedId = properties.getProperty('HANDPAN_FOLDER_ID');
+  if (savedId) {
+    try {
+      const saved = DriveApp.getFolderById(savedId);
+      if (!saved.isTrashed()) return saved;
+    } catch (error) {
+      // The folder was deleted; find or create it again below.
+    }
+  }
+  const drumFolder = DriveApp.getFolderById(SUBMISSION_FOLDER_ID);
+  const parents = drumFolder.getParents();
+  const parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  const existing = parent.getFoldersByName(HANDPAN_FOLDER_NAME);
+  const folder = existing.hasNext() ? existing.next() : parent.createFolder(HANDPAN_FOLDER_NAME);
+  properties.setProperty('HANDPAN_FOLDER_ID', folder.getId());
+  return folder;
 }
 
 function safeNonce_(value) {
