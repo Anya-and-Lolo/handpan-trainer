@@ -110,6 +110,12 @@
               </div>
               <div class="practice-options" id="practiceOptions">
                 <label class="toggle-label wait-toggle"><input type="checkbox" id="waitToggle" /><span>Wait for note</span></label>
+                <select id="waitStyleSelect" class="wait-style-select" aria-label="How Wait for note sounds">
+                  <option value="quiet">Quiet</option>
+                  <option value="hear">Hear it first</option>
+                  <option value="game">Game sounds</option>
+                </select>
+                <button class="hint-btn wait-style-hint" type="button" data-hint="Quiet: the song waits in silence until you play the note. Hear it first: the app plays each note, then waits for you to play it. Game sounds: silent, and a happy chime every time you get it right." aria-label="About the Wait for note styles">?</button>
                 <button class="mic-chip" id="micChipBtn" type="button" aria-pressed="false">Mic off</button>
               </div>
               <div class="display-control">
@@ -156,6 +162,10 @@
               <button class="dock-btn" id="dockMetronomeBtn" type="button" aria-label="Metronome" aria-pressed="false"><span class="metronome-icon" aria-hidden="true"><span class="metronome-body"></span><span class="metronome-arm"></span></span></button>
             </div>
             <button class="speed-cycle-btn" id="speedCycleBtn" type="button" aria-label="Speed: tap to slow down" title="Tap to change the speed"><small>Speed</small><b id="speedCycleValue">1×</b></button>
+            <div class="stage-practice-chips" id="stagePracticeChips" role="group" aria-label="Practice options">
+              <button class="stage-chip" id="stageWaitBtn" type="button" aria-pressed="false" title="Tap to change: off, quiet, hear it first, game">Wait: off</button>
+              <button class="stage-chip" id="stageMicBtn" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"></rect><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0"></path><path d="M12 17v4"></path></svg><span>Mic off</span></button>
+            </div>
             <div class="stage-judge" id="stageJudge" aria-hidden="true"></div>
             <div class="stage-overlay top-left">
               <span id="totalNotesLabel">0 strokes total</span>
@@ -284,6 +294,14 @@
           <h2 id="editorHeading">Create a song</h2>
         </div>
         <button type="button" class="icon-btn" data-close-dialog="editorDialog" aria-label="Close">×</button>
+      </div>
+
+      <div class="draft-notice" id="draftNotice" hidden>
+        <span id="draftNoticeText">Unsaved draft restored.</span>
+        <span class="draft-notice-actions">
+          <button type="button" class="text-tool-btn" id="discardDraftBtn">Discard draft</button>
+          <button type="button" class="text-tool-btn" id="allDraftsBtn" hidden>All drafts</button>
+        </span>
       </div>
 
       <div class="form-grid hp-song-grid">
@@ -493,6 +511,32 @@
       <div class="switch-actions single">
         <button type="button" class="primary-btn" data-close-dialog="installDialog">Got it</button>
       </div>
+    </div>
+  </dialog>
+
+  <dialog class="dialog choice-dialog" id="editChoiceDialog">
+    <div class="choice-card">
+      <h2>Song builder</h2>
+      <div class="choice-list">
+        <button type="button" class="choice-btn" id="choiceEditBtn"><b>Edit this song</b><small id="choiceEditNote">Change its notes, tempo or title</small></button>
+        <button type="button" class="choice-btn" id="choiceNewBtn"><b>Start a new song</b><small>Begin with an empty page</small></button>
+        <button type="button" class="choice-btn" id="choiceDraftsBtn" hidden><b>Drafts</b><small>Songs you have not saved yet</small></button>
+      </div>
+      <button type="button" class="soft-btn choice-cancel" data-close-dialog="editChoiceDialog">Cancel</button>
+    </div>
+  </dialog>
+
+  <dialog class="dialog drafts-dialog" id="draftsDialog">
+    <div class="drafts-card">
+      <div class="dialog-head">
+        <div>
+          <h2>Drafts</h2>
+          <p class="drafts-sub">Unsaved songs from the song builder, newest first. They stay on this device.</p>
+        </div>
+        <button type="button" class="icon-btn" data-close-dialog="draftsDialog" aria-label="Close">×</button>
+      </div>
+      <ul class="drafts-list" id="draftsList"></ul>
+      <p class="drafts-empty" id="draftsEmpty" hidden>No drafts. Everything is saved.</p>
     </div>
   </dialog>
 

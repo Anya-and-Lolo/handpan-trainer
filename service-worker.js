@@ -1,4 +1,4 @@
-const CACHE = 'ethereal-handpan-trainer-v15';
+const CACHE = 'ethereal-handpan-trainer-v16';
 const SHELL = [
   './',
   './index.html',

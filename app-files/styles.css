@@ -3348,3 +3348,90 @@ body.tablet-fit .speed-row { display:grid; grid-template-columns:auto auto; alig
 body.tablet-fit .speed-row-tail { display:contents; }
 body.tablet-fit .speed-row .mic-status { grid-column:1 / -1; }
 body.tablet-fit .speed-row .mic-status { display:none; }
+
+/* ===================== v16 ===================== */
+/* Wait for note: how it sounds (only while waiting). */
+.wait-style-select {
+  display:none; height:30px; padding:0 8px; border-radius:9px; border:1px solid rgba(94,234,212,.32);
+  background:rgba(9,14,26,.6); color:#99f6e4; font:inherit; font-size:12.5px; font-weight:750; cursor:pointer;
+}
+.wait-style-select option { background:#121827; color:#e2e8f0; }
+body[data-mode="wait"] .wait-style-select { display:inline-block; }
+.practice-options .wait-style-hint { display:none; }
+body[data-mode="wait"] .practice-options .wait-style-hint { display:inline-grid; }
+
+/* Focus mode: Wait for note and the microphone sit on the stage, so they change without stopping. */
+.stage-practice-chips { display:none; position:absolute; z-index:9; top:14px; left:50%; transform:translateX(-50%); gap:6px; align-items:center; }
+body.focus-mode[data-mode="practice"] .stage-practice-chips,
+body.focus-mode[data-mode="wait"] .stage-practice-chips { display:flex; }
+.stage-chip {
+  height:32px; padding:0 11px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; border-radius:999px;
+  border:1px solid rgba(255,255,255,.16); background:rgba(9,14,26,.74); color:#cbd5e1; font:inherit; font-size:12.5px; font-weight:750;
+  backdrop-filter:blur(8px); cursor:pointer;
+}
+.stage-chip.active { color:#99f6e4; border-color:rgba(94,234,212,.45); background:rgba(13,35,44,.82); }
+.stage-chip svg { flex:none; }
+@media (max-width:760px) {
+  .stage-practice-chips { top:var(--chips-top, 62px); }
+  body.focus-mode[data-mode="practice"] .stage-judge,
+  body.focus-mode[data-mode="wait"] .stage-judge { top:calc(var(--chips-top, 62px) + 44px); }
+  /* The handpan's "play this note" banner moves under the chips. */
+  body.focus-mode[data-mode="wait"] .wait-banner { top:calc(var(--chips-top, 62px) + 40px); }
+  body.focus-mode[data-mode="wait"] .stage-judge.below-banner { top:calc(var(--chips-top, 62px) + 84px); }
+}
+@media (max-width:360px) {
+  /* No room for it on the narrowest phones: the tape and the glowing note show what is next. */
+  body.focus-mode[data-mode="wait"] .wait-banner { display:none; }
+}
+
+/* Song builder chooser (narrow phones) and the drafts list. */
+.choice-dialog { width:min(380px, calc(100vw - 32px)); }
+.choice-card { padding:22px 20px 18px; }
+.choice-card h2 { font-size:20px; margin:0 0 14px; text-align:center; }
+.choice-list { display:grid; gap:10px; }
+.choice-btn {
+  display:grid; gap:3px; text-align:left; padding:13px 15px; border-radius:14px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04); color:var(--text); font:inherit; cursor:pointer;
+}
+.choice-btn[hidden] { display:none; }
+.choice-btn b { font-size:15.5px; }
+.choice-btn small { color:var(--muted); font-size:12.5px; }
+.choice-btn:hover, .choice-btn:focus-visible { border-color:rgba(94,234,212,.42); background:rgba(94,234,212,.08); outline:none; }
+.choice-cancel { width:100%; margin-top:14px; }
+.drafts-dialog { width:min(520px, calc(100vw - 24px)); }
+.drafts-card { padding:20px; }
+.drafts-card .dialog-head { margin-bottom:12px; }
+.drafts-card h2 { margin:0; font-size:21px; }
+.drafts-sub { margin:4px 0 0; color:var(--muted); font-size:13px; line-height:1.4; }
+.drafts-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; max-height:60vh; overflow:auto; }
+.draft-item { display:flex; align-items:center; gap:8px; padding:10px 10px 10px 13px; border-radius:13px; border:1px solid rgba(251,191,36,.24); background:rgba(251,191,36,.06); }
+.draft-item.current { border-color:rgba(94,234,212,.45); background:rgba(94,234,212,.07); }
+.draft-info { flex:1; min-width:0; display:grid; gap:2px; }
+.draft-info b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14.5px; color:#f1f5f9; }
+.draft-info small { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.draft-open, .draft-delete {
+  flex:none; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(9,14,26,.6);
+  color:#e2e8f0; font:inherit; font-size:13px; font-weight:750; cursor:pointer;
+}
+.draft-open { padding:0 13px; color:#99f6e4; border-color:rgba(94,234,212,.35); }
+.draft-delete { width:34px; padding:0; display:grid; place-items:center; color:#fda4af; }
+.draft-open:hover { background:rgba(94,234,212,.12); }
+.draft-delete:hover { background:rgba(251,113,133,.12); border-color:rgba(251,113,133,.35); }
+.drafts-empty { color:var(--muted); text-align:center; margin:10px 0 4px; }
+.draft-notice-actions { display:inline-flex; gap:14px; align-items:center; }
+.draft-notice-actions [hidden] { display:none; }
+
+/* Narrow phones (320–360 px): one rotate button, a slimmer Speed button, no "+" (the pencil asks). */
+@media (max-width:360px) {
+  #rotateLeftBtn { display:none; }
+  .note-stage .rotate-drum-btn { width:46px; height:44px; }
+  .speed-cycle-btn { min-width:46px !important; width:46px; padding:0 2px !important; }
+  .speed-cycle-btn b { font-size:14px !important; }
+  .speed-cycle-btn small { font-size:8px !important; letter-spacing:.04em !important; }
+  .top-actions #topNewSongBtn { display:none !important; }
+  body.focus-mode .stage-song-name { left:64px !important; right:64px !important; }
+  .stage-chip { padding:0 8px; font-size:11.5px; }
+  /* Between "Left hand" and "Right hand" there is only room for the mic icon. */
+  #stageMicBtn { width:32px; padding:0; justify-content:center; }
+  #stageMicBtn span { display:none; }
+}

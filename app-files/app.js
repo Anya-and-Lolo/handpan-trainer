@@ -82,7 +82,9 @@
     'tourTitle', 'tourText', 'tourSkipBtn', 'tourBackBtn', 'tourNextBtn', 'tourSoundBtn',
     'libraryBtn', 'libraryCountBadge', 'songLibraryDialog', 'libraryTabAll', 'libraryTabEasy', 'libraryTabMedium', 'libraryTabHard', 'libraryTabExpert', 'librarySearch', 'libraryGrid', 'libraryEmpty', 'libraryCommunityBanner', 'libraryCommunityInfoBtn',
     'communitySongsCount', 'communityEasyCount', 'communityMediumCount', 'communityHardCount', 'communityExpertCount', 'communityDialog', 'communitySelection', 'communityUploadProgress', 'communityUploadStatus', 'communityUploadPercent', 'communityProgressTrack', 'communityProgressFill', 'submitCommunityBtn',
-    'soundWakeBtn', 'hintPop', 'fullscreenBtn'
+    'soundWakeBtn', 'hintPop', 'fullscreenBtn',
+    'waitStyleSelect', 'stagePracticeChips', 'stageWaitBtn', 'stageMicBtn', 'draftNotice', 'draftNoticeText', 'discardDraftBtn', 'allDraftsBtn',
+    'draftsDialog', 'draftsList', 'draftsEmpty', 'editChoiceDialog', 'choiceEditBtn', 'choiceEditNote', 'choiceNewBtn', 'choiceDraftsBtn'
   ].forEach(id => { els[id] = $(id); });
 
   /* ------------------------------------------------------------------ */
@@ -452,6 +454,8 @@
     metronome: Boolean(prefs.metronome),
     guide: Boolean(prefs.guide),
     waitPref: prefs.mode === 'wait' || Boolean(prefs.waitPref),
+    // How Wait for note sounds: quiet, hear it first (the app plays the note), game (a chime when right).
+    waitStyle: ['quiet', 'hear', 'game'].includes(prefs.waitStyle) ? prefs.waitStyle : (prefs.guide ? 'hear' : 'quiet'),
     loop: Boolean(prefs.loop),
     playing: false,
     holding: false,
@@ -517,7 +521,7 @@
   function savePrefs() {
     writeJson(STORAGE_PREFS, {
       speed: state.speed, mode: state.mode === 'tuner' ? 'listen' : state.mode, view: state.view, countIn: state.countIn,
-      metronome: state.metronome, guide: state.guide, loop: state.loop, waitPref: state.waitPref, selectedId: state.song?.id || prefs.selectedId
+      metronome: state.metronome, guide: state.guide, loop: state.loop, waitPref: state.waitPref, waitStyle: state.waitStyle, selectedId: state.song?.id || prefs.selectedId
     });
   }
 
@@ -580,14 +584,20 @@
   }
 
   async function ensureAudio() {
-    if (!audio.ctx) createAudioGraph();
+    if (!audio.ctx) {
+      createAudioGraph();
+      // Sound that wakes up later (first tap, or a browser that allows it) takes over the tour.
+      audio.ctx?.addEventListener('statechange', onAudioStateChange);
+    }
     if (!audio.ctx) return null;
     if (audio.ctx.state !== 'running') {
-      // Before the first tap/click the browser keeps audio locked and resume() would
-      // wait for that gesture; the demo tour then runs silently on the page clock.
+      // Before the first tap/click most browsers keep audio locked and resume() would wait
+      // for that gesture. A computer that allows sound straight away starts within a moment,
+      // so wait briefly for it; otherwise the tour runs on the page clock until a tap.
       const activation = navigator.userActivation;
-      if (activation && !activation.hasBeenActive) audio.ctx.resume().catch(() => {});
-      else {
+      if (activation && !activation.hasBeenActive) {
+        await Promise.race([audio.ctx.resume().catch(() => {}), new Promise(resolve => setTimeout(resolve, 450))]);
+      } else {
         try { await audio.ctx.resume(); } catch (error) { /* ignored */ }
       }
     }
@@ -1447,7 +1457,9 @@
 
   function autoPlaysNotes() {
     if (state.mode === 'listen' || tour.active) return true;
-    return state.guide && (state.mode === 'practice' || state.mode === 'wait');
+    // Wait for note plays each note first only in the "Hear it first" style.
+    if (state.mode === 'wait') return state.waitStyle === 'hear';
+    return state.guide && state.mode === 'practice';
   }
 
   function runScheduler() {
@@ -1466,6 +1478,11 @@
       if (event.time >= t - 0.04 && autoPlaysNotes() && !eventDone(event)) {
         const when = songToCtx(event.time);
         const velocity = listening() ? 1 : 0.55;
+        // The microphone must not take the app's own "hear it first" note for yours.
+        if (state.mode === 'wait') {
+          const delay = state.clock === 'audio' && audio.ctx ? Math.max(0, when - audio.ctx.currentTime) * 1000 : 0;
+          mic.echoUntil = Math.max(mic.echoUntil || 0, performance.now() + delay + 900);
+        }
         event.items.forEach(item => { if (!item.missing) playPad(item.pad, state.clock === 'audio' ? when : 0, velocity); });
       }
       state.schedIdx += 1;
@@ -1741,6 +1758,7 @@
     }
     registerHit(item, 'hit');
     if (eventDone(pending)) {
+      if (state.waitStyle === 'game') playChime();
       state.waitIdx = index + 1;
       if (state.holding) {
         state.holding = false;
@@ -1878,8 +1896,9 @@
     els.loopBtn.setAttribute('aria-pressed', String(state.loop));
     els.metronomeBtn.classList.toggle('active', state.metronome);
     els.metronomeBtn.setAttribute('aria-pressed', String(state.metronome));
-    els.guideBtn.classList.toggle('active', state.guide);
-    els.guideBtn.setAttribute('aria-pressed', String(state.guide));
+    const guideOn = state.mode === 'wait' ? state.waitStyle === 'hear' : state.guide;
+    els.guideBtn.classList.toggle('active', guideOn);
+    els.guideBtn.setAttribute('aria-pressed', String(guideOn));
     els.guideBtn.disabled = state.mode === 'listen';
     els.dockPlayBtn.innerHTML = els.playBtn.innerHTML;
     els.dockPlayBtn.setAttribute('aria-label', state.playing ? 'Pause' : 'Play');
@@ -1888,13 +1907,16 @@
     els.dockMetronomeBtn.classList.toggle('active', state.metronome);
     els.dockMetronomeBtn.setAttribute('aria-pressed', String(state.metronome));
     keepScreenOn(state.playing || state.focusMode || (state.mode === 'tuner' && mic.on));
-    els.guideBtn.title = state.mode === 'listen' ? 'Listen always plays the song' : state.guide ? 'Song sound on: the app plays the song (quieter once you play along)' : 'Song sound off: only your own strokes';
+    els.guideBtn.title = state.mode === 'listen' ? 'Listen always plays the song'
+      : state.mode === 'wait' ? (guideOn ? 'Hear it first: the app plays each note, then waits for you' : 'The app stays quiet and waits for your note')
+      : state.guide ? 'Song sound on: the app plays the song (quieter once you play along)' : 'Song sound off: only your own strokes';
     document.body.classList.toggle('is-playing', state.playing);
   }
 
   function updateModeUI() {
     document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode || (button.dataset.mode === 'practice' && state.mode === 'wait')));
     els.waitToggle.checked = state.mode === 'wait' || (state.mode !== 'practice' && state.waitPref);
+    syncWaitControls();
     const hints = {
       listen: 'Listen and watch the notes, nothing is scored.',
       practice: 'Play along on screen, keyboard, or with the microphone.',
@@ -3225,6 +3247,11 @@
     els.micChipBtn.innerHTML = `${MIC_ICON} Mic ${mic.on ? 'on' : 'off'}`;
     els.micChipBtn.classList.toggle('active', mic.on);
     els.micChipBtn.setAttribute('aria-pressed', String(mic.on));
+    if (els.stageMicBtn) {
+      els.stageMicBtn.lastElementChild.textContent = `Mic ${mic.on ? 'on' : 'off'}`;
+      els.stageMicBtn.classList.toggle('active', mic.on);
+      els.stageMicBtn.setAttribute('aria-pressed', String(mic.on));
+    }
     if (typeof updateTransportUI === 'function' && els.dockPlayBtn) keepScreenOn(state.playing || state.focusMode || (state.mode === 'tuner' && mic.on));
     if (!mic.on) {
       setMicStatus(state.mode === 'tuner' ? 'Turn on the microphone to tune' : 'Use in Practice, Wait, or Tuner mode');
@@ -3412,11 +3439,18 @@
       setMicStatus('Heard you · press Play to start', 'heard');
       return;
     }
-    const chosen = chooseFromStrike(mic.data, before, sampleRate, expectedItemsNow());
+    const expected = expectedItemsNow();
+    const chosen = chooseFromStrike(mic.data, before, sampleRate, expected);
     if (!chosen) {
       setMicStatus('Strike heard · pitch unclear', 'error');
       return;
     }
+    // A handpan note rings for seconds and its swell can sound like a second strike.
+    // The same note again within ~1.3 s only counts when the song asks for it.
+    const heardAt = performance.now();
+    if (chosen === mic.lastPad && heardAt - (mic.lastAt || 0) < 1300 && !expected.some(item => item.pad === chosen)) return;
+    mic.lastPad = chosen;
+    mic.lastAt = heardAt;
     const pad = state.padMap.get(chosen);
     setMicStatus(`Heard ${pad.kind === 'perc' ? pad.name : `${pad.label} · ${pad.name}`}`, 'heard');
     userHit(chosen, 'mic');
@@ -3558,10 +3592,244 @@
   /* Song builder                                                        */
   /* ------------------------------------------------------------------ */
 
-  const editor = { songId: null, hand: '', len: 1, drum: null, previewTimer: 0 };
 
-  function openEditor(song) {
+  /* ------------------------------------------------------------------ */
+  /* v16: wait styles, stage chips, sound wake-up, drafts, chooser       */
+  /* ------------------------------------------------------------------ */
+
+  const WAIT_STYLE_LABELS = { quiet: 'quiet', hear: 'hear first', game: 'game' };
+
+  function syncWaitControls() {
+    if (els.waitStyleSelect) els.waitStyleSelect.value = state.waitStyle;
+    if (!els.stageWaitBtn) return;
+    const waiting = state.mode === 'wait';
+    els.stageWaitBtn.textContent = waiting ? `Wait: ${WAIT_STYLE_LABELS[state.waitStyle]}` : 'Wait: off';
+    els.stageWaitBtn.classList.toggle('active', waiting);
+    els.stageWaitBtn.setAttribute('aria-pressed', String(waiting));
+  }
+
+  function setWaitStyle(style) {
+    if (!WAIT_STYLE_LABELS[style]) return;
+    state.waitStyle = style;
+    savePrefs();
+    syncWaitControls();
+    updateTransportUI();
+  }
+
+  function setWaitOn(on) {
+    if (els.waitToggle.checked === on && (state.mode === 'wait') === on) return;
+    els.waitToggle.checked = on;
+    els.waitToggle.dispatchEvent(new Event('change'));
+  }
+
+  // The stage chip steps through: off → quiet → hear it first → game → off.
+  function cycleStageWait() {
+    const order = ['quiet', 'hear', 'game'];
+    if (state.mode !== 'wait') { state.waitStyle = 'quiet'; setWaitOn(true); syncWaitControls(); return; }
+    const next = order.indexOf(state.waitStyle) + 1;
+    if (next >= order.length) setWaitOn(false);
+    else setWaitStyle(order[next]);
+    showToast(state.mode === 'wait' ? `Wait for note: ${els.waitStyleSelect.options[order.indexOf(state.waitStyle)].text}.` : 'Wait for note is off.', 'success');
+  }
+
+  // A short, bright "correct!" for the Game style.
+  function playChime() {
+    const context = audio.ctx;
+    if (!context || context.state !== 'running') return;
+    const out = audio.bus || audio.master || context.destination;
+    const t0 = context.currentTime + 0.01;
+    [[1318.5, 0, 0.13], [1975.5, 0.085, 0.11], [2637, 0.17, 0.06]].forEach(([freq, delay, level]) => {
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0 + delay);
+      gain.gain.exponentialRampToValueAtTime(level, t0 + delay + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.42);
+      osc.connect(gain).connect(out);
+      osc.start(t0 + delay);
+      osc.stop(t0 + delay + 0.45);
+    });
+    mic.echoUntil = Math.max(mic.echoUntil || 0, performance.now() + 700);
+  }
+
+  function onAudioStateChange() {
+    if (!soundIsAwake()) return;
+    els.soundWakeBtn.hidden = true;
+    if (tour.active) unlockTourAudio();
+  }
+
+  /* Drafts: every song you work on in the builder keeps its own unsaved draft. */
+  const STORAGE_DRAFTS = 'ethereal-handpan-editor-drafts-v1';
+
+  function readDrafts() {
+    const list = readJson(STORAGE_DRAFTS, []);
+    return (Array.isArray(list) ? list : [])
+      .filter(draft => draft && draft.draftKey && (String(draft.title || '').trim() || String(draft.sequence || '').trim()))
+      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  }
+
+  function writeDrafts(list) {
+    writeJson(STORAGE_DRAFTS, list.slice(0, 30));
+  }
+
+  function currentEditorDraft() {
+    return {
+      draftKey: editor.draftKey,
+      songId: editor.songId,
+      sourceId: editor.sourceId,
+      title: els.songTitleInput.value,
+      bpm: els.songBpmInput.value,
+      beatsPerBar: els.songMeterInput.value,
+      sequence: els.sequenceInput.value,
+      savedAt: Date.now()
+    };
+  }
+
+  function writeEditorDraft() {
+    clearTimeout(editor.draftTimer);
+    editor.draftTimer = 0;
+    if (!editor.draftKey) return;
+    const draft = currentEditorDraft();
+    const rest = readDrafts().filter(item => item.draftKey !== draft.draftKey);
+    const empty = !draft.title.trim() && !draft.sequence.trim();
+    writeDrafts(empty ? rest : [draft, ...rest]);
+  }
+
+  function queueDraftSave() {
+    if (editor.loading || !els.editorDialog.open) return;
+    clearTimeout(editor.draftTimer);
+    editor.draftTimer = setTimeout(writeEditorDraft, 400);
+  }
+
+  function flushDraftSave() {
+    if (editor.draftTimer) writeEditorDraft();
+  }
+
+  function clearDraft(key = editor.draftKey) {
+    if (key === editor.draftKey) { clearTimeout(editor.draftTimer); editor.draftTimer = 0; }
+    writeDrafts(readDrafts().filter(item => item.draftKey !== key));
+  }
+
+  function applyEditorDraft(draft) {
+    els.songTitleInput.value = draft.title || '';
+    els.songBpmInput.value = String(draft.bpm || els.songBpmInput.value);
+    const meter = String(draft.beatsPerBar || '');
+    if (meter && ![...els.songMeterInput.options].some(o => o.value === meter)) {
+      const option = document.createElement('option');
+      option.value = option.textContent = meter;
+      els.songMeterInput.appendChild(option);
+    }
+    if (meter) els.songMeterInput.value = meter;
+    els.sequenceInput.value = draft.sequence || '';
+  }
+
+  function updateDraftNotice(restored) {
+    const all = readDrafts();
+    const others = all.filter(item => item.draftKey !== editor.draftKey).length;
+    if (!restored && !others) { els.draftNotice.hidden = true; return; }
+    els.draftNotice.hidden = false;
+    if (restored) {
+      const when = new Date(restored.savedAt || Date.now());
+      const stamp = Number.isNaN(when.getTime()) ? '' : ` from ${when.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+      els.draftNoticeText.textContent = `Unsaved draft restored${stamp}.`;
+    } else {
+      els.draftNoticeText.textContent = others === 1 ? 'You have 1 unsaved draft.' : `You have ${others} unsaved drafts.`;
+    }
+    els.discardDraftBtn.hidden = !restored;
+    els.allDraftsBtn.hidden = !others;
+    els.allDraftsBtn.textContent = restored ? `All drafts (${all.length})` : 'Open drafts';
+  }
+
+  function draftLabel(draft) {
+    const song = draft.songId ? state.mySongs.find(s => s.id === draft.songId) : draft.sourceId ? findSong(draft.sourceId) : null;
+    if (draft.songId) return song ? `Changes to “${song.title}”` : 'Changes to a deleted song';
+    if (draft.sourceId) return song ? `My version of “${song.title}”` : 'Copy of a song';
+    return 'New song';
+  }
+
+  function renderDrafts() {
+    const drafts = readDrafts();
+    els.draftsList.replaceChildren();
+    els.draftsEmpty.hidden = drafts.length > 0;
+    drafts.forEach(draft => {
+      const li = document.createElement('li');
+      li.className = `draft-item${els.editorDialog.open && draft.draftKey === editor.draftKey ? ' current' : ''}`;
+      const strokes = String(draft.sequence || '').split(/\s+/).filter(token => token && token !== '|' && token !== '-').length;
+      const when = new Date(draft.savedAt || Date.now()).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      li.innerHTML = `<div class="draft-info"><b>${escapeHtml(String(draft.title || '').trim() || 'Untitled')}</b><small>${escapeHtml(draftLabel(draft))} · ${strokes} strokes · ${escapeHtml(when)}</small></div>
+        <button type="button" class="draft-open">Open</button>
+        <button type="button" class="draft-delete" aria-label="Delete this draft" title="Delete this draft"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V4h6v3"></path><path d="M6 7l1 13h10l1-13"></path></svg></button>`;
+      li.querySelector('.draft-open').addEventListener('click', () => openDraft(draft));
+      li.querySelector('.draft-delete').addEventListener('click', () => {
+        if (!window.confirm(`Delete the draft “${String(draft.title || '').trim() || 'Untitled'}”?`)) return;
+        clearDraft(draft.draftKey);
+        if (els.editorDialog.open) updateDraftNotice(draft.draftKey === editor.draftKey ? null : readDrafts().find(d => d.draftKey === editor.draftKey) || null);
+        renderDrafts();
+      });
+      els.draftsList.appendChild(li);
+    });
+  }
+
+  function openDrafts() {
+    flushDraftSave();
+    renderDrafts();
+    openDialog(els.draftsDialog);
+  }
+
+  function openDraft(draft) {
+    flushDraftSave();
+    closeDialog(els.draftsDialog);
+    const song = draft.songId ? state.mySongs.find(s => s.id === draft.songId) : draft.sourceId ? findSong(draft.sourceId) : null;
+    openEditor(song || null, { draftKey: draft.draftKey });
+  }
+
+  function narrowPhone() {
+    return window.matchMedia?.('(max-width: 360px)').matches;
+  }
+
+  function openEditChoice() {
+    const song = state.song;
+    els.choiceEditBtn.hidden = !song;
+    els.choiceEditNote.textContent = song && song.folder !== 'mine' ? 'Make your own version of this song' : 'Change its notes, tempo or title';
+    const count = readDrafts().length;
+    els.choiceDraftsBtn.hidden = !count;
+    els.choiceDraftsBtn.querySelector('b').textContent = `Drafts (${count})`;
+    openDialog(els.editChoiceDialog);
+  }
+
+  function bindDraftsAndChooser() {
+    els.discardDraftBtn.addEventListener('click', () => {
+      const key = editor.draftKey;
+      clearDraft(key);
+      const song = editor.songId ? state.mySongs.find(s => s.id === editor.songId) : editor.sourceId ? findSong(editor.sourceId) : null;
+      openEditor(song || null, { draftKey: key });
+      showToast('Draft discarded.', 'success');
+    });
+    els.allDraftsBtn.addEventListener('click', openDrafts);
+    els.editorDialog.addEventListener('close', flushDraftSave);
+    els.songTitleInput.addEventListener('input', queueDraftSave);
+    els.songMeterInput.addEventListener('change', queueDraftSave);
+    els.choiceEditBtn.addEventListener('click', () => { closeDialog(els.editChoiceDialog); openEditor(state.song); });
+    els.choiceNewBtn.addEventListener('click', () => { closeDialog(els.editChoiceDialog); setSidebar(false); openEditor(null); });
+    els.choiceDraftsBtn.addEventListener('click', () => { closeDialog(els.editChoiceDialog); openDrafts(); });
+    els.waitStyleSelect.addEventListener('change', () => {
+      setWaitStyle(els.waitStyleSelect.value);
+      showToast(`Wait for note: ${els.waitStyleSelect.selectedOptions[0].text}.`, 'success');
+    });
+    els.stageWaitBtn.addEventListener('click', cycleStageWait);
+    els.stageMicBtn.addEventListener('click', () => els.micBtn.click());
+    syncWaitControls();
+  }
+
+  const editor = { songId: null, sourceId: null, draftKey: '', draftTimer: 0, loading: false, hand: '', len: 1, drum: null, previewTimer: 0 };
+
+  function openEditor(song, options = {}) {
+    flushDraftSave();
+    editor.loading = true;
     editor.songId = song && song.folder === 'mine' ? song.id : null;
+    editor.sourceId = song && song.folder !== 'mine' ? song.id : null;
+    editor.draftKey = options.draftKey || (editor.songId ? `song:${editor.songId}` : editor.sourceId ? `copy:${editor.sourceId}` : `new:${Date.now()}`);
     els.editorHeading.textContent = song ? (song.folder === 'mine' ? 'Edit song' : 'Edit a copy') : 'Create a song';
     els.songTitleInput.value = song ? (song.folder === 'mine' ? song.title : `${song.title} (my version)`) : '';
     els.songBpmInput.value = String(song ? song.bpm : 90);
@@ -3575,9 +3843,13 @@
     els.sequenceInput.value = song ? song.sequence : '';
     els.deleteEditorBtn.hidden = !editor.songId;
     els.saveSongBtn.textContent = song && song.folder !== 'mine' ? 'Save as my song' : 'Save song';
+    const draft = readDrafts().find(item => item.draftKey === editor.draftKey) || null;
+    if (draft) applyEditorDraft(draft);
+    updateDraftNotice(draft);
     editor.drum = buildDrumSvg({ interactive: true, className: 'compose-svg', onTap: composeTap, showAllPerc: true });
     els.composeDrum.replaceChildren(editor.drum.svg);
     updateSequenceStatus();
+    editor.loading = false;
     openDialog(els.editorDialog);
     requestAnimationFrame(() => renderRhythmView());
   }
@@ -3651,6 +3923,7 @@
     els.sequenceStatus.textContent = parts.join(' · ') || 'Tap the handpan or type strokes.';
     els.sequenceStatus.dataset.tone = parsed.errors.length ? 'error' : parsed.missing.size ? 'warn' : 'ok';
     renderRhythmView(parsed);
+    queueDraftSave();
   }
 
   async function previewEditorSong() {
@@ -4264,6 +4537,7 @@
       state.mySongs.push(song);
     }
     saveMySongs();
+    clearDraft();
     cancelScheduledAudio(audio.preview);
     closeDialog(els.editorDialog);
     selectSong(song.id);
@@ -4276,6 +4550,8 @@
     if (!window.confirm(`Delete “${song.title}” from My songs? Export it first if you want a backup.`)) return;
     state.mySongs = state.mySongs.filter(s => s.id !== id);
     saveMySongs();
+    clearDraft(`song:${id}`);
+    editor.draftKey = '';
     closeDialog(els.editorDialog);
     selectSong(state.demoSongs[0]?.id);
     showToast('Song deleted.', 'success');
@@ -4586,7 +4862,7 @@
     els.noteTape.style.top = `${top}px`;
     els.noteTape.style.height = `${tapeH}px`;
     tape.width = Math.max(120, width - 24);
-    tape.playheadX = Math.round(tape.width * 0.3);
+    tape.playheadX = Math.round(tape.width * (window.innerWidth > 760 ? 0.5 : 0.3));
     els.noteTape.style.setProperty('--playhead', `${tape.playheadX}px`);
     tape.lastX = null;
     // The handpan moves up (and only shrinks if it really has to) to clear the tape.
@@ -5301,12 +5577,13 @@
     els.importFile.addEventListener('change', () => importSongFile(els.importFile.files[0]));
     els.exportBtn.addEventListener('click', exportSong);
     els.deleteBtn.addEventListener('click', () => state.song && deleteSong(state.song.id));
-    els.editBtn.addEventListener('click', () => openEditor(state.song));
+    els.editBtn.addEventListener('click', () => (narrowPhone() ? openEditChoice() : openEditor(state.song)));
     els.settingsBtn.addEventListener('click', openSettings);
     els.helpBtn.addEventListener('click', () => openDialog(els.helpDialog));
     bindHints();
     bindFullscreen();
     bindCommunity();
+    bindDraftsAndChooser();
     els.soundWakeBtn.addEventListener('click', wakeSound);
     // Any first touch, click or key wakes the sound and hides the invitation.
     const firstGesture = () => {
@@ -5405,6 +5682,12 @@
       savePrefs();
     });
     els.guideBtn.addEventListener('click', () => {
+      if (state.mode === 'wait') {
+        // In Wait for note the speaker switches between "Hear it first" and quiet.
+        setWaitStyle(state.waitStyle === 'hear' ? 'quiet' : 'hear');
+        showToast(state.waitStyle === 'hear' ? 'Hear it first: the app plays each note, then waits for you.' : 'Quiet: the app waits for your note in silence.', 'success');
+        return;
+      }
       state.guide = !state.guide;
       updateTransportUI();
       savePrefs();
