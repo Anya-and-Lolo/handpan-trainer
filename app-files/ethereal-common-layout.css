@@ -1,0 +1,748 @@
+/* =====================================================================
+   Ethereal trainers: shared layout and features (loaded after styles.css).
+   Shared by Ethereal Handpan, Ethereal Drum and the trainers to come.
+   Edit the copy in "- Drum Trainers/shared", then run sync-shared to copy
+   it into every app.
+   ===================================================================== */
+
+/* ---------- song tape (numbers along the bottom of the stage) ---------- */
+
+.note-tape { position:absolute; left:12px; right:12px; z-index:5; pointer-events:none; }
+
+.note-tape[hidden] { display:none; }
+
+.tape-window {
+  position:absolute; inset:0; overflow:hidden; border-radius:14px;
+  background:linear-gradient(180deg, rgba(12,17,34,.5), rgba(9,13,26,.78));
+  border:1px solid rgba(167,139,250,.16);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+  -webkit-mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 88%, transparent 100%);
+  mask-image:linear-gradient(90deg, transparent 0, #000 8%, #000 88%, transparent 100%);
+}
+
+.tape-playhead {
+  position:absolute; top:4px; bottom:4px; left:var(--playhead); width:36px; transform:translateX(-50%); border-radius:10px;
+  background:linear-gradient(180deg, rgba(167,139,250,.2), rgba(167,139,250,.08));
+  border:1px solid rgba(167,139,250,.42); box-shadow:0 0 18px rgba(167,139,250,.2), inset 0 0 12px rgba(167,139,250,.12);
+}
+
+.tape-track { position:absolute; left:0; top:0; bottom:0; width:1px; will-change:transform; }
+
+.tape-beat { position:absolute; bottom:5px; width:3px; height:3px; margin-left:-1.5px; border-radius:50%; background:rgba(148,163,184,.26); }
+
+.tape-bar { position:absolute; top:7px; bottom:7px; width:1px; margin-left:-15px; background:rgba(148,163,184,.2); }
+
+.tape-bar::before { content:attr(data-bar); position:absolute; top:-2px; left:3px; font-size:8.5px; font-weight:750; color:rgba(148,163,184,.5); font-family:Inter,ui-sans-serif,system-ui,sans-serif; }
+
+.tape-ev { position:absolute; top:50%; display:flex; flex-direction:column; align-items:center; transform:translate(-50%,-50%); transition:transform .16s ease; }
+
+.tape-ev b {
+  display:block; color:var(--c); font:800 19px/1 Inter,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums;
+  text-shadow:0 0 10px color-mix(in srgb, var(--c) 45%, transparent); transition:color .18s ease, text-shadow .18s ease, opacity .25s ease;
+}
+
+.tape-ev.chord-2 b { font-size:15px; line-height:1.02; }
+
+.tape-ev.chord-3 b { font-size:12px; line-height:1; }
+
+.tape-ev.past b { opacity:.38; }
+
+.tape-ev b.r-perfect, .tape-ev b.r-hit { color:#5eead4; opacity:1; text-shadow:0 0 10px rgba(94,234,212,.75); }
+
+.tape-ev b.r-good { color:#c4b5fd; opacity:1; text-shadow:0 0 10px rgba(196,181,253,.65); }
+
+.tape-ev b.r-miss { color:#fb7185; opacity:.92; text-decoration:line-through; text-decoration-thickness:2px; text-shadow:0 0 8px rgba(251,113,133,.5); }
+
+.tape-judge {
+  position:absolute; left:var(--playhead); bottom:calc(100% + 5px); opacity:0; transform:translateX(-50%) scale(.7);
+  padding:3px 10px; border-radius:999px; border:1px solid currentColor; background:rgba(9,14,26,.8);
+  font:900 11.5px/1.3 Inter,ui-sans-serif,system-ui,sans-serif; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap;
+  box-shadow:0 0 14px color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.tape-judge[data-kind="perfect"], .tape-judge[data-kind="hit"] { color:#5eead4; }
+
+.tape-judge[data-kind="good"] { color:#c4b5fd; }
+
+.tape-judge[data-kind="miss"], .tape-judge[data-kind="wrong"] { color:#fb7185; }
+
+.tape-judge em { font-style:normal; color:#fbbf24; margin-left:3px; }
+
+.tape-judge.pop { animation:tapeJudgePop .9s ease-out forwards; }
+
+@keyframes tapeJudgePop {
+  0% { opacity:0; transform:translateX(-50%) translateY(6px) scale(.7); }
+  16% { opacity:1; transform:translateX(-50%) translateY(0) scale(1.08); }
+  30% { transform:translateX(-50%) scale(1); }
+  72% { opacity:1; }
+  100% { opacity:0; transform:translateX(-50%) translateY(-6px) scale(.96); }
+}
+
+@media (max-width:760px) {
+  .tape-ev b { font-size:17px; }
+  .tape-ev.chord-2 b { font-size:13.5px; }
+  .tape-ev.chord-3 b { font-size:11px; }
+  .tape-playhead { width:32px; }
+}
+
+/* ---------- song name in Focus mode (the header is hidden there) ---------- */
+
+/* A soft glow around the song tape: a violet haze behind it and glowing edges. */
+
+.note-tape::before {
+  content:""; position:absolute; inset:-12px 5%; z-index:-1; border-radius:26px; pointer-events:none;
+  background:
+    radial-gradient(42% 75% at 30% 50%, rgba(167,139,250,.3), transparent 72%),
+    radial-gradient(70% 80% at 55% 50%, rgba(94,234,212,.08), transparent 76%);
+  filter:blur(10px);
+}
+
+.note-tape::after {
+  content:""; position:absolute; inset:0 8%; pointer-events:none; border-radius:14px;
+  background:
+    linear-gradient(90deg, transparent, rgba(196,181,253,.75) 30%, rgba(94,234,212,.5) 70%, transparent) top / 100% 1px no-repeat,
+    linear-gradient(90deg, transparent, rgba(167,139,250,.38) 30%, rgba(94,234,212,.28) 70%, transparent) bottom / 100% 1px no-repeat;
+  filter:drop-shadow(0 0 4px rgba(167,139,250,.75));
+}
+
+.tape-window { border-color:rgba(167,139,250,.22); box-shadow:inset 0 0 18px rgba(167,139,250,.1), inset 0 1px 0 rgba(255,255,255,.05); }
+
+.tape-playhead { box-shadow:0 0 22px rgba(167,139,250,.32), inset 0 0 14px rgba(167,139,250,.16); }
+
+/* ---------- bigger judgement words: on the tape and big at the top of the stage ---------- */
+
+.tape-judge { font-size:23px; padding:4px 16px; bottom:calc(100% + 8px); }
+
+@keyframes stageJudgePop {
+  0% { opacity:0; transform:translateX(-50%) translateY(8px) scale(.7); }
+  16% { opacity:1; transform:translateX(-50%) translateY(0) scale(1.08); }
+  30% { transform:translateX(-50%) scale(1); }
+  72% { opacity:1; }
+  100% { opacity:0; transform:translateX(-50%) translateY(-8px) scale(.96); }
+}
+
+/* ---------- rounded game font for the Perfect / Good / Miss words ---------- */
+
+@font-face { font-family:"Fredoka"; font-style:normal; font-weight:600; font-display:swap; src:url("fonts/fredoka-latin-600-normal.woff2") format("woff2"); }
+
+@font-face { font-family:"Fredoka"; font-style:normal; font-weight:700; font-display:swap; src:url("fonts/fredoka-latin-700-normal.woff2") format("woff2"); }
+
+/* ---------- Tuner sits on its own, apart from the play modes ---------- */
+
+/* ---------- difficulty filter under Search songs ---------- */
+
+.difficulty-filter { display:flex; gap:6px; margin:10px 0 12px; flex-wrap:wrap; }
+
+.difficulty-filter button {
+  flex:1 1 auto; min-width:0; padding:6px 8px; border-radius:999px; border:1px solid var(--line);
+  background:rgba(255,255,255,.035); color:var(--muted); font-size:12px; font-weight:750;
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.difficulty-filter button:hover { color:var(--text); border-color:rgba(167,139,250,.35); }
+
+/* ---------- Session complete: sparkles, and a centred close button ---------- */
+
+.result-sparkles { position:absolute; left:0; top:0; width:100%; height:170px; pointer-events:none; z-index:0; }
+
+.result-card > *:not(.result-sparkles) { position:relative; z-index:1; }
+
+.result-card > .result-close { position:absolute; z-index:2; display:flex; align-items:center; justify-content:center; padding:0; line-height:0; }
+
+.result-close svg { display:block; }
+
+.result-icon { box-shadow:0 12px 34px rgba(45,212,191,.22), 0 0 26px rgba(94,234,212,.35); }
+
+/* Swipe the tape to move through the song. */
+
+.note-tape .tape-window { pointer-events:auto; touch-action:pan-y; cursor:grab; }
+
+.note-tape .tape-window.scrubbing { cursor:grabbing; border-color:rgba(94,234,212,.45); }
+
+/* ===== v15 (shared by Ethereal Handpan and Ethereal Drum) ===== */
+
+/* Tour: the bold "?" plus the word. */
+
+/* Little "?" buttons that explain a control instead of a line of text. */
+
+.hint-btn {
+  flex:none; width:22px; height:22px; min-height:0; padding:0; display:inline-grid; place-items:center; border-radius:50%;
+  border:1px solid rgba(94,234,212,.38); background:rgba(94,234,212,.08); color:var(--accent-2);
+  font-size:12px; font-weight:900; line-height:1; cursor:pointer;
+}
+
+.hint-btn:hover, .hint-btn.open { background:rgba(94,234,212,.2); border-color:rgba(94,234,212,.62); }
+
+.hint-pop {
+  position:fixed; z-index:460; padding:10px 12px; border-radius:12px; border:1px solid rgba(94,234,212,.35);
+  background:#0f1626; color:#dbe4f3; font-size:13px; line-height:1.45; box-shadow:0 14px 34px rgba(0,0,0,.45); pointer-events:none;
+}
+
+.hint-pop[hidden] { display:none; }
+
+.ab-loop-status:empty { display:none; }
+
+.mic-status:not(.listening):not(.heard):not(.error) { display:none; }
+
+/* "Tap to wake up the sound": browsers keep sound off until the first touch. */
+
+.sound-wake {
+  position:fixed; left:50%; top:max(14px, env(safe-area-inset-top)); transform:translateX(-50%); z-index:450;
+  display:flex; align-items:center; gap:12px; max-width:calc(100vw - 24px); padding:9px 18px 9px 10px; border-radius:999px;
+  border:1px solid rgba(94,234,212,.55); background:linear-gradient(135deg, rgba(23,32,58,.97), rgba(46,30,86,.97));
+  color:#f1f5f9; text-align:left; cursor:pointer; animation:wakePulse 1.8s ease-in-out infinite;
+}
+
+.sound-wake[hidden] { display:none; }
+
+.sound-wake-icon { width:44px; height:44px; flex:none; display:grid; place-items:center; border-radius:50%; background:rgba(94,234,212,.16); color:#5eead4; }
+
+.sound-wake-icon .w1 { animation:wakeWave 1.2s ease-in-out infinite; }
+
+.sound-wake-icon .w2 { animation:wakeWave 1.2s ease-in-out .3s infinite; }
+
+@keyframes wakePulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(94,234,212,.45), 0 14px 34px rgba(0,0,0,.5); }
+  50% { box-shadow:0 0 0 12px rgba(94,234,212,0), 0 14px 34px rgba(0,0,0,.5); }
+}
+
+@keyframes wakeWave { 0%,100% { opacity:.2; } 50% { opacity:1; } }
+
+/* Full screen on tablets: hides the system bars (clock, battery) at the top. */
+
+/* Tablets: songs slide in from the left (as on a phone) and everything fits on one screen. */
+
+/* v15 fixes */
+
+.sound-wake { top:30vh; }
+
+/* v15b: tablet controls in two tidy rows on the right */
+
+/* ===================== v16 ===================== */
+
+/* Wait for note: how it sounds (only while waiting). */
+
+.wait-style-select {
+  display:none; height:30px; padding:0 8px; border-radius:9px; border:1px solid rgba(94,234,212,.32);
+  background:rgba(9,14,26,.6); color:#99f6e4; font:inherit; font-size:12.5px; font-weight:750; cursor:pointer;
+}
+
+.wait-style-select option { background:#121827; color:#e2e8f0; }
+
+body[data-mode="wait"] .wait-style-select { display:inline-block; }
+
+.practice-options .wait-style-hint { display:none; }
+
+body[data-mode="wait"] .practice-options .wait-style-hint { display:inline-grid; }
+
+/* Focus mode: Wait for note and the microphone sit on the stage, so they change without stopping. */
+
+.stage-practice-chips { display:none; position:absolute; z-index:9; top:14px; left:50%; transform:translateX(-50%); gap:6px; align-items:center; }
+
+.stage-chip {
+  height:32px; padding:0 11px; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; border-radius:999px;
+  border:1px solid rgba(255,255,255,.16); background:rgba(9,14,26,.74); color:#cbd5e1; font:inherit; font-size:12.5px; font-weight:750;
+  backdrop-filter:blur(8px); cursor:pointer;
+}
+
+.stage-chip.active { color:#99f6e4; border-color:rgba(94,234,212,.45); background:rgba(13,35,44,.82); }
+
+.stage-chip svg { flex:none; }
+
+/* Song builder chooser (narrow phones) and the drafts list. */
+
+.choice-dialog { width:min(380px, calc(100vw - 32px)); }
+
+.choice-card { padding:22px 20px 18px; }
+
+.choice-card h2 { font-size:20px; margin:0 0 14px; text-align:center; }
+
+.choice-list { display:grid; gap:10px; }
+
+.choice-btn {
+  display:grid; gap:3px; text-align:left; padding:13px 15px; border-radius:14px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04); color:var(--text); font:inherit; cursor:pointer;
+}
+
+.choice-btn[hidden] { display:none; }
+
+.choice-btn b { font-size:15.5px; }
+
+.choice-btn small { color:var(--muted); font-size:12.5px; }
+
+.choice-btn:hover, .choice-btn:focus-visible { border-color:rgba(94,234,212,.42); background:rgba(94,234,212,.08); outline:none; }
+
+.choice-cancel { width:100%; margin-top:14px; }
+
+.drafts-dialog { width:min(520px, calc(100vw - 24px)); }
+
+.drafts-card { padding:20px; }
+
+.drafts-card .dialog-head { margin-bottom:12px; }
+
+.drafts-card h2 { margin:0; font-size:21px; }
+
+.drafts-sub { margin:4px 0 0; color:var(--muted); font-size:13px; line-height:1.4; }
+
+.drafts-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; max-height:60vh; overflow:auto; }
+
+.draft-item { display:flex; align-items:center; gap:8px; padding:10px 10px 10px 13px; border-radius:13px; border:1px solid rgba(251,191,36,.24); background:rgba(251,191,36,.06); }
+
+.draft-item.current { border-color:rgba(94,234,212,.45); background:rgba(94,234,212,.07); }
+
+.draft-info { flex:1; min-width:0; display:grid; gap:2px; }
+
+.draft-info b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14.5px; color:#f1f5f9; }
+
+.draft-info small { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.draft-open, .draft-delete {
+  flex:none; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,.14); background:rgba(9,14,26,.6);
+  color:#e2e8f0; font:inherit; font-size:13px; font-weight:750; cursor:pointer;
+}
+
+.draft-open { padding:0 13px; color:#99f6e4; border-color:rgba(94,234,212,.35); }
+
+.draft-delete { width:34px; padding:0; display:grid; place-items:center; color:#fda4af; }
+
+.draft-open:hover { background:rgba(94,234,212,.12); }
+
+.draft-delete:hover { background:rgba(251,113,133,.12); border-color:rgba(251,113,133,.35); }
+
+.drafts-empty { color:var(--muted); text-align:center; margin:10px 0 4px; }
+
+.draft-notice-actions { display:inline-flex; gap:14px; align-items:center; }
+
+.draft-notice-actions [hidden] { display:none; }
+
+/* Narrow phones (320–360 px): one rotate button, a slimmer Speed button, no "+" (the pencil asks). */
+
+/* ===================== v17 ===================== */
+
+/* Song list: a short, friendly line about each song. */
+
+.song-item .song-item-about { display:block; margin-top:3px; color:#c4b5fd; font-size:12.5px; font-style:italic; font-weight:600; line-height:1.35; white-space:normal; }
+
+.album-about { display:block; margin-top:4px; color:#c4b5fd; font-size:12px; font-style:italic; font-weight:600; line-height:1.35; }
+
+/* Song builder chooser: "Start a new song" is the main action. */
+
+.choice-btn.primary { border-color:transparent; color:#fff; background:linear-gradient(145deg,#8b5cf6,#a78bfa); box-shadow:0 10px 26px rgba(139,92,246,.3); }
+
+.choice-btn.primary small { color:rgba(255,255,255,.86); }
+
+.choice-btn.primary:hover, .choice-btn.primary:focus-visible { background:linear-gradient(145deg,#7c4dff,#9f8cff); border-color:transparent; }
+
+/* Song builder header: guide, import and scan next to the close button. */
+
+#editorDialog .dialog-head-actions { flex-wrap:wrap; }
+
+.head-tool-btn { display:inline-flex; align-items:center; gap:6px; height:34px; min-height:34px; padding:0 11px; font-size:12.5px; white-space:nowrap; }
+
+.head-tool-btn svg { flex:none; color:#99f6e4; }
+
+@media (max-width:680px) {
+  #editorDialog .dialog-head { flex-wrap:wrap; gap:10px; }
+  #editorDialog .dialog-head-actions { margin-left:auto; }
+  .head-tool-btn .head-btn-text, #editorDialog .editor-guide-btn .head-btn-text { display:none; }
+  .head-tool-btn { width:36px; height:36px; padding:0; justify-content:center; }
+}
+
+/* Focus mode: tap the song name to choose another song. */
+
+.switch-dialog { width:min(360px, calc(100vw - 32px)); }
+
+.switch-card { padding:22px 20px 18px; text-align:center; }
+
+.switch-card h2 { font-size:20px; margin:0 0 6px; }
+
+.switch-card p { color:var(--muted); font-size:14px; margin:0; }
+
+.switch-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+
+button.stage-song-name { border:0; background:transparent; color:inherit; padding:0; font:inherit; }
+
+body.focus-mode .stage-song-name { pointer-events:auto; cursor:pointer; }
+
+/* Phones: each stat is a number with a small label under it. */
+
+@media (max-width:900px) {
+  .stage-overlay.top-left { grid-template-columns:repeat(4, minmax(0,1fr)) !important; gap:6px !important; }
+  .stage-overlay.top-left span {
+    flex-direction:column; gap:3px !important; padding:5px 2px 6px !important; font-size:9.5px !important; font-weight:750;
+    letter-spacing:.06em !important; text-transform:uppercase; line-height:1 !important;
+  }
+  .stage-overlay.top-left span b { font-size:17px; font-weight:800; letter-spacing:0; text-transform:none; color:var(--text); line-height:1; }
+}
+
+@media (max-width:360px) {
+  .stage-overlay.top-left span { font-size:8.5px !important; letter-spacing:.03em !important; }
+  .stage-overlay.top-left span b { font-size:16px; }
+  /* Narrow phones: "Loop" is enough, and the "?" sits on the same row. */
+  .ab-suffix { display:none; }
+  .ab-loop-row { flex-wrap:nowrap !important; justify-content:center; gap:6px !important; padding-left:8px !important; padding-right:8px !important; }
+  .ab-loop-controls { flex-wrap:nowrap !important; gap:5px !important; }
+  .ab-loop-row .mini-loop-btn { padding:7px 9px !important; font-size:13px !important; }
+}
+
+/* Tablets and computers: everything fits on one screen and the controls sit along the
+   bottom: A-B loop on the left, the transport in the middle, speed and microphone on the right. */
+
+body.wide-fit .trainer-card {
+  display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center;
+  grid-template-areas:"tb tb tb" "st st st" "pr pr pr" "ab tr sp";
+}
+
+/* Falling lanes leave a narrower card next to the drum card: the transport gets its own row. */
+
+body.wide-fit .trainer-grid:not(.radial-layout):not(.tuner-mode) .trainer-card {
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-areas:"tb tb" "st st" "pr pr" "tr tr" "ab sp";
+}
+
+body.wide-fit .trainer-toolbar { grid-area:tb; }
+
+body.wide-fit .trainer-card > .progress-wrap { grid-area:pr; padding-top:8px; padding-bottom:2px; }
+
+body.wide-fit .ab-loop-row { grid-area:ab; justify-self:start; display:flex; align-items:center; gap:8px; padding:6px 0 12px 14px; }
+
+body.wide-fit .ab-loop-controls { display:grid; grid-template-columns:repeat(2, auto); gap:6px; }
+
+body.wide-fit .ab-loop-status { display:none; }
+
+body.wide-fit .transport { grid-area:tr; justify-self:center; padding:6px 8px 12px; margin:0; }
+
+body.wide-fit .speed-row {
+  grid-area:sp; justify-self:end; display:grid; grid-template-columns:auto auto auto; grid-template-areas:"q sp ci" "q mic fs";
+  align-items:center; justify-items:start; justify-content:end; gap:8px 12px; max-width:none; margin:0; padding:6px 14px 12px 0;
+}
+
+body.wide-fit .speed-row-tail { display:contents; }
+
+body.wide-fit .speed-row .speed-control { grid-area:sp; }
+
+body.wide-fit .speed-row-tail > .toggle-label { grid-area:ci; }
+
+body.wide-fit .speed-row #micBtn { grid-area:mic; justify-self:stretch; justify-content:center; }
+
+body.wide-fit .speed-row-tail > .hint-btn { grid-area:q; align-self:center; }
+
+body.wide-fit .speed-row .fullscreen-btn { grid-area:fs; }
+
+body.wide-fit .speed-row .mic-status, body.wide-fit .speed-row > p#modeHint { display:none; }
+
+body.wide-fit .speed-row select.speed-select { width:auto; min-width:0; padding-right:24px; padding-left:10px; background-position:right 8px center; }
+
+.speed-row .fullscreen-btn { display:none; gap:6px; height:36px; min-height:36px; padding:0 12px; font-size:13px; font-weight:750; }
+
+body.tablet-fit .speed-row .fullscreen-btn:not([hidden]) { display:inline-flex; }
+
+.fullscreen-btn .fs-label { white-space:nowrap; }
+
+/* One toolbar row on tablets even with Wait for note on: the "Display" caption goes. */
+
+body.wide-fit .trainer-toolbar .display-control > span { display:none; }
+
+body.wide-fit .trainer-toolbar { gap:8px; padding-left:12px; padding-right:12px; }
+
+body.wide-fit .trainer-toolbar .toolbar-controls { gap:10px; flex-wrap:nowrap; }
+
+body.wide-fit .trainer-toolbar > .stat-pills { gap:5px; flex-wrap:nowrap; }
+
+body.wide-fit .trainer-toolbar > .stat-pills .stat-pill { padding-left:9px; padding-right:9px; white-space:nowrap; }
+
+body.wide-fit .trainer-toolbar .practice-options { gap:6px; }
+
+/* The song position as part of the tape: a thin line along its bottom edge, times above its ends. */
+
+.note-tape > .progress-wrap {
+  position:absolute; inset:-21px 0 -9px; display:block; padding:0 !important; margin:0; z-index:4; pointer-events:none;
+  font-size:11px !important; color:var(--muted);
+}
+
+.note-tape > .progress-wrap #elapsedLabel,
+.note-tape > .progress-wrap #durationLabel {
+  position:absolute; top:0; padding:1px 7px; border-radius:7px; background:rgba(9,14,26,.7); font-variant-numeric:tabular-nums; line-height:16px;
+}
+
+.note-tape > .progress-wrap #elapsedLabel { left:10px; }
+
+.note-tape > .progress-wrap #durationLabel { right:10px; }
+
+.note-tape > .progress-wrap .progress-track-shell { position:absolute; left:14px; right:14px; bottom:0; height:18px; pointer-events:auto; }
+
+.note-tape > .progress-wrap input[type="range"] {
+  -webkit-appearance:none; appearance:none; width:100%; height:18px; margin:0; background:transparent; cursor:pointer;
+}
+
+.note-tape > .progress-wrap input[type="range"]::-webkit-slider-runnable-track {
+  height:4px; border-radius:4px; background:linear-gradient(90deg, #a78bfa var(--fill, 0%), rgba(255,255,255,.14) var(--fill, 0%));
+}
+
+.note-tape > .progress-wrap input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:14px; height:14px; margin-top:-5px; border:0; border-radius:50%; background:#c4b5fd; box-shadow:0 0 10px rgba(167,139,250,.85);
+}
+
+.note-tape > .progress-wrap input[type="range"]::-moz-range-track { height:4px; border-radius:4px; background:rgba(255,255,255,.14); }
+
+.note-tape > .progress-wrap input[type="range"]::-moz-range-progress { height:4px; border-radius:4px; background:#a78bfa; }
+
+.note-tape > .progress-wrap input[type="range"]::-moz-range-thumb { width:14px; height:14px; border:0; border-radius:50%; background:#c4b5fd; box-shadow:0 0 10px rgba(167,139,250,.85); }
+
+.note-tape > .progress-wrap .ab-marker { height:14px; }
+
+/* ===================== v18 ===================== */
+
+/* Wait for note is one dropdown: "Don't wait for note" or one of the three waiting styles. */
+
+.practice-options .wait-toggle { display:none !important; }
+
+.practice-options .wait-style-select { display:inline-block !important; }
+
+.practice-options .wait-style-hint { display:inline-grid !important; }
+
+.view-mode-btn { display:none; align-items:center; justify-content:center; gap:6px; }
+
+/* Bigger times above the ends of the tape. */
+
+.note-tape > .progress-wrap { inset:-25px 0 -9px; }
+
+.note-tape > .progress-wrap #elapsedLabel,
+.note-tape > .progress-wrap #durationLabel { font-size:13px !important; line-height:19px; padding:1px 8px; font-weight:700; color:#cbd5e1; }
+
+/* Tablets and computers: two equal groups of four buttons either side of the transport,
+   so the transport sits exactly in the middle. */
+
+body.wide-fit .trainer-card { container-type:inline-size; }
+
+body.wide-fit .ab-loop-row, body.wide-fit .speed-row { --ctl-w:94px; --ctl-h:40px; }
+
+body.wide-fit .ab-loop-row { gap:8px; }
+
+body.wide-fit .ab-loop-controls { display:grid; grid-template-columns:repeat(2, var(--ctl-w)); gap:6px; }
+
+body.wide-fit .ab-loop-row .mini-loop-btn { width:100%; min-height:var(--ctl-h); height:var(--ctl-h); padding:0 6px; font-size:13px; }
+
+body.wide-fit .speed-row {
+  grid-template-columns:auto var(--ctl-w) var(--ctl-w); grid-template-areas:"q sp mic" "q ci fs";
+  gap:6px; column-gap:6px; justify-items:stretch;
+}
+
+body.wide-fit .speed-row-tail > .hint-btn { margin-right:2px; }
+
+body.wide-fit .speed-row .speed-control { grid-area:sp; position:relative; width:100%; height:var(--ctl-h); display:block; }
+
+body.wide-fit .speed-row .speed-control > label {
+  position:absolute; top:6px; left:0; right:0; z-index:1; display:flex; justify-content:center; text-align:center; pointer-events:none;
+  font-size:8.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); line-height:1;
+}
+
+body.wide-fit .speed-row select.speed-select {
+  position:absolute; inset:0; width:100%; height:100%; min-width:0; min-height:0; margin:0; padding:13px 0 0 !important;
+  border:1px solid rgba(94,234,212,.42); border-radius:9px; background:rgba(94,234,212,.1) !important; background-image:none !important;
+  color:var(--accent-2); font-size:15px !important; font-weight:850; line-height:1; text-align:center; text-align-last:center;
+}
+
+body.wide-fit .speed-row-tail > .toggle-label {
+  grid-area:ci; position:relative; width:100%; height:var(--ctl-h); justify-content:center; gap:5px; padding:0 6px;
+  border:1px solid var(--line); border-radius:9px; background:rgba(255,255,255,.045); color:var(--muted); font-size:13px; font-weight:800;
+}
+
+body.wide-fit .speed-row-tail > .toggle-label input { position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+
+body.wide-fit .speed-row-tail > .toggle-label:has(input:checked) { color:#ccfbf1; border-color:rgba(94,234,212,.42); background:rgba(45,212,191,.14); }
+
+body.wide-fit .speed-row-tail > .toggle-label:has(input:checked)::before { content:"✓"; font-weight:900; }
+
+body.wide-fit .speed-row #micBtn { grid-area:mic; width:100%; height:var(--ctl-h); padding:0 6px; border-radius:9px; font-size:13px; font-weight:800; justify-content:center; display:inline-flex; align-items:center; gap:5px; }
+
+body.wide-fit .speed-row .view-mode-btn:not([hidden]) { grid-area:fs; display:inline-flex; width:100%; height:var(--ctl-h); padding:0 4px; gap:5px; border-radius:9px; font-size:13px; font-weight:800; color:#c4b5fd; white-space:nowrap; }
+
+body.wide-fit .speed-row .view-mode-btn svg, body.wide-fit .speed-row #micBtn svg { flex:none; }
+
+body.wide-fit .speed-row-tail > .toggle-label, body.wide-fit .speed-row #micBtn { white-space:nowrap; }
+
+body.wide-fit .speed-row .fullscreen-btn { display:none !important; }
+
+/* Focus mode now starts from the button group, so the stage corner stays free. */
+
+body.wide-fit .focus-mode-btn { display:none !important; }
+
+/* Narrower cards (falling lanes next to the drum card): slimmer buttons, no "?". */
+
+@container (max-width:800px) {
+  .ab-loop-row, .speed-row { --ctl-w:76px !important; }
+  .ab-loop-row > .hint-btn, .speed-row-tail > .hint-btn { display:none !important; }
+  .speed-row { grid-template-columns:var(--ctl-w) var(--ctl-w) !important; grid-template-areas:"sp mic" "ci fs" !important; }
+  .speed-row-tail > .toggle-label { gap:3px !important; padding:0 3px !important; font-size:12px !important; }
+  .speed-row .view-mode-btn svg { display:none; }
+  .ab-loop-row { padding-left:10px !important; }
+  .speed-row { padding-right:10px !important; }
+}
+
+@container (max-width:690px) {
+  .ab-loop-row, .speed-row { --ctl-w:68px !important; }
+  .ab-loop-row .mini-loop-btn, .speed-row-tail > .toggle-label, .speed-row #micBtn, .speed-row .view-mode-btn { font-size:12px !important; }
+  .transport { gap:6px !important; }
+}
+
+/* Falling lanes: the controls stay on one row as well. */
+
+body.wide-fit .trainer-grid:not(.radial-layout):not(.tuner-mode) .trainer-card {
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); grid-template-areas:"tb tb tb" "st st st" "pr pr pr" "ab tr sp";
+}
+
+/* ===================== Shared features (ethereal-common.js) ===================== */
+
+/* Stars and best result in the song lists. */
+
+.song-best { display:inline-flex; align-items:center; gap:4px; margin-left:6px; color:#fde68a; font-weight:800; font-size:12px; white-space:nowrap; }
+
+.song-best i { font-style:normal; letter-spacing:.02em; }
+
+.song-best b, .result-stars b { font-weight:400; color:rgba(148,163,184,.35); }
+
+.song-best b.on, .result-stars b.on { color:#fbbf24; text-shadow:0 0 8px rgba(251,191,36,.45); }
+
+.result-best { display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin:12px auto 2px; padding:8px 14px; border-radius:12px; border:1px solid rgba(251,191,36,.28); background:rgba(251,191,36,.08); color:#fde68a; font-size:13.5px; font-weight:700; text-align:center; }
+
+.result-best[hidden] { display:none; }
+
+.result-stars { font-size:22px; letter-spacing:.08em; }
+
+/* "Start here" card at the top of the song list. */
+
+.start-here { margin:0 0 12px; padding:12px; border-radius:16px; border:1px solid rgba(94,234,212,.32); background:linear-gradient(160deg, rgba(94,234,212,.1), rgba(139,92,246,.08)); }
+
+.start-here-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+
+.start-here-head b { color:#99f6e4; font-size:14px; letter-spacing:.01em; }
+
+.start-here-hide { border:0; background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:2px 4px; }
+
+.start-here-hide:hover { color:var(--text); }
+
+.start-here ol { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+
+.start-step { width:100%; display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:rgba(9,14,26,.55); color:var(--text); font:inherit; text-align:left; cursor:pointer; }
+
+.start-step:hover { border-color:rgba(94,234,212,.45); }
+
+.start-num { flex:none; width:24px; height:24px; display:grid; place-items:center; border-radius:50%; background:rgba(139,92,246,.3); color:#ede9fe; font-size:12px; font-weight:900; }
+
+.start-step.done .start-num { background:rgba(45,212,191,.3); color:#ccfbf1; }
+
+.start-copy { display:grid; gap:1px; min-width:0; }
+
+.start-copy b { font-size:13px; }
+
+.start-copy small { color:var(--muted); font-size:11.5px; line-height:1.35; }
+
+.start-step.done .start-copy b { color:#99f6e4; }
+
+/* Microphone check. */
+
+.mic-check-dialog { width:min(400px, calc(100vw - 32px)); }
+
+.mic-check-card { padding:22px 20px 18px; text-align:center; }
+
+.mic-check-kicker { margin:0; color:#99f6e4; font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+
+.mic-check-card h2 { margin:4px 0 8px; font-size:21px; }
+
+.mic-check-step { margin:0 0 14px; color:var(--text); font-size:14.5px; line-height:1.45; min-height:2.9em; }
+
+.mic-check-meter { position:relative; height:12px; border-radius:99px; background:rgba(255,255,255,.08); overflow:hidden; }
+
+.mic-check-meter i { position:absolute; left:0; top:0; bottom:0; width:0; border-radius:99px; background:linear-gradient(90deg,#2dd4bf,#a78bfa,#fbbf24); transition:width .06s linear; }
+
+.mic-check-meter b { position:absolute; top:-2px; bottom:-2px; width:2px; background:#fff; box-shadow:0 0 8px #fff; }
+
+.mic-check-strikes { list-style:none; display:flex; justify-content:center; gap:12px; margin:16px 0 4px; padding:0; }
+
+.mic-check-strikes li { width:34px; height:34px; display:grid; place-items:center; border-radius:50%; border:1.5px dashed rgba(148,163,184,.45); color:#0b1020; font-weight:900; }
+
+.mic-check-strikes li.heard { border:0; background:linear-gradient(145deg,#5eead4,#a78bfa); box-shadow:0 0 14px rgba(94,234,212,.45); }
+
+.mic-check-result { margin:12px 0 0; padding:10px 12px; border-radius:12px; background:rgba(94,234,212,.08); border:1px solid rgba(94,234,212,.25); color:#ccfbf1; font-size:13.5px; line-height:1.45; }
+
+.mic-check-actions { display:flex; justify-content:center; gap:10px; margin-top:16px; flex-wrap:wrap; }
+
+.mic-check-actions [hidden] { display:none; }
+
+/* ===================== v19 ===================== */
+
+/* Phones: slimmer Listen / Practice / Tuner, so the stage gets the room. */
+
+/* ===================== r20: slimmer phone header, results stars, lanes ===================== */
+
+/* Phones: a slimmer header, so the stage and the lanes get the room. */
+
+@media (max-width:520px) {
+  .topbar { row-gap:7px !important; margin-bottom:9px !important; }
+  .song-heading .eyebrow { margin-bottom:2px !important; }
+  .song-title-row { row-gap:5px !important; }
+  .song-title-row .difficulty-badge,
+  .song-title-row .collection-badge { font-size:13px !important; padding:3px 9px !important; }
+  .top-actions { margin-top:0 !important; }
+  .top-actions > a, .top-actions > button { width:36px !important; height:36px !important; min-width:36px !important; min-height:36px !important; border-radius:11px !important; }
+  .top-actions .donate-btn img { width:21px; height:21px; }
+  .trainer-toolbar { padding-top:10px !important; padding-bottom:10px !important; }
+}
+
+/* Focus mode: the same spacing around Set A / Set B in every app. */
+
+@media (max-width:760px) {
+  body.focus-mode .transport { padding-top:6px; }
+  body.focus-mode .progress-wrap { padding-top:8px; }
+}
+
+/* Rotate the drum under the phone lanes too. */
+
+.trainer-grid:not(.tuner-mode) .note-stage.lanes-drum .rotate-drum-pair { display:flex; }
+
+/* Results: short labels on one line, five big stars that glow when earned. */
+
+.result-stats[hidden] { display:none !important; }
+
+.result-stats span { white-space:nowrap; }
+
+.result-best { flex-direction:column; gap:4px; padding:10px 14px 11px; }
+
+.result-stars { display:flex; justify-content:center; gap:5px; font-size:40px; line-height:1.08; letter-spacing:0; }
+
+.result-stars b { position:relative; display:inline-block; font-weight:400; color:rgba(148,163,184,.26); text-shadow:none; }
+
+.result-stars b.on {
+  color:#fcd34d;
+  text-shadow:0 0 6px rgba(253,224,71,.95), 0 0 16px rgba(251,191,36,.8), 0 0 32px rgba(251,191,36,.5);
+  animation:etherealStarPop .6s cubic-bezier(.2,1.5,.4,1) both, etherealStarGlow 2.6s ease-in-out infinite;
+  animation-delay:calc(var(--i, 0) * .13s), calc(.7s + var(--i, 0) * .2s);
+}
+
+.result-stars b.on::before {
+  content:""; position:absolute; left:50%; top:52%; width:1.9em; height:1.9em; border-radius:50%; z-index:-1; pointer-events:none;
+  background:radial-gradient(circle, rgba(251,191,36,.42) 0%, rgba(251,191,36,.14) 40%, rgba(251,191,36,0) 70%);
+  transform:translate(-50%,-50%);
+  animation:etherealStarHalo 2.6s ease-in-out infinite;
+  animation-delay:calc(var(--i, 0) * .2s);
+}
+
+.result-best-text { line-height:1.35; }
+
+@keyframes etherealStarPop { 0% { transform:scale(.2) rotate(-35deg); opacity:0; } 70% { transform:scale(1.2) rotate(5deg); opacity:1; } 100% { transform:scale(1) rotate(0); opacity:1; } }
+
+@keyframes etherealStarGlow { 0%, 100% { filter:brightness(1); } 50% { filter:brightness(1.28); } }
+
+@keyframes etherealStarHalo { 0%, 100% { opacity:.7; transform:translate(-50%,-50%) scale(.85); } 50% { opacity:1; transform:translate(-50%,-50%) scale(1.18); } }
+
+@media (prefers-reduced-motion:reduce) { .result-stars b.on, .result-stars b.on::before { animation:none; } }
+
+@media (max-width:360px) { .result-stars { font-size:34px; } .result-stats span { font-size:10.5px !important; letter-spacing:.03em; } }
+
+/* Phones: the big buttons first, then Play again and Next side by side. */
+
+@media (max-width:760px) {
+  .result-actions { grid-template-columns:1fr 1fr; gap:8px; }
+  .result-actions .primary-btn { grid-column:1 / -1; order:-1; }
+  .result-actions .primary-btn, .result-actions .soft-btn { min-width:0; }
+}

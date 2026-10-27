@@ -9,7 +9,9 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1.05 -1.05 2.1 2.1'%3E%3Ccircle r='1' fill='%23111827' stroke='%238b7cf0' stroke-opacity='.7' stroke-width='.06'/%3E%3Ccircle r='.3' fill='%23a78bfa'/%3E%3Ccircle cx='0.310' cy='-0.537' r='.15' fill='%23fbbf24'/%3E%3Ccircle cx='0.620' cy='0.000' r='.15' fill='%23a78bfa'/%3E%3Ccircle cx='0.310' cy='0.537' r='.15' fill='%23a78bfa'/%3E%3Ccircle cx='-0.310' cy='0.537' r='.15' fill='%23a78bfa'/%3E%3Ccircle cx='-0.620' cy='0.000' r='.15' fill='%2338bdf8'/%3E%3Ccircle cx='-0.310' cy='-0.537' r='.15' fill='%23a78bfa'/%3E%3C/svg%3E" />
   <link rel="apple-touch-icon" href="app-files/icon-192.png" />
   <link rel="manifest" href="app-files/manifest.webmanifest" />
+  <link rel="stylesheet" href="app-files/ethereal-common.css" />
   <link rel="stylesheet" href="app-files/styles.css" />
+  <link rel="stylesheet" href="app-files/ethereal-common-layout.css" />
 </head>
 <body class="app-loading">
   <div class="startup-loader" id="startupLoader" role="status" aria-live="polite" aria-label="Preparing Ethereal Handpan">
@@ -34,8 +36,6 @@
       </div>
 
       <div class="sidebar-actions">
-        <button class="primary-btn" id="newSongBtn">＋ New song</button>
-        <button class="soft-btn" id="importBtn">Import song</button>
         <button class="library-btn" id="libraryBtn" type="button">
           <span><b aria-hidden="true">♫</b> Community songs</span>
           <em id="libraryCountBadge">0</em>
@@ -83,7 +83,6 @@
           <button class="soft-btn compact tour-btn" id="tourBtn" type="button" aria-label="Play the demo tour" title="Demo tour: a song plays while the app is shown step by step"><b class="tour-q" aria-hidden="true">?</b><span>Tour</span></button>
           <button class="soft-btn compact learn-btn" id="helpBtn" type="button" aria-label="Learn: strokes, keys and notation" title="Learn: strokes, keys and notation"><svg class="btn-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10.3 5.2 7.6 4.7 4.5 5v12.6c3.1-.3 5.8.2 7.5 1.5 1.7-1.3 4.4-1.8 7.5-1.5V5c-3.1-.3-5.8.2-7.5 1.5z"></path><path d="M12 6.5v12.6"></path></svg><span class="btn-text">Learn</span></button>
           <button class="soft-btn compact install-btn" id="installBtn" type="button" aria-label="Install the app" title="Install as an app" hidden><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M5 19.5h14"></path></svg><span>Install</span></button>
-          <button class="soft-btn compact fullscreen-btn" id="fullscreenBtn" type="button" aria-label="Full screen" title="Full screen: hide the system bars"><svg class="fs-enter" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg><svg class="fs-exit" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg></button>
           <button class="soft-btn compact top-new-btn" id="topNewSongBtn" type="button" aria-label="New song" title="New song"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13"></path></svg></button>
           <button class="soft-btn compact" id="editBtn" aria-label="Edit song"><svg class="btn-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z"></path><path d="M13.5 6.5l4 4"></path></svg><span class="btn-text">Edit song</span></button>
           <button class="soft-btn compact" id="settingsBtn" aria-label="My Handpan"><svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.1"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg><span class="btn-text">My Handpan</span></button>
@@ -110,12 +109,13 @@
               </div>
               <div class="practice-options" id="practiceOptions">
                 <label class="toggle-label wait-toggle"><input type="checkbox" id="waitToggle" /><span>Wait for note</span></label>
-                <select id="waitStyleSelect" class="wait-style-select" aria-label="How Wait for note sounds">
-                  <option value="quiet">Quiet</option>
-                  <option value="hear">Hear it first</option>
-                  <option value="game">Game sounds</option>
+                <select id="waitStyleSelect" class="wait-style-select" aria-label="Wait for note">
+                  <option value="off">Don't wait for note</option>
+                  <option value="game">Wait · Game Mode</option>
+                  <option value="hear">Wait · Play Note</option>
+                  <option value="quiet">Wait · Silent</option>
                 </select>
-                <button class="hint-btn wait-style-hint" type="button" data-hint="Quiet: the song waits in silence until you play the note. Hear it first: the app plays each note, then waits for you to play it. Game sounds: silent, and a happy chime every time you get it right." aria-label="About the Wait for note styles">?</button>
+                <button class="hint-btn wait-style-hint" type="button" data-hint="Don't wait: the song plays on and you play along. Game Mode: the song stops at each note until you play it, with a happy chime when you get it right. Play Note: the app plays each note first, then waits for you. Silent: the song waits for your note in silence." aria-label="About the Wait for note styles">?</button>
                 <button class="mic-chip" id="micChipBtn" type="button" aria-pressed="false">Mic off</button>
               </div>
               <div class="display-control">
@@ -163,7 +163,7 @@
             </div>
             <button class="speed-cycle-btn" id="speedCycleBtn" type="button" aria-label="Speed: tap to slow down" title="Tap to change the speed"><small>Speed</small><b id="speedCycleValue">1×</b></button>
             <div class="stage-practice-chips" id="stagePracticeChips" role="group" aria-label="Practice options">
-              <button class="stage-chip" id="stageWaitBtn" type="button" aria-pressed="false" title="Tap to change: off, quiet, hear it first, game">Wait: off</button>
+              <button class="stage-chip" id="stageWaitBtn" type="button" aria-pressed="false" title="Tap to change: off, game, play note, silent">Wait: off</button>
               <button class="stage-chip" id="stageMicBtn" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"></rect><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0"></path><path d="M12 17v4"></path></svg><span>Mic off</span></button>
             </div>
             <div class="stage-judge" id="stageJudge" aria-hidden="true"></div>
@@ -215,7 +215,7 @@
             <div class="ab-loop-controls" role="group" aria-label="A to B section loop">
               <button class="mini-loop-btn" id="setABtn" type="button">Set A</button>
               <button class="mini-loop-btn" id="setBBtn" type="button">Set B</button>
-              <button class="mini-loop-btn accent" id="abLoopBtn" type="button" aria-pressed="false" disabled>Loop A-B</button>
+              <button class="mini-loop-btn accent" id="abLoopBtn" type="button" aria-pressed="false" disabled>Loop<span class="ab-suffix"> A-B</span></button>
               <button class="mini-loop-btn clear" id="clearABBtn" type="button" disabled>Clear</button>
             </div>
             <button class="hint-btn" type="button" data-hint="Loop a tricky part: play to where it starts and tap Set A, play on and tap Set B, then Loop A-B repeats just that part." aria-label="How the A-B loop works">?</button>
@@ -254,6 +254,8 @@
                 <span>Count-in</span>
               </label>
               <button class="mic-toggle" id="micBtn" type="button" aria-pressed="false"></button>
+              <button class="mic-toggle view-mode-btn" id="viewModeBtn" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg><span>Focus</span></button>
+              <button class="soft-btn fullscreen-btn" id="fullscreenBtn" type="button" aria-label="Full screen" title="Full screen: hide the system bars"><svg class="fs-enter" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg><svg class="fs-exit" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg><span class="fs-label">Full screen</span></button>
               <button class="hint-btn" type="button" data-hint="Turn the microphone on to play your real handpan: the app hears which note you strike. It works in Practice, Wait for note and Tuner. Listen never uses it." aria-label="About the microphone">?</button>
               <span class="mic-status" id="micStatus" aria-live="polite"></span>
             </div>
@@ -293,7 +295,13 @@
           <p class="editor-kicker"><span>SONG</span><span>BUILDER</span></p>
           <h2 id="editorHeading">Create a song</h2>
         </div>
-        <button type="button" class="icon-btn" data-close-dialog="editorDialog" aria-label="Close">×</button>
+        <div class="dialog-head-actions">
+          <button type="button" class="info-btn editor-guide-btn" id="editorGuideBtn" aria-haspopup="dialog" aria-label="Strokes and notation guide">
+            <span class="info-badge" aria-hidden="true">i</span><span class="head-btn-text">Strokes guide</span>
+          </button>
+          <button type="button" class="soft-btn compact head-tool-btn" id="importBtn" aria-label="Import a song file" title="Import a .handsong file"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path><path d="M12 11v6"></path><path d="M9.5 14.5 12 17l2.5-2.5"></path></svg><span class="head-btn-text">Import song</span></button>
+          <button type="button" class="icon-btn" data-close-dialog="editorDialog" aria-label="Close">×</button>
+        </div>
       </div>
 
       <div class="draft-notice" id="draftNotice" hidden>
@@ -420,6 +428,7 @@
       </div>
 
       <div class="dialog-actions">
+        <button type="button" class="soft-btn" id="micCheckBtn">Microphone check</button>
         <button type="button" class="primary-btn" data-close-dialog="settingsDialog">Done</button>
       </div>
     </form>
@@ -486,10 +495,11 @@
       <h2 id="resultTitle">Song complete</h2>
       <p class="result-summary" id="resultSummary">Nice work.</p>
       <div class="result-stats" id="resultStats">
-        <div><strong id="resultHitValue">0/0</strong><span>strokes hit</span></div>
+        <div><strong id="resultHitValue">0/0</strong><span>good hits</span></div>
         <div><strong id="resultAccuracyValue">0%</strong><span>accuracy</span></div>
-        <div><strong id="resultStreakValue">0</strong><span>best streak</span></div>
+        <div><strong id="resultStreakValue">0</strong><span>streak</span></div>
       </div>
+      <div class="result-best" id="resultBest" hidden></div>
       <p class="result-mistakes" id="resultMistakes"></p>
       <div class="result-recommendation" id="resultRecommendation" hidden>
         <span class="result-recommendation-label">Recommended next</span>
@@ -497,6 +507,7 @@
       </div>
       <div class="result-actions">
         <button type="button" class="soft-btn" id="resultReplayBtn">Play again</button>
+        <button type="button" class="primary-btn" id="resultFasterBtn" hidden>Try 1×</button>
         <button type="button" class="primary-btn" id="resultSlowerBtn">Again, a bit slower</button>
         <button type="button" class="soft-btn" id="resultNextBtn">Next in list</button>
       </div>
@@ -518,8 +529,8 @@
     <div class="choice-card">
       <h2>Song builder</h2>
       <div class="choice-list">
+        <button type="button" class="choice-btn primary" id="choiceNewBtn"><b>＋ Start a new song</b><small>Begin with an empty page, or import or scan one</small></button>
         <button type="button" class="choice-btn" id="choiceEditBtn"><b>Edit this song</b><small id="choiceEditNote">Change its notes, tempo or title</small></button>
-        <button type="button" class="choice-btn" id="choiceNewBtn"><b>Start a new song</b><small>Begin with an empty page</small></button>
         <button type="button" class="choice-btn" id="choiceDraftsBtn" hidden><b>Drafts</b><small>Songs you have not saved yet</small></button>
       </div>
       <button type="button" class="soft-btn choice-cancel" data-close-dialog="editChoiceDialog">Cancel</button>
@@ -648,6 +659,7 @@
 
   <script src="app-files/song-catalog.js"></script>
   <script src="app-files/community-upload-config.js"></script>
+  <script src="app-files/ethereal-common.js"></script>
   <script src="app-files/app.js"></script>
 </body>
 </html>

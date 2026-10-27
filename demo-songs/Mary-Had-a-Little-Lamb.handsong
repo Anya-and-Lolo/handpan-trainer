@@ -2,11 +2,12 @@
   "format": "ethereal-handpan-song-v1",
   "song": {
     "title": "Mary Had a Little Lamb",
-    "artist": "1830 · a tiny tune everyone knows",
+    "artist": "1830",
     "bpm": 92,
     "beatsPerBar": 4,
     "scale": "D Kurd",
     "sequence": "# Mi re do re | mi mi mi\n4L 3R 2L 3R | 4L 4R 4L:2 | 3R 3L 3R:2 | 4L 6L 6L:2 |\n4L 3R 2L 3R | 4L 4R 4L 4R | 3R 3L 4L 3R | DR+2L:4 |\n4L 3R 2L 3R | 4L 4R 4L:2 | 3R 3L 3R:2 | 4L 6L 6L:2 |\n4L 3R 2L 3R | 4L 4R 4L 4R | 3R 3L 4L 3R | DR+2L:4 |",
-    "order": 9
+    "order": 9,
+    "about": "A tiny tune everyone knows"
   }
 }

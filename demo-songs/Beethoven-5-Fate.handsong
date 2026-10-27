@@ -2,11 +2,12 @@
   "format": "ethereal-handpan-song-v1",
   "song": {
     "title": "Symphony No. 5 · Fate motif",
-    "artist": "Beethoven · 1808 · fate knocks at the door",
+    "artist": "Beethoven · 1808",
     "bpm": 104,
     "beatsPerBar": 2,
     "scale": "D Kurd",
     "sequence": "# Fate knocks: a short rest, three quick knocks, one long note\n-:0.5 4L:0.5 4R:0.5 4L:0.5 | 2L:2 | - - |\n-:0.5 3R:0.5 3L:0.5 3R:0.5 | 1R:2 | - - |\n-:0.5 4L:0.5 4R:0.5 4L:0.5 | 2L:2 | - - |\n-:0.5 3R:0.5 3L:0.5 3R:0.5 | 1R:2 | - - |\n# The ding joins in like a timpani\n-:0.5 4L:0.5 4R:0.5 4L:0.5 | DR+2L:2 | -:0.5 3R:0.5 3L:0.5 3R:0.5 | DL+1R:2 | - - |\n# The horn call\n-:0.5 6L:0.5 6R:0.5 6L:0.5 | 2L:2 | 3R:2 | DR+6L:2 | - - |\n# Fate again, and the final blows\n-:0.5 4L:0.5 4R:0.5 4L:0.5 | 2L:2 | -:0.5 3R:0.5 3L:0.5 3R:0.5 | 1R:2 |\nDR+4L - | DR+4L - | DR+4L:2 |",
-    "order": 4
+    "order": 4,
+    "about": "Fate knocks at the door: four strong strokes"
   }
 }

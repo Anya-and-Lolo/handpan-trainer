@@ -6,6 +6,7 @@
     "bpm": 100,
     "beatsPerBar": 4,
     "scale": "D Kurd",
-    "sequence": "# The famous tune, all on the tone fields\n5R 5R 6L 7R | 7R 6L 5R 4L | 3R 3R 4L 5R | 5R:1.5 4L:0.5 4L:2 |\n5R 5R 6L 7R | 7R 6L 5R 4L | 3R 3R 4L 5R | 4L:1.5 3R:0.5 DL+3R:2 |"
+    "sequence": "# The famous tune, all on the tone fields\n5R 5R 6L 7R | 7R 6L 5R 4L | 3R 3R 4L 5R | 5R:1.5 4L:0.5 4L:2 |\n5R 5R 6L 7R | 7R 6L 5R 4L | 3R 3R 4L 5R | 4L:1.5 3R:0.5 DL+3R:2 |",
+    "about": "A bright melody of smooth, small steps"
   }
 }

@@ -2,10 +2,11 @@
   "format": "ethereal-handpan-song-v1",
   "song": {
     "title": "Twinkle, Twinkle, Little Star",
-    "artist": "1806 · a lullaby everyone knows",
+    "artist": "1806",
     "bpm": 96,
     "beatsPerBar": 4,
     "scale": "D Kurd",
-    "sequence": "3R 3R 7R 7R | 8L 8L 7R:2 | 6L 6L 5R 5R | 4L 4L 3R:2 |\n7R 7R 6L 6L | 5R 5R 4L:2 | 7R 7R 6L 6L | 5R 5R 4L:2 |\n3R 3R 7R 7R | 8L 8L 7R:2 | 6L 6L 5R 5R | 4L 4L DL+3R:2 |"
+    "sequence": "3R 3R 7R 7R | 8L 8L 7R:2 | 6L 6L 5R 5R | 4L 4L 3R:2 |\n7R 7R 6L 6L | 5R 5R 4L:2 | 7R 7R 6L 6L | 5R 5R 4L:2 |\n3R 3R 7R 7R | 8L 8L 7R:2 | 6L 6L 5R 5R | 4L 4L DL+3R:2 |",
+    "about": "A lullaby everyone knows"
   }
 }

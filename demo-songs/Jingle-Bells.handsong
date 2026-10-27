@@ -2,11 +2,12 @@
   "format": "ethereal-handpan-song-v1",
   "song": {
     "title": "Jingle Bells",
-    "artist": "1857 · a jolly sleigh ride to lift your mood",
+    "artist": "1857",
     "bpm": 100,
     "beatsPerBar": 4,
     "scale": "D Kurd",
     "sequence": "# Jingle bells, jingle bells, jingle all the way\n5R 5L 5R:2 | 5R 5L 5R:2 | 5R 7R 3R:1.5 4L:0.5 | 5R:4 |\n6L 6L 6L:1.5 6L:0.5 | 6L 5R 5R 5R:0.5 5R:0.5 | 5R 4L 4L 5R | 4L:2 7R:2 |\n# Oh what fun it is to ride\n5R 5L 5R:2 | 5R 5L 5R:2 | 5R 7R 3R:1.5 4L:0.5 | 5R:4 |\n6L 6L 6L:1.5 6L:0.5 | 6L 5R 5R 5R:0.5 5R:0.5 | 7R 7R 6L 4L | DR+3R:4 |",
-    "order": 10
+    "order": 10,
+    "about": "A jolly sleigh ride to lift your mood"
   }
 }

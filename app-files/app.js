@@ -84,8 +84,14 @@
     'communitySongsCount', 'communityEasyCount', 'communityMediumCount', 'communityHardCount', 'communityExpertCount', 'communityDialog', 'communitySelection', 'communityUploadProgress', 'communityUploadStatus', 'communityUploadPercent', 'communityProgressTrack', 'communityProgressFill', 'submitCommunityBtn',
     'soundWakeBtn', 'hintPop', 'fullscreenBtn',
     'waitStyleSelect', 'stagePracticeChips', 'stageWaitBtn', 'stageMicBtn', 'draftNotice', 'draftNoticeText', 'discardDraftBtn', 'allDraftsBtn',
-    'draftsDialog', 'draftsList', 'draftsEmpty', 'editChoiceDialog', 'choiceEditBtn', 'choiceEditNote', 'choiceNewBtn', 'choiceDraftsBtn'
+    'draftsDialog', 'draftsList', 'draftsEmpty', 'editChoiceDialog', 'choiceEditBtn', 'choiceEditNote', 'choiceNewBtn', 'choiceDraftsBtn',
+    'editorGuideBtn', 'resultBest', 'resultFasterBtn', 'micCheckBtn'
   ].forEach(id => { els[id] = $(id); });
+
+  // Shared with the other Ethereal trainers: app-files/ethereal-common.js.
+  const COMMON = window.EtherealCommon;
+  const BEST = COMMON.createBestStore('ethereal-handpan-best-v1');
+  const MIC_CHECK_KEY = 'ethereal-handpan-mic-check-v1';
 
   /* ------------------------------------------------------------------ */
   /* Storage                                                             */
@@ -455,7 +461,7 @@
     guide: Boolean(prefs.guide),
     waitPref: prefs.mode === 'wait' || Boolean(prefs.waitPref),
     // How Wait for note sounds: quiet, hear it first (the app plays the note), game (a chime when right).
-    waitStyle: ['quiet', 'hear', 'game'].includes(prefs.waitStyle) ? prefs.waitStyle : (prefs.guide ? 'hear' : 'quiet'),
+    waitStyle: ['quiet', 'hear', 'game'].includes(prefs.waitMode) ? prefs.waitMode : 'game',
     loop: Boolean(prefs.loop),
     playing: false,
     holding: false,
@@ -521,7 +527,7 @@
   function savePrefs() {
     writeJson(STORAGE_PREFS, {
       speed: state.speed, mode: state.mode === 'tuner' ? 'listen' : state.mode, view: state.view, countIn: state.countIn,
-      metronome: state.metronome, guide: state.guide, loop: state.loop, waitPref: state.waitPref, waitStyle: state.waitStyle, selectedId: state.song?.id || prefs.selectedId
+      metronome: state.metronome, guide: state.guide, loop: state.loop, waitPref: state.waitPref, waitMode: state.waitStyle, selectedId: state.song?.id || prefs.selectedId
     });
   }
 
@@ -979,6 +985,10 @@
   /* Songs                                                               */
   /* ------------------------------------------------------------------ */
 
+  function capitalise(text) {
+    return text ? text.charAt(0).toLocaleUpperCase() + text.slice(1) : '';
+  }
+
   function normaliseSong(raw, folder) {
     if (!raw || typeof raw !== 'object') return null;
     const title = String(raw.title || '').trim().slice(0, 80);
@@ -988,6 +998,7 @@
       id: String(raw.id || `song-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`),
       title,
       artist: String(raw.artist || '').slice(0, 80),
+      about: capitalise(String(raw.about || '').trim().slice(0, 120)),
       bpm: Math.min(260, Math.max(20, Math.round(Number(raw.bpm) || 90))),
       beatsPerBar: Math.min(12, Math.max(1, Math.round(Number(raw.beatsPerBar) || 4))),
       sequence,
@@ -1059,7 +1070,8 @@
     const parsed = state.parsed;
     if (!song || !parsed) return;
     els.currentTitle.textContent = song.title;
-    els.stageSongName.innerHTML = `<b>${escapeHtml(song.title)}</b>${song.artist ? `<small>${escapeHtml(song.artist)}</small>` : ''}`;
+    const byline = song.artist || song.about;
+    els.stageSongName.innerHTML = `<b>${escapeHtml(song.title)}</b>${byline ? `<small>${escapeHtml(byline)}</small>` : ''}`;
     const difficulty = songDifficulty(parsed);
     els.currentDifficulty.textContent = `${difficulty.label} difficulty`;
     els.currentDifficulty.dataset.level = difficulty.level;
@@ -1080,7 +1092,8 @@
 
   function updateTempoLabel() {
     if (!state.parsed) return;
-    setTextIfChanged(els.tempoLabel, `${Math.round(state.parsed.bpm * state.speed)} BPM`);
+    const tempoHtml = `<b>${Math.round(state.parsed.bpm * state.speed)}</b> BPM`;
+    if (els.tempoLabel.innerHTML !== tempoHtml) els.tempoLabel.innerHTML = tempoHtml;
     setTextIfChanged(els.durationLabel, formatTime(state.parsed.duration / state.speed));
   }
 
@@ -1091,7 +1104,7 @@
       const level = songDifficulty(parseSong(song)).level;
       return state.levelFilter === 'hard' ? level === 'hard' || level === 'expert' : level === state.levelFilter;
     };
-    const filter = song => levelOk(song) && (!query || song.title.toLowerCase().includes(query) || song.artist.toLowerCase().includes(query));
+    const filter = song => levelOk(song) && (!query || `${song.title} ${song.artist} ${song.about || ''}`.toLowerCase().includes(query));
     const group = (label, songs, emptyText, className) => {
       const shown = songs.filter(filter);
       const items = shown.map(song => {
@@ -1101,7 +1114,8 @@
         const meta = `${song.bpm} BPM · ${parsed.itemCount} strokes${song.artist ? ` · ${escapeHtml(song.artist)}` : ''}`;
         return `<button class="song-item${active ? ' active' : ''}" data-song-id="${escapeHtml(song.id)}" type="button" title="${escapeHtml(song.title)}">
           <span class="song-item-title"><strong>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span>
-          <span>${meta}</span>
+          <span>${meta}${BEST.badge(song.id)}</span>
+          ${song.about ? `<span class="song-item-about">${escapeHtml(song.about)}</span>` : ''}
           ${parsed.missing.size ? `<span class="song-item-warn">needs ${escapeHtml([...parsed.missing].join(', '))}</span>` : ''}
         </button>`;
       }).join('');
@@ -1112,6 +1126,8 @@
     };
     els.songList.innerHTML = group('Demo songs', state.demoSongs, query ? 'No demo songs match that search.' : 'Drop .handsong files into demo-songs.', 'demo-collection')
       + group('My songs', state.mySongs, query ? 'No My songs match that search.' : 'Create or import a song and it will appear here.', 'community-collection personal-collection');
+    const startHere = query ? null : startHereCard();
+    if (startHere) els.songList.prepend(startHere);
     els.deleteBtn.disabled = !(state.song && state.song.folder === 'mine');
   }
 
@@ -1385,6 +1401,7 @@
     }
     clearTimeout(state.loopTimer);
     const context = await ensureAudio();
+    if (options.fromTour && (!tour.active || tour.token !== options.fromTour)) return;
     state.clock = context && context.state === 'running' ? 'audio' : 'perf';
     const parsed = state.parsed;
     let start = state.songTime;
@@ -1802,7 +1819,7 @@
     const shown = Math.max(0, Math.min(parsed.duration, t));
     if (!state.dragProgress) {
       const value = String(Math.round((shown / parsed.duration) * 1000));
-      if (els.progress.value !== value) els.progress.value = value;
+      if (els.progress.value !== value) { els.progress.value = value; syncProgressFill(); }
     }
     setTextIfChanged(els.elapsedLabel, formatTime(shown / state.speed));
 
@@ -1908,7 +1925,7 @@
     els.dockMetronomeBtn.setAttribute('aria-pressed', String(state.metronome));
     keepScreenOn(state.playing || state.focusMode || (state.mode === 'tuner' && mic.on));
     els.guideBtn.title = state.mode === 'listen' ? 'Listen always plays the song'
-      : state.mode === 'wait' ? (guideOn ? 'Hear it first: the app plays each note, then waits for you' : 'The app stays quiet and waits for your note')
+      : state.mode === 'wait' ? (guideOn ? 'Play Note: the app plays each note, then waits for you' : 'Tap to hear each note first (Play Note)')
       : state.guide ? 'Song sound on: the app plays the song (quieter once you play along)' : 'Song sound off: only your own strokes';
     document.body.classList.toggle('is-playing', state.playing);
   }
@@ -2306,7 +2323,7 @@
     // Matches the 760px breakpoint where the side card (with its drum) is hidden.
     const phoneLanes = state.view === 'lanes' && window.innerWidth <= 760;
     els.noteStage.classList.toggle('lanes-drum', phoneLanes);
-    const layout = { w: width, h: height, drum: null, phoneLanes, lanesTop: width <= 900 ? 58 : 14, lanesBottom: height };
+    const layout = { w: width, h: height, drum: null, phoneLanes, lanesTop: width <= 900 ? 60 : 52, lanesBottom: height };
     if (state.view === 'radial') {
       layout.drum = radialGeometry(width, height);
       if (state.mode === 'tuner') {
@@ -2318,13 +2335,16 @@
         layout.drum.cy = usable / 2 + 8;
       }
     } else if (phoneLanes) {
-      // Lanes on top, the handpan under them, like the handpan apps on a phone.
-      const lanesBottom = Math.round(height * 0.5);
-      const available = height - lanesBottom - 28 - (window.innerWidth <= 760 ? 66 : 0);
+      // Lanes on top, the handpan at the bottom just above the play controls.
+      // The lanes take everything else, so they are as long as the screen allows.
       const hasBottoms = state.pads.some(pad => pad.kind === 'bottom');
-      const drumSize = Math.max(170, Math.min(width - 40, available / (hasBottoms ? 1.3 : 1.12), 330));
-      layout.lanesBottom = lanesBottom;
-      layout.drum = { drumSize, scale: drumSize / STAGE_DRUM_BASE, cx: width / 2, cy: lanesBottom + 28 + available / 2 };
+      const extent = hasBottoms ? 1.28 : 1.08;
+      const drumSize = Math.max(160, Math.min(width - 60, height * 0.31, 300));
+      const cy = height - (window.innerWidth <= 760 ? 70 : 10) - drumSize * extent / 2;
+      // "Left hand" / "Right hand" go beside the drum when there is room, else above it.
+      const sideLegend = width / 2 - drumSize * extent * 0.42 >= 70;
+      layout.lanesBottom = Math.round(cy - drumSize * extent / 2 - (sideLegend ? 4 : 34));
+      layout.drum = { drumSize, scale: drumSize / STAGE_DRUM_BASE, cx: width / 2, cy, sideLegend, extent };
     }
     placeTape(layout, width, height);
     if (layout.drum) {
@@ -2338,11 +2358,23 @@
       legend.style.left = `${cx - layout.drum.drumSize * 0.56}px`;
       legend.style.width = `${layout.drum.drumSize * 1.12}px`;
       legend.style.top = `${Math.max(phoneLanes ? layout.lanesBottom : 52, cy - layout.drum.drumSize * 0.5 - 30)}px`;
+      if (phoneLanes && layout.drum.sideLegend) {
+        // Close beside the drum, not out at the screen edges on a wider screen.
+        const left = Math.max(8, Math.round(cx - layout.drum.drumSize * layout.drum.extent / 2 - 84));
+        legend.style.left = `${left}px`;
+        legend.style.width = `${Math.round((cx - left) * 2)}px`;
+        legend.style.top = `${Math.round(cy - layout.drum.drumSize * 0.5 + 2)}px`;
+      }
       if (width <= 760 && !phoneLanes) {
         // Phones: "Left / hand" and "Right / hand" sit on the edges, under the stats row.
         legend.style.left = '10px';
         legend.style.width = `${width - 20}px`;
         legend.style.top = '58px';
+      } else if (width > 760 && !phoneLanes) {
+        // Tablets and computers: out at the edges, clear of the notes flying in.
+        legend.style.left = '18px';
+        legend.style.width = `${width - 36}px`;
+        legend.style.top = '62px';
       }
     } else {
       const legend = els.stageHandLegend;
@@ -2960,17 +2992,17 @@
   function drawLaneGuides(ctx, width, height, geometry) {
     const lanes = state.lanes.length;
     ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(255,255,255,.035)';
+    ctx.strokeStyle = 'rgba(255,255,255,.17)';
     ctx.beginPath();
     for (let index = 0; index <= lanes; index += 1) {
-      ctx.moveTo(index * geometry.laneW, 0);
+      ctx.moveTo(index * geometry.laneW, geometry.top);
       ctx.lineTo(index * geometry.laneW, geometry.hitY + 30);
     }
     ctx.stroke();
     state.lanes.forEach((pad, index) => {
-      if (pad.kind === 'ding') ctx.fillStyle = 'rgba(196,181,253,.035)';
-      else ctx.fillStyle = pad.hand === 'L' ? 'rgba(56,189,248,.022)' : 'rgba(251,191,36,.018)';
-      ctx.fillRect(index * geometry.laneW, 0, geometry.laneW, geometry.hitY);
+      if (pad.kind === 'ding') ctx.fillStyle = 'rgba(196,181,253,.12)';
+      else ctx.fillStyle = pad.hand === 'L' ? 'rgba(56,189,248,.095)' : 'rgba(251,191,36,.08)';
+      ctx.fillRect(index * geometry.laneW, geometry.top, geometry.laneW, geometry.hitY - geometry.top);
     });
     ctx.strokeStyle = 'rgba(94,234,212,.7)';
     ctx.shadowColor = 'rgba(94,234,212,.5)';
@@ -3035,6 +3067,10 @@
     const t = state.playing ? songNow() : state.songTime;
     const spb = state.parsed.spb;
     const travelPx = hitY - top;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, top, width, height - top);
+    ctx.clip();
 
     // faint bar lines
     ctx.save();
@@ -3086,7 +3122,7 @@
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle = pad.kind === 'perc' ? 'rgba(226,232,240,.4)' : 'rgba(255,255,255,.14)';
+      ctx.strokeStyle = pad.kind === 'perc' ? 'rgba(226,232,240,.5)' : pad.hand === 'L' ? 'rgba(56,189,248,.6)' : pad.kind === 'ding' ? 'rgba(196,181,253,.6)' : 'rgba(251,191,36,.55)';
       if (pad.kind === 'perc') ctx.setLineDash([3, 3]);
       ctx.stroke();
       ctx.setLineDash([]);
@@ -3166,6 +3202,7 @@
         ctx.restore();
       });
     }
+    ctx.restore();
   }
 
   function drawEffects(nowMs) {
@@ -3243,7 +3280,7 @@
   function updateMicUI() {
     els.micBtn.classList.toggle('active', mic.on);
     els.micBtn.setAttribute('aria-pressed', String(mic.on));
-    els.micBtn.innerHTML = `${MIC_ICON} Microphone ${mic.on ? 'on' : 'off'}`;
+    els.micBtn.innerHTML = `${MIC_ICON} Mic ${mic.on ? 'on' : 'off'}`;
     els.micChipBtn.innerHTML = `${MIC_ICON} Mic ${mic.on ? 'on' : 'off'}`;
     els.micChipBtn.classList.toggle('active', mic.on);
     els.micChipBtn.setAttribute('aria-pressed', String(mic.on));
@@ -3277,6 +3314,7 @@
       mic.data = new Float32Array(mic.analyser.fftSize);
       mic.prev = [];
       mic.floor = 0.006;
+      mic.minThreshold = COMMON.micThreshold(MIC_CHECK_KEY, 0.014);
       mic.on = true;
       updateMicUI();
       setMicStatus(state.mode === 'tuner' ? 'Tuner listening… strike one note' : 'Listening… play your handpan', 'listening');
@@ -3326,7 +3364,7 @@
     mic.prev.push(Float32Array.from(mic.data));
     if (mic.prev.length > 5) mic.prev.shift();
     if (rms < mic.floor * 2) mic.floor = mic.floor * 0.98 + rms * 0.02;
-    const threshold = Math.max(0.014, mic.floor * 3.2);
+    const threshold = Math.max(mic.minThreshold ?? 0.014, mic.floor * 3.2);
     // Compare with the quietest of the last few frames, so an attack that is split
     // across two animation frames, or lands on a still-ringing note, is still caught.
     mic.history = (mic.history || []).concat(rms).slice(-7);
@@ -3583,6 +3621,15 @@
     els.resultMistakes.textContent = state.mode === 'wait'
       ? `${state.wrong} wrong ${state.wrong === 1 ? 'stroke' : 'strokes'} · ${formatTime((performance.now() - state.runStartedAt) / 1000)} at ${formatSpeed(state.speed)}×`
       : missedText ? `Missed most often: ${missedText}. Loop that bar with A-B.` : `Perfect ${perfect} · Good ${good} · Wrong ${state.wrong}`;
+    const outcome = BEST.record(state.song.id, { accuracy, speed: state.speed });
+    els.resultBest.innerHTML = outcome ? COMMON.resultBestHtml(outcome, accuracy, state.speed) : COMMON.bestHtml(BEST.get(state.song.id));
+    els.resultBest.hidden = !els.resultBest.innerHTML;
+    const faster = COMMON.suggestSpeedUp(state.speed, accuracy);
+    els.resultFasterBtn.hidden = !faster;
+    els.resultFasterBtn.dataset.speed = faster ? String(faster) : '';
+    if (faster) els.resultFasterBtn.textContent = `Try ${COMMON.speedLabel(faster)} →`;
+    els.resultSlowerBtn.hidden = Boolean(faster) || accuracy >= 90;
+    renderSongList();
     renderRecommendedNext(state.song);
     openDialog(els.resultDialog);
     requestAnimationFrame(() => celebrateResults(els.resultSparkles, (accuracy || 0) / 100));
@@ -3597,10 +3644,67 @@
   /* v16: wait styles, stage chips, sound wake-up, drafts, chooser       */
   /* ------------------------------------------------------------------ */
 
-  const WAIT_STYLE_LABELS = { quiet: 'quiet', hear: 'hear first', game: 'game' };
+
+  // Shared with the other Ethereal trainers: app-files/ethereal-common.js.
+  const { placeProgressInTape, isDesktopFit, syncProgressFill, syncViewModeBtn, leaveFocusFullscreen } = COMMON;
+  function bindViewModeBtn() { COMMON.bindViewModeBtn({ setFocusMode }); }
+
+
+  // A short, bright "correct!" for Wait for note · Game Mode; the microphone ignores it.
+  function playChime() {
+    COMMON.playChime(audio.ctx, audio.bus || audio.master);
+    mic.echoUntil = Math.max(mic.echoUntil || 0, performance.now() + 700);
+  }
+
+  /* Start here: three first steps at the top of the song list. */
+  function startHereCard() {
+    return COMMON.startHereCard({
+      storageKey: 'ethereal-handpan-start-here-v1',
+      steps: [
+        { title: 'Listen first', text: 'Hear “First steps” and watch where each note lands.' },
+        { title: 'Play along: the song waits for you', text: '“First steps” with Wait · Game Mode.' },
+        { title: 'Your first tune', text: 'Mary Had a Little Lamb at 0.75× speed.' }
+      ],
+      onStep: index => {
+        setSidebar(false);
+        const first = 'demo-easy-first-steps';
+        const tune = 'demo-mary-had-a-little-lamb';
+        if (index === 0 && findSong(first)) { selectSong(first); setMode('listen'); startPlayback(); }
+        else if (index === 1 && findSong(first)) {
+          selectSong(first);
+          state.waitPref = true;
+          setWaitStyle('game');
+          setMode('wait');
+          startPlayback();
+        } else if (index === 2 && findSong(tune)) {
+          selectSong(tune);
+          state.waitPref = false;
+          setSpeed(0.75, true);
+          setMode('practice');
+          savePrefs();
+          startPlayback();
+        }
+        renderSongList();
+      }
+    });
+  }
+
+  /* Microphone check: ten seconds to set how loud a strike must be. */
+  function openMicCheckDialog() {
+    pausePlayback();
+    COMMON.openMicCheck({
+      storageKey: MIC_CHECK_KEY,
+      fallback: 0.014,
+      drumName: 'handpan',
+      getAnalyser: async () => { if (!mic.on) await startMic(); return mic.analyser; },
+      onDone: threshold => { mic.minThreshold = threshold; }
+    });
+  }
+
+  const WAIT_STYLE_LABELS = { game: 'game', hear: 'play note', quiet: 'silent' };
 
   function syncWaitControls() {
-    if (els.waitStyleSelect) els.waitStyleSelect.value = state.waitStyle;
+    if (els.waitStyleSelect) els.waitStyleSelect.value = state.mode === 'wait' ? state.waitStyle : 'off';
     if (!els.stageWaitBtn) return;
     const waiting = state.mode === 'wait';
     els.stageWaitBtn.textContent = waiting ? `Wait: ${WAIT_STYLE_LABELS[state.waitStyle]}` : 'Wait: off';
@@ -3622,36 +3726,16 @@
     els.waitToggle.dispatchEvent(new Event('change'));
   }
 
-  // The stage chip steps through: off → quiet → hear it first → game → off.
+  // The stage chip steps through: off → Game Mode → Play Note → Silent Mode → off.
   function cycleStageWait() {
-    const order = ['quiet', 'hear', 'game'];
-    if (state.mode !== 'wait') { state.waitStyle = 'quiet'; setWaitOn(true); syncWaitControls(); return; }
+    const order = ['game', 'hear', 'quiet'];
+    if (state.mode !== 'wait') { state.waitStyle = 'game'; setWaitOn(true); syncWaitControls(); return; }
     const next = order.indexOf(state.waitStyle) + 1;
     if (next >= order.length) setWaitOn(false);
     else setWaitStyle(order[next]);
-    showToast(state.mode === 'wait' ? `Wait for note: ${els.waitStyleSelect.options[order.indexOf(state.waitStyle)].text}.` : 'Wait for note is off.', 'success');
+    showToast(state.mode === 'wait' ? `${els.waitStyleSelect.querySelector(`option[value="${state.waitStyle}"]`)?.text || 'Wait for note'}.` : 'Wait for note is off.', 'success');
   }
 
-  // A short, bright "correct!" for the Game style.
-  function playChime() {
-    const context = audio.ctx;
-    if (!context || context.state !== 'running') return;
-    const out = audio.bus || audio.master || context.destination;
-    const t0 = context.currentTime + 0.01;
-    [[1318.5, 0, 0.13], [1975.5, 0.085, 0.11], [2637, 0.17, 0.06]].forEach(([freq, delay, level]) => {
-      const osc = context.createOscillator();
-      const gain = context.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t0 + delay);
-      gain.gain.exponentialRampToValueAtTime(level, t0 + delay + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.42);
-      osc.connect(gain).connect(out);
-      osc.start(t0 + delay);
-      osc.stop(t0 + delay + 0.45);
-    });
-    mic.echoUntil = Math.max(mic.echoUntil || 0, performance.now() + 700);
-  }
 
   function onAudioStateChange() {
     if (!soundIsAwake()) return;
@@ -3814,8 +3898,16 @@
     els.choiceNewBtn.addEventListener('click', () => { closeDialog(els.editChoiceDialog); setSidebar(false); openEditor(null); });
     els.choiceDraftsBtn.addEventListener('click', () => { closeDialog(els.editChoiceDialog); openDrafts(); });
     els.waitStyleSelect.addEventListener('change', () => {
-      setWaitStyle(els.waitStyleSelect.value);
-      showToast(`Wait for note: ${els.waitStyleSelect.selectedOptions[0].text}.`, 'success');
+      // One dropdown: "Don't wait for note" or one of the three ways of waiting.
+      const choice = els.waitStyleSelect.value;
+      if (choice === 'off') {
+        setWaitOn(false);
+        showToast("Don't wait for note: the song plays on while you play along.", 'success');
+        return;
+      }
+      setWaitStyle(choice);
+      setWaitOn(true);
+      showToast(`${els.waitStyleSelect.selectedOptions[0].text}.`, 'success');
     });
     els.stageWaitBtn.addEventListener('click', cycleStageWait);
     els.stageMicBtn.addEventListener('click', () => els.micBtn.click());
@@ -4104,6 +4196,8 @@
       els.fullscreenBtn.classList.toggle('active', on);
       els.fullscreenBtn.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
       els.fullscreenBtn.title = on ? 'Leave full screen' : 'Full screen: hide the system bars';
+      const fsLabel = els.fullscreenBtn.querySelector('.fs-label');
+      if (fsLabel) fsLabel.textContent = on ? 'Exit full screen' : 'Full screen';
       setTimeout(fitPhoneStage, 120);
     };
     els.fullscreenBtn.addEventListener('click', () => {
@@ -4161,7 +4255,7 @@
       const card = document.createElement('button');
       card.type = 'button';
       card.className = `album-card${state.song && song.id === state.song.id ? ' selected' : ''}`;
-      card.innerHTML = `${songCoverMarkup(song)}<span class="album-copy"><span class="album-title-row"><strong>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span><small>${song.bpm} BPM · ${parsed.itemCount} strokes</small><span class="album-source">${escapeHtml(song.artist || 'Community gallery')}</span></span>`;
+      card.innerHTML = `${songCoverMarkup(song)}<span class="album-copy"><span class="album-title-row"><strong>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span><small>${song.bpm} BPM · ${parsed.itemCount} strokes</small><span class="album-source">${escapeHtml(song.artist || 'Community gallery')}</span>${song.about ? `<span class="album-about">${escapeHtml(song.about)}</span>` : ''}</span>`;
       card.addEventListener('click', () => { selectSong(song.id, { closeSidebar: true }); els.songLibraryDialog.close(); });
       els.libraryGrid.appendChild(card);
     });
@@ -4582,6 +4676,7 @@
       if (!song) throw new Error('missing title or strokes');
       state.mySongs.push(song);
       saveMySongs();
+      if (els.editorDialog.open) closeDialog(els.editorDialog);
       selectSong(song.id);
       showToast(`Imported “${song.title}”.`, 'success');
     } catch (error) {
@@ -4844,6 +4939,7 @@
   function placeTape(layout, width, height) {
     const show = tapeWanted();
     tape.visible = show;
+    placeProgressInTape(show && document.body.classList.contains('wide-fit'));
     els.noteTape.hidden = !show;
     if (!show) return;
     const tapeH = width <= 760 ? 46 : 52;
@@ -4880,20 +4976,17 @@
       drum.scale = drum.drumSize / STAGE_DRUM_BASE;
       return;
     }
-    if (document.body.classList.contains('tablet-fit')) {
-      // Tablets: the handpan grows into the stage that now fills the screen.
-      const top = 56;
-      const room = maxBottom - top;
-      drum.drumSize = Math.max(170, Math.min(Math.max(drum.drumSize, Math.min(width * 0.62, 600)), (room - 8) / (0.53 + ext)));
-      drum.cy = top + drum.drumSize * 0.53 + Math.max(0, (room - drum.drumSize * (0.53 + ext)) / 2);
-      drum.scale = drum.drumSize / STAGE_DRUM_BASE;
-      return;
-    }
-    if (drum.cy + drum.drumSize * ext > maxBottom) {
-      drum.drumSize = Math.max(170, Math.min(drum.drumSize, (maxBottom - topReserve) / (ext * 2)));
-      drum.cy = maxBottom - drum.drumSize * ext;
-      drum.scale = drum.drumSize / STAGE_DRUM_BASE;
-    }
+    // Tablets and computers: the same room above and below the handpan for the notes
+    // flying in. The Wait for note banner keeps the top 60 px.
+    const minTop = 60;
+    const free = maxBottom - 12;
+    const grown = document.body.classList.contains('tablet-fit') ? Math.max(drum.drumSize, Math.min(width * 0.62, 600)) : drum.drumSize;
+    const margin = Math.max(20, free * 0.08);
+    drum.drumSize = Math.max(170, Math.min(grown, (free - 2 * margin) / (0.53 + ext), (maxBottom - minTop - 6) / (0.53 + ext)));
+    const span = drum.drumSize * (0.53 + ext);
+    const spanTop = Math.max(minTop, 12 + (free - span) / 2);
+    drum.cy = spanTop + drum.drumSize * 0.53;
+    drum.scale = drum.drumSize / STAGE_DRUM_BASE;
   }
 
   function firstTapeIndexAt(beat) {
@@ -5180,7 +5273,8 @@
       tour.steps = TOUR_STEPS.filter(step => step.sidebar || elementVisible(tourTarget(step)));
       renderTourStep();
     }));
-    startPlayback().then(() => {
+    tour.token = (tour.token || 0) + 1;
+    startPlayback({ fromTour: tour.token }).then(() => {
       if (tour.active) els.tourSoundBtn.hidden = state.clock === 'audio';
     }).catch(() => {});
     setTimeout(() => els.tourNextBtn.focus(), 60);
@@ -5454,6 +5548,7 @@
   }
 
   function setFocusMode(enabled) {
+    if (!enabled) leaveFocusFullscreen();
     state.focusMode = Boolean(enabled) && window.innerWidth <= 1100;
     document.body.classList.toggle('focus-mode', state.focusMode);
     els.focusModeBtn.classList.toggle('active', state.focusMode);
@@ -5506,8 +5601,12 @@
   function fitPhoneStage() {
     const stage = els.noteStage;
     const tablet = isTablet() && !state.focusMode;
+    const desktop = !tablet && isDesktopFit() && !state.focusMode;
     document.body.classList.toggle('tablet-fit', tablet);
-    if (tablet) { fitTabletStage(); return; }
+    document.body.classList.toggle('desktop-fit', desktop);
+    document.body.classList.toggle('wide-fit', tablet || desktop);
+    placeProgressInTape((tablet || desktop) && tapeWanted());
+    if (tablet || desktop) { fitTabletStage(); return; }
     if (!isPhone() || state.focusMode) {
       stage.style.height = '';
       stage.style.minHeight = '';
@@ -5572,18 +5671,20 @@
       if (button) selectSong(button.dataset.songId, { closeSidebar: true });
     });
     els.songSearch.addEventListener('input', () => { state.search = els.songSearch.value; renderSongList(); });
-    els.newSongBtn.addEventListener('click', () => { setSidebar(false); openEditor(null); });
+    els.newSongBtn?.addEventListener('click', () => { setSidebar(false); openEditor(null); });
     els.importBtn.addEventListener('click', () => els.importFile.click());
     els.importFile.addEventListener('change', () => importSongFile(els.importFile.files[0]));
     els.exportBtn.addEventListener('click', exportSong);
     els.deleteBtn.addEventListener('click', () => state.song && deleteSong(state.song.id));
-    els.editBtn.addEventListener('click', () => (narrowPhone() ? openEditChoice() : openEditor(state.song)));
+    els.editBtn.addEventListener('click', openEditChoice);
+    els.editorGuideBtn?.addEventListener('click', () => openDialog(els.helpDialog));
     els.settingsBtn.addEventListener('click', openSettings);
     els.helpBtn.addEventListener('click', () => openDialog(els.helpDialog));
     bindHints();
     bindFullscreen();
     bindCommunity();
     bindDraftsAndChooser();
+    bindViewModeBtn();
     els.soundWakeBtn.addEventListener('click', wakeSound);
     // Any first touch, click or key wakes the sound and hides the invitation.
     const firstGesture = () => {
@@ -5683,9 +5784,9 @@
     });
     els.guideBtn.addEventListener('click', () => {
       if (state.mode === 'wait') {
-        // In Wait for note the speaker switches between "Hear it first" and quiet.
-        setWaitStyle(state.waitStyle === 'hear' ? 'quiet' : 'hear');
-        showToast(state.waitStyle === 'hear' ? 'Hear it first: the app plays each note, then waits for you.' : 'Quiet: the app waits for your note in silence.', 'success');
+        // In Wait for note the speaker switches Play Note on (and back to Game Mode).
+        setWaitStyle(state.waitStyle === 'hear' ? 'game' : 'hear');
+        showToast(state.waitStyle === 'hear' ? 'Play Note: the app plays each note, then waits for you.' : 'Game Mode: a happy chime for every right note.', 'success');
         return;
       }
       state.guide = !state.guide;
@@ -5695,9 +5796,12 @@
     });
     els.countInToggle.checked = state.countIn;
     els.countInToggle.addEventListener('change', () => { state.countIn = els.countInToggle.checked; savePrefs(); });
-    els.micBtn.addEventListener('click', () => toggleMic());
+    els.micBtn.addEventListener('click', () => toggleMic().then(() => {
+      if (mic.on && state.mode !== 'tuner' && !COMMON.micCheckSeen(MIC_CHECK_KEY)) openMicCheckDialog();
+    }));
 
     els.speedSelect.addEventListener('change', () => setSpeed(els.speedSelect.value));
+    els.progress.addEventListener('input', syncProgressFill);
 
     els.progress.addEventListener('pointerdown', () => { state.dragProgress = true; });
     els.progress.addEventListener('input', () => {
@@ -5767,6 +5871,14 @@
 
     // Results
     els.resultReplayBtn.addEventListener('click', () => { closeDialog(els.resultDialog); resetRun(0); startPlayback(); });
+    els.resultFasterBtn.addEventListener('click', () => {
+      const next = Number(els.resultFasterBtn.dataset.speed);
+      closeDialog(els.resultDialog);
+      if (next) setSpeed(next, true);
+      resetRun(0);
+      startPlayback();
+    });
+    els.micCheckBtn?.addEventListener('click', () => { closeDialog(els.settingsDialog); openMicCheckDialog(); });
     els.resultSlowerBtn.addEventListener('click', () => {
       closeDialog(els.resultDialog);
       setSpeed(Math.max(MIN_SPEED, state.speed - 0.1), true);

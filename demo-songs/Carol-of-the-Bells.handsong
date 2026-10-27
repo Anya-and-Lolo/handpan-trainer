@@ -2,11 +2,12 @@
   "format": "ethereal-handpan-song-v1",
   "song": {
     "title": "Carol of the Bells",
-    "artist": "Leontovych · 1916 · the winter bells",
+    "artist": "Leontovych · 1916",
     "bpm": 120,
     "beatsPerBar": 3,
     "scale": "D Kurd",
     "sequence": "# The four-note bell ostinato: F E F D\n6L 5R:0.5 6L:0.5 4L | 6L 5R:0.5 6L:0.5 4L | 6L 5R:0.5 6L:0.5 4L | 6L 5R:0.5 6L:0.5 4L |\n# The bass walks down under it: D C Bb A\nDR+6L 5R:0.5 6L:0.5 4L | 3R+6L 5R:0.5 6L:0.5 4L | 2R+6L 5R:0.5 6L:0.5 4L | 1R+6L 5R:0.5 6L:0.5 4L |\nDR+6L 5R:0.5 6L:0.5 4L | 3R+6L 5R:0.5 6L:0.5 4L | 2R+6L 5R:0.5 6L:0.5 4L | 1R+6L 5R:0.5 6L:0.5 4L |\n# Last bells\nDR+6L 5R:0.5 6L:0.5 4L | 6L 5R:0.5 6L:0.5 4L | DR+4L - - |",
-    "order": 3
+    "order": 3,
+    "about": "The winter bells, ringing round and round"
   }
 }
