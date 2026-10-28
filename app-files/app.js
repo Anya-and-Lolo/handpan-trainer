@@ -85,12 +85,14 @@
     'soundWakeBtn', 'hintPop', 'fullscreenBtn',
     'waitStyleSelect', 'stagePracticeChips', 'stageWaitBtn', 'stageMicBtn', 'draftNotice', 'draftNoticeText', 'discardDraftBtn', 'allDraftsBtn',
     'draftsDialog', 'draftsList', 'draftsEmpty', 'editChoiceDialog', 'choiceEditBtn', 'choiceEditNote', 'choiceNewBtn', 'choiceDraftsBtn',
-    'editorGuideBtn', 'resultBest', 'resultFasterBtn', 'micCheckBtn'
+    'editorGuideBtn', 'resultBest', 'resultFasterBtn', 'micCheckBtn', 'resultSmartBtn', 'resultHistory', 'resultTake', 'resultToday', 'resultDrillBtn', 'recChipBtn', 'takeChipBtn', 'deleteProgressBtn', 'hapticsToggle', 'saveProgressBtn', 'loadProgressBtn', 'progressFile', 'shareSongBtn'
   ].forEach(id => { els[id] = $(id); });
 
   // Shared with the other Ethereal trainers: app-files/ethereal-common.js.
   const COMMON = window.EtherealCommon;
-  const BEST = COMMON.createBestStore('ethereal-handpan-best-v1');
+  const BEST = COMMON.createBestStore('ethereal-handpan-best-v1', { historyKey: 'ethereal-handpan-history-v1' });
+  const HAPTICS_KEY = 'ethereal-handpan-haptics-v1';
+  const PROGRESS_KEYS = { best: 'ethereal-handpan-best-v1', history: 'ethereal-handpan-history-v1', startHere: 'ethereal-handpan-start-here-v1' };
   const MIC_CHECK_KEY = 'ethereal-handpan-mic-check-v1';
 
   /* ------------------------------------------------------------------ */
@@ -1042,6 +1044,13 @@
   }
 
   function selectSong(id, options = {}) {
+    if (JOURNEY && !JOURNEY.isSongOpen(id)) {
+      if (state.song && state.song.id !== id && JOURNEY.isSongOpen(state.song.id)) {
+        showToast('That song is still locked. Reach it on the Song path.', 'warning');
+        return;
+      }
+      id = JOURNEY.fallbackSong();
+    }
     const song = findSong(id) || state.demoSongs[0] || state.mySongs[0];
     if (!song) return;
     stopPlayback(false);
@@ -1051,6 +1060,7 @@
     state.loopA = null;
     state.loopB = null;
     state.abLoop = false;
+    SMART?.stop();
     resetRun(0);
     rebuildLanes();
     renderDrums();
@@ -1124,10 +1134,14 @@
         <div class="song-group-items">${items || `<p class="community-empty">${emptyText}</p>`}</div>
       </section>`;
     };
-    els.songList.innerHTML = group('Demo songs', state.demoSongs, query ? 'No demo songs match that search.' : 'Drop .handsong files into demo-songs.', 'demo-collection')
+    const openDemos = JOURNEY ? state.demoSongs.filter(song => JOURNEY.isSongOpen(song.id)) : state.demoSongs;
+    els.songList.innerHTML = group('Demo songs', openDemos, query ? 'No demo songs match that search.' : 'Drop .handsong files into demo-songs.', 'demo-collection')
       + group('My songs', state.mySongs, query ? 'No My songs match that search.' : 'Create or import a song and it will appear here.', 'community-collection personal-collection');
+    if (JOURNEY) addJourneyLockedRow(state.demoSongs.map(song => song.id), query);
     const startHere = query ? null : startHereCard();
     if (startHere) els.songList.prepend(startHere);
+    const today = query || !PRACTICE ? null : COMMON.todayCard({ log: PRACTICE, onPath: openSongPathDialog, onDrills: openDrillsDialog });
+    if (today) els.songList.prepend(today);
     els.deleteBtn.disabled = !(state.song && state.song.folder === 'mine');
   }
 
@@ -1633,6 +1647,7 @@
   }
 
   function restartSection() {
+    if (SMART?.active && smartLoopPass() === 'done') return;
     clearResultsFrom(state.loopA, state.loopB);
     cancelScheduledAudio();
     const preroll = Math.min(state.loopA, state.parsed.spb);
@@ -1704,6 +1719,7 @@
 
   function userHit(padId, source = 'tap') {
     if (!state.padMap.has(padId)) return;
+    if (source === 'tap') COMMON.haptic(HAPTICS_KEY);
     if (source !== 'mic') {
       ensureAudio().then(() => playPad(padId, 0, 1)).catch(() => {});
       // The phone's own speaker plays this note; the microphone must not count it again.
@@ -2074,6 +2090,7 @@
   }
 
   function clearABLoop() {
+    SMART?.stop();
     state.loopA = null;
     state.loopB = null;
     state.abLoop = false;
@@ -2082,6 +2099,7 @@
 
   function toggleABLoop() {
     if (state.loopA == null || state.loopB == null) return;
+    SMART?.stop();
     state.abLoop = !state.abLoop;
     if (state.abLoop) {
       state.loop = false;
@@ -2302,9 +2320,8 @@
   function radialGeometry(width, height) {
     let drumSize;
     if (width <= 760) {
-      const mobileFloor = Math.min(290, Math.max(250, width - 20));
-      const mobileTarget = Math.min(360, width * 0.54, height * 0.68);
-      drumSize = Math.max(mobileFloor, mobileTarget);
+      // Room on both sides, so the notes can be seen flying in from the edges.
+      drumSize = Math.max(200, Math.min(width * 0.78, height * 0.62, 340));
     } else if (width <= 1100) {
       const tabletFloor = Math.min(320, Math.max(280, width - 28));
       const tabletTarget = Math.min(400, width * 0.42, height * 0.64);
@@ -2340,10 +2357,11 @@
       const hasBottoms = state.pads.some(pad => pad.kind === 'bottom');
       const extent = hasBottoms ? 1.28 : 1.08;
       const drumSize = Math.max(160, Math.min(width - 60, height * 0.31, 300));
-      const cy = height - (window.innerWidth <= 760 ? 70 : 10) - drumSize * extent / 2;
+      const reserve = window.innerWidth > 760 ? 10 : document.body.classList.contains('focus-mode') ? 54 : 70;
+      const cy = height - reserve - drumSize * extent / 2;
       // "Left hand" / "Right hand" go beside the drum when there is room, else above it.
       const sideLegend = width / 2 - drumSize * extent * 0.42 >= 70;
-      layout.lanesBottom = Math.round(cy - drumSize * extent / 2 - (sideLegend ? 4 : 34));
+      layout.lanesBottom = Math.round(cy - drumSize * extent / 2 + (sideLegend ? 4 : -26));
       layout.drum = { drumSize, scale: drumSize / STAGE_DRUM_BASE, cx: width / 2, cy, sideLegend, extent };
     }
     placeTape(layout, width, height);
@@ -2773,9 +2791,12 @@
     const backdropKind = state.view === 'radial' ? 'radial' : withDrum ? 'lanes-drum' : 'lanes';
     if (backdropKind === 'lanes') {
       const lane = laneGuideLayer(width, height);
-      if (state.backdropMode !== 'lanes' || lane.fresh) {
+      if (state.backdropMode !== 'lanes' || lane.fresh || !state.lastBackdropAt || !backdropInterval || nowMs - state.lastBackdropAt >= backdropInterval) {
+        const backdropDelta = Math.min(0.12, Math.max(0, (nowMs - (state.lastBackdropAt || nowMs)) / 1000));
         backCtx.clearRect(0, 0, width, height);
         backCtx.drawImage(lane.canvas, 0, 0, lane.canvas.width, lane.canvas.height, 0, 0, width, height);
+        drawStars(backCtx, width, height, now, backdropDelta || delta);
+        state.lastBackdropAt = nowMs;
       }
     } else if (state.backdropMode !== backdropKind || !state.lastBackdropAt || !backdropInterval || nowMs - state.lastBackdropAt >= backdropInterval) {
       const backdropDelta = Math.min(0.12, Math.max(0, (nowMs - (state.lastBackdropAt || nowMs)) / 1000));
@@ -2985,7 +3006,7 @@
     const laneW = w / Math.max(1, lanes.length);
     const centers = new Map();
     lanes.forEach((pad, i) => centers.set(pad.id, laneW * (i + 0.5)));
-    const hitY = phoneLanes ? lanesBottom - 26 : h - 52;
+    const hitY = phoneLanes ? lanesBottom - 22 : h - 52;
     return { laneW, centers, top: lanesTop, hitY };
   }
 
@@ -3285,7 +3306,7 @@
     els.micChipBtn.classList.toggle('active', mic.on);
     els.micChipBtn.setAttribute('aria-pressed', String(mic.on));
     if (els.stageMicBtn) {
-      els.stageMicBtn.lastElementChild.textContent = `Mic ${mic.on ? 'on' : 'off'}`;
+      els.stageMicBtn.lastElementChild.textContent = mic.on ? 'On' : 'Off';
       els.stageMicBtn.classList.toggle('active', mic.on);
       els.stageMicBtn.setAttribute('aria-pressed', String(mic.on));
     }
@@ -3583,6 +3604,230 @@
   /* Results                                                             */
   /* ------------------------------------------------------------------ */
 
+
+  /* Smart loop for mistakes: the trickiest bar, slower first, faster with every clean pass. */
+  var SMART = COMMON.createSmartLoop({
+    setSpeed: value => setSpeed(value, false),
+    toast: message => showToast(message, 'success'),
+    chime: () => playChime(),
+    onMastered: speed => {
+      state.abLoop = false;
+      pausePlayback();
+      updateABLoopUI();
+      updateTransportUI();
+      showToast(`Smart loop done: clean at ${COMMON.speedLabel(speed)}! Now play the whole song.`, 'success');
+    }
+  });
+
+  function smartLoopPass() {
+    if (state.mode !== 'practice' || !state.abLoop || state.loopA == null || state.loopB == null) { SMART.stop(); return null; }
+    let total = 0;
+    let hits = 0;
+    state.parsed.events.forEach(event => {
+      if (event.time < state.loopA - 1e-6 || event.time >= state.loopB - 1e-6) return;
+      event.items.forEach(item => {
+        if (item.missing) return;
+        total += 1;
+        if (isHitResult(state.results.get(item.id))) hits += 1;
+      });
+    });
+    return SMART.pass(total, hits);
+  }
+
+  function startSmartLoop() {
+    const parsed = state.parsed;
+    if (!parsed) return;
+    const missTimes = [];
+    state.results.forEach((value, id) => {
+      if (value !== 'miss') return;
+      const event = parsed.events[Number(id.split(':')[0])];
+      if (event) missTimes.push(event.time);
+    });
+    const totalBeats = parsed.duration / parsed.spb;
+    const barBeats = parsed.bars.length > 1
+      ? parsed.bars
+      : Array.from({ length: Math.ceil(totalBeats / parsed.beatsPerBar) }, (_, index) => index * parsed.beatsPerBar);
+    const section = COMMON.worstSection(missTimes, barBeats.map(beat => beat * parsed.spb), parsed.duration);
+    if (!section) { showToast('No mistakes to practise. Lovely!', 'success'); return; }
+    closeDialog(els.resultDialog);
+    const target = state.speed;
+    if (state.mode !== 'practice') setMode('practice');
+    state.loop = false;
+    state.loopA = section.from;
+    state.loopB = Math.min(parsed.duration, section.to);
+    state.abLoop = true;
+    updateABLoopUI();
+    resetRun(0);
+    SMART.start(COMMON.smartLoopSpeeds(target), section.firstBar === section.lastBar ? `bar ${section.firstBar}` : `bars ${section.firstBar}–${section.lastBar}`);
+    startPlayback();
+  }
+
+
+  /* ---------- Daily goal, song path, rhythm drills, takes, cloud saves ---------- */
+  var PRACTICE = COMMON.createPracticeLog({
+    storageKey: 'ethereal-handpan-practice-v1',
+    isActive: () => state.playing && state.mode !== 'tuner',
+    onGoal: streak => {
+      playChime();
+      showToast(`Daily goal reached! ${streak} ${streak === 1 ? 'day' : 'days'} in a row.`, 'success');
+    }
+  });
+  PROGRESS_KEYS.practice = 'ethereal-handpan-practice-v1';
+
+  var CLOUD = COMMON.createCloud({
+    app: 'ethereal-handpan',
+    appName: 'Ethereal Handpan',
+    keys: PROGRESS_KEYS,
+    stats: () => COMMON.progressStats(PROGRESS_KEYS, PRACTICE),
+    onMerged: () => { BEST.reload(); PRACTICE.reload(); renderSongList(); },
+    toast: message => showToast(message, 'success')
+  });
+  BEST.onChange = () => CLOUD.changed();
+  PRACTICE.onUpdate(() => CLOUD.changed());
+
+  var REC = COMMON.createTakeRecorder({
+    getContext: () => audio.ctx,
+    getOutput: () => audio.master,
+    getMicStream: () => mic.stream,
+    ensureMic: async () => { if (!(mic.on)) await startMic(); return Boolean(mic.on); },
+    isPlaying: () => state.playing && state.mode !== 'tuner',
+    onTake: take => {
+      els.resultTake.innerHTML = COMMON.takeHtml(take, state.song?.title);
+      els.resultTake.hidden = false;
+      if (!els.resultDialog.open) showToast('Your take is ready: tap ▶ Take to listen.', 'success');
+    }
+  });
+
+  function openDrillsDialog() {
+    COMMON.openDrills({ onStart: drill => { JOURNEY.activeDrill = null; loadDrill(drill); } });
+  }
+
+  function progressFileSave() {
+    COMMON.exportProgress({ app: 'ethereal-handpan', keys: PROGRESS_KEYS, fileName: 'ethereal-handpan-progress' });
+    showToast('Progress saved to a file. Load it on your other device.', 'success');
+  }
+
+  function clearLocalProgress() {
+    Object.values(PROGRESS_KEYS).forEach(key => { try { localStorage.removeItem(key); } catch {} });
+    BEST.reload();
+    PRACTICE.reload();
+    renderSongList();
+  }
+
+  const DRILL_ID = 'my-rhythm-drill';
+
+  // A drill in handpan notation: the ding, hands taking turns.
+  function drillSequence(bars) {
+    let hand = 'R';
+    const length = d => (Math.abs(d - 1) < 1e-6 ? '' : Math.abs(d - 1 / 3) < 1e-3 ? ':1/3' : `:${Number(d.toFixed(3))}`);
+    return bars.map(events => events.map(event => {
+      if (event.rest) return `-${length(event.d)}`;
+      hand = hand === 'R' ? 'L' : 'R';
+      return `D${hand}${length(event.d)}`;
+    }).join(' ')).join(' | ');
+  }
+
+  function loadDrill(drill) {
+    const song = normaliseSong({ id: DRILL_ID, title: 'Rhythm drill', about: 'A new random rhythm to read and play', bpm: drill.bpm, beatsPerBar: 4, sequence: drillSequence(drill.bars) }, 'mine');
+    if (!song) return;
+    const index = state.mySongs.findIndex(item => item.id === DRILL_ID);
+    if (index >= 0) state.mySongs[index] = song; else state.mySongs.push(song);
+    saveMySongs();
+    setSidebar(false);
+    closeDialog(els.resultDialog);
+    selectSong(DRILL_ID);
+    state.waitPref = false;
+    setMode('practice');
+    renderSongList();
+    showToast('Read the rhythm, then press Play and play along.', 'success');
+  }
+
+
+  /* ---------- Reach the stars: the song journey ---------- */
+  const S_ = (id, title, level) => ({ type: 'song', id, title, level });
+  const D_ = (level, bpm, bars = 2) => ({ type: 'drill', level, bpm, bars, title: 'Rhythm drill', levelName: ['', 'Beginner', 'Steady', 'Advanced'][level] });
+  const JOURNEY_PATHS = [
+    { id: 'p1', name: 'First Light', nodes: [S_('demo-easy-first-steps', 'First steps', 'easy'), S_('demo-mary-had-a-little-lamb', 'Mary Had a Little Lamb', 'easy'), D_(1, 70), S_('demo-jingle-bells', 'Jingle Bells', 'easy'), D_(1, 80), S_('demo-kurd-warm-up', 'Kurd scale warm-up', 'medium')] },
+    { id: 'p2', name: 'Moonrise', nodes: [S_('demo-interstellar', 'Interstellar', 'medium'), D_(2, 70), S_('demo-minecraft', 'Minecraft Menu', 'medium'), S_('demo-beethoven-5-fate', 'Symphony No. 5 · Fate motif', 'medium'), D_(2, 80), S_('demo-groove-d-t-k-s', 'Space Tribal', 'medium')] },
+    { id: 'p3', name: 'Reach the Stars', nodes: [D_(2, 90), S_('demo-groove-3-heartbeat', 'Heartbeat groove', 'hard'), D_(3, 70), S_('demo-carol-of-the-bells', 'Carol of the Bells', 'hard'), D_(3, 80, 4)] }
+  ];
+  var JOURNEY = COMMON.createJourney({ app: 'ethereal-handpan', paths: JOURNEY_PATHS, best: BEST });
+  PROGRESS_KEYS.journey = JOURNEY.key;
+  let journeyMark = JOURNEY.current()?.key || '';
+
+  // A drill played from the journey counts for its node; a new node opening is news.
+  BEST.onRecorded = (id, run) => {
+    if (id === DRILL_ID) JOURNEY.recordDrill(COMMON.starsFor(run.accuracy, run.speed));
+    const now = JOURNEY.current();
+    if (now && now.key !== journeyMark) {
+      journeyMark = now.key;
+      renderSongList();
+      setTimeout(() => showToast(`✨ New on your journey: ${now.title}`, 'success'), 1200);
+    }
+  };
+
+  function playJourneyNode(node) {
+    setSidebar(false);
+    if (node.type === 'drill') {
+      loadDrill({ level: node.level, bpm: node.bpm, bars: COMMON.generateRhythm({ level: node.level, bars: node.bars }) });
+      JOURNEY.activeDrill = node.key;
+      return;
+    }
+    JOURNEY.activeDrill = null;
+    selectSong(node.id);
+    state.waitPref = false;
+    setMode('practice');
+    startPlayback();
+  }
+
+  function startJourneyOver() {
+    [PROGRESS_KEYS.best, PROGRESS_KEYS.history, PROGRESS_KEYS.journey].forEach(key => { try { localStorage.removeItem(key); } catch {} });
+    BEST.reload();
+    JOURNEY.reload();
+    journeyMark = JOURNEY.current()?.key || '';
+    selectSong(JOURNEY.fallbackSong());
+    renderSongList();
+    if (CLOUD.connected) CLOUD.push().catch(() => {});
+  }
+
+  function openSongPathDialog() {
+    JOURNEY.nodes.forEach(node => {
+      if (node.type !== 'song') return;
+      const song = findSong(node.id);
+      if (song) { node.title = song.title; node.level = songDifficulty(parseSong(song)).level; }
+    });
+    COMMON.openJourney({ journey: JOURNEY, onPlay: playJourneyNode, onStartOver: startJourneyOver, toast: message => showToast(message, 'success') });
+  }
+
+  // The journey's locked songs, as one row under the demo songs.
+  function addJourneyLockedRow(ids, query) {
+    if (query) return;
+    const count = JOURNEY.lockedSongCount(ids);
+    const group = els.songList.querySelector('.demo-collection');
+    if (count && group) group.appendChild(COMMON.journeyLockedRow({ count, onOpen: () => { setSidebar(false); openSongPathDialog(); } }));
+  }
+
+  /* Send the song as a link; a link that opens the app adds its song. */
+  async function shareSong() {
+    const song = state.song;
+    if (!song) return;
+    const chooser = document.getElementById('editChoiceDialog');
+    if (chooser?.open) chooser.close();
+    const doc = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || undefined, bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence } };
+    const how = await COMMON.shareSongLink({ doc, title: song.title, appName: 'Ethereal Handpan' });
+    if (how === 'copied') showToast('Link copied. Paste it in a message to a friend.', 'success');
+  }
+
+  async function importSharedSong() {
+    const doc = await COMMON.readSharedSong();
+    if (!doc) return;
+    const raw = doc.song || doc;
+    if (doc.broken || !raw?.title) { showToast('That song link is broken or incomplete.', 'warning'); return; }
+    const same = state.mySongs.find(song => song.title === raw.title && song.sequence === raw.sequence);
+    if (same) { selectSong(same.id); showToast(`“${same.title}” is already in My songs.`, 'success'); return; }
+    await importSongFile(new File([JSON.stringify(doc)], 'shared.handsong', { type: 'application/json' }));
+  }
+
   function showResults() {
     const parsed = state.parsed;
     let perfect = 0; let good = 0; let miss = 0; let hit = 0;
@@ -3620,15 +3865,22 @@
     const missedText = [...missedPads.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, count]) => `${label}${count > 1 ? ` ×${count}` : ''}`).join(' · ');
     els.resultMistakes.textContent = state.mode === 'wait'
       ? `${state.wrong} wrong ${state.wrong === 1 ? 'stroke' : 'strokes'} · ${formatTime((performance.now() - state.runStartedAt) / 1000)} at ${formatSpeed(state.speed)}×`
-      : missedText ? `Missed most often: ${missedText}. Loop that bar with A-B.` : `Perfect ${perfect} · Good ${good} · Wrong ${state.wrong}`;
+      : missedText ? `Missed most often: ${missedText}. Smart loop practises the trickiest bar for you.` : `Perfect ${perfect} · Good ${good} · Wrong ${state.wrong}`;
     const outcome = BEST.record(state.song.id, { accuracy, speed: state.speed });
-    els.resultBest.innerHTML = outcome ? COMMON.resultBestHtml(outcome, accuracy, state.speed) : COMMON.bestHtml(BEST.get(state.song.id));
+    els.resultBest.innerHTML = outcome ? COMMON.resultBestHtml(outcome, accuracy, state.speed)
+      : COMMON.bestHtml(BEST.get(state.song.id)) || COMMON.noStarsHtml('No notes were heard this time. Turn on the microphone or tap the handpan to earn stars.');
     els.resultBest.hidden = !els.resultBest.innerHTML;
     const faster = COMMON.suggestSpeedUp(state.speed, accuracy);
     els.resultFasterBtn.hidden = !faster;
     els.resultFasterBtn.dataset.speed = faster ? String(faster) : '';
     if (faster) els.resultFasterBtn.textContent = `Try ${COMMON.speedLabel(faster)} →`;
     els.resultSlowerBtn.hidden = Boolean(faster) || accuracy >= 90;
+    els.resultSmartBtn.hidden = state.mode !== 'practice' || !miss;
+    els.resultHistory.innerHTML = COMMON.resultHistoryHtml(BEST.history.get(state.song.id));
+    els.resultHistory.hidden = !els.resultHistory.innerHTML;
+    if (!REC.recording && !REC.armed) { els.resultTake.hidden = true; els.resultTake.innerHTML = ''; }
+    els.resultToday.innerHTML = COMMON.todayLine(PRACTICE);
+    els.resultDrillBtn.hidden = state.song?.id !== DRILL_ID;
     renderSongList();
     renderRecommendedNext(state.song);
     openDialog(els.resultDialog);
@@ -3661,14 +3913,15 @@
     return COMMON.startHereCard({
       storageKey: 'ethereal-handpan-start-here-v1',
       steps: [
-        { title: 'Listen first', text: 'Hear “First steps” and watch where each note lands.' },
-        { title: 'Play along: the song waits for you', text: '“First steps” with Wait · Game Mode.' },
-        { title: 'Your first tune', text: 'Mary Had a Little Lamb at 0.75× speed.' }
+        { title: 'Listen first', text: 'Hear where each note lands.' },
+        { title: 'Play along', text: 'The first song in Wait Mode.' },
+        { title: 'Your first tune', text: 'Play “Little Lamb” at 0.5×.' }
       ],
       onStep: index => {
         setSidebar(false);
         const first = 'demo-easy-first-steps';
         const tune = 'demo-mary-had-a-little-lamb';
+        if (index === 2 && !JOURNEY.isSongOpen(tune)) { openSongPathDialog(); return; }
         if (index === 0 && findSong(first)) { selectSong(first); setMode('listen'); startPlayback(); }
         else if (index === 1 && findSong(first)) {
           selectSong(first);
@@ -3679,7 +3932,7 @@
         } else if (index === 2 && findSong(tune)) {
           selectSong(tune);
           state.waitPref = false;
-          setSpeed(0.75, true);
+          setSpeed(0.5, true);
           setMode('practice');
           savePrefs();
           startPlayback();
@@ -3707,7 +3960,10 @@
     if (els.waitStyleSelect) els.waitStyleSelect.value = state.mode === 'wait' ? state.waitStyle : 'off';
     if (!els.stageWaitBtn) return;
     const waiting = state.mode === 'wait';
-    els.stageWaitBtn.textContent = waiting ? `Wait: ${WAIT_STYLE_LABELS[state.waitStyle]}` : 'Wait: off';
+    const tileValue = els.stageWaitBtn.querySelector('b');
+    if (tileValue) tileValue.textContent = waiting ? ({ game: 'Game', hear: 'Play note', quiet: 'Silent' }[state.waitStyle] || 'On') : 'Off';
+    const stageSelect = document.getElementById('stageWaitSelect');
+    if (stageSelect) stageSelect.value = waiting ? state.waitStyle : 'off';
     els.stageWaitBtn.classList.toggle('active', waiting);
     els.stageWaitBtn.setAttribute('aria-pressed', String(waiting));
   }
@@ -3909,8 +4165,16 @@
       setWaitOn(true);
       showToast(`${els.waitStyleSelect.selectedOptions[0].text}.`, 'success');
     });
-    els.stageWaitBtn.addEventListener('click', cycleStageWait);
+    document.getElementById('stageWaitSelect')?.addEventListener('change', event => {
+      els.waitStyleSelect.value = event.target.value;
+      els.waitStyleSelect.dispatchEvent(new Event('change'));
+    });
     els.stageMicBtn.addEventListener('click', () => els.micBtn.click());
+    // Export and Delete sit in the "Edit song" chooser: close it once they are used.
+    [els.exportBtn, els.deleteBtn, els.restoreDemosBtn].forEach(button => button?.addEventListener('click', () => {
+      const chooser = document.getElementById('editChoiceDialog');
+      if (chooser?.open) chooser.close();
+    }));
     syncWaitControls();
   }
 
@@ -5471,7 +5735,7 @@
     const order = { easy: 0, medium: 1, hard: 2, expert: 3 };
     const currentLevel = songDifficulty(parseSong(current)).level;
     const currentNotes = songNoteSet(current);
-    return allSongs().filter(song => song && song.id !== current.id).map(song => {
+    return allSongs().filter(song => song && song.id !== current.id && JOURNEY.isSongOpen(song.id)).map(song => {
       const difficulty = songDifficulty(parseSong(song));
       const notes = songNoteSet(song);
       const intersection = [...currentNotes].filter(note => notes.has(note)).length;
@@ -5871,6 +6135,38 @@
 
     // Results
     els.resultReplayBtn.addEventListener('click', () => { closeDialog(els.resultDialog); resetRun(0); startPlayback(); });
+    els.resultSmartBtn.addEventListener('click', startSmartLoop);
+    els.shareSongBtn?.addEventListener('click', () => { shareSong().catch(() => showToast('Could not make the link.', 'warning')); });
+    COMMON.bindHapticsToggle(els.hapticsToggle, HAPTICS_KEY);
+    COMMON.bindHistoryBadges({ store: BEST, title: id => findSong(id)?.title });
+    els.saveProgressBtn?.addEventListener('click', () => COMMON.openSaveProgress({
+      cloud: CLOUD, appName: 'Ethereal Handpan', onFileSave: progressFileSave, onFileLoad: () => els.progressFile.click(), toast: message => showToast(message, 'success')
+    }));
+    els.deleteProgressBtn?.addEventListener('click', () => COMMON.openDeleteProgress({ cloud: CLOUD, clearLocal: clearLocalProgress, toast: message => showToast(message, 'success') }));
+    COMMON.bindRecChips({ rec: REC, recBtn: els.recChipBtn, takeBtn: els.takeChipBtn, toast: message => showToast(message, 'success') });
+    els.resultDrillBtn?.addEventListener('click', () => { const node = JOURNEY.nodes.find(item => item.key === JOURNEY.activeDrill); if (node) playJourneyNode(node); else loadDrill(COMMON.nextDrill()); });
+    els.loadProgressBtn?.addEventListener('click', () => els.progressFile.click());
+    els.progressFile?.addEventListener('change', async () => {
+      const file = els.progressFile.files[0];
+      els.progressFile.value = '';
+      if (!file) return;
+      try {
+        const { songs } = await COMMON.importProgress(file, { app: 'ethereal-handpan', keys: PROGRESS_KEYS });
+        BEST.reload();
+        PRACTICE.reload();
+        renderSongList();
+        CLOUD.changed();
+        showToast(`Progress loaded: ${songs} ${songs === 1 ? 'song' : 'songs'}.`, 'success');
+      } catch (error) {
+        showToast(error.message || 'That is not a progress file.', 'warning');
+      }
+    });
+    {
+      const help = document.querySelector('#helpDialog .help-content');
+      if (help) COMMON.tabify(help, ['Strokes', 'Hands', 'Rhythm', 'App', 'Writing'].map(label => ({ label, items: [...help.querySelectorAll(`[data-learn-tab="${label}"]`)] })));
+    }
+    window.addEventListener('load', () => setTimeout(() => importSharedSong().catch(() => {}), 700));
+    window.addEventListener('hashchange', () => importSharedSong().catch(() => {}));
     els.resultFasterBtn.addEventListener('click', () => {
       const next = Number(els.resultFasterBtn.dataset.speed);
       closeDialog(els.resultDialog);
@@ -5894,7 +6190,7 @@
     });
     els.resultNextBtn.addEventListener('click', () => {
       closeDialog(els.resultDialog);
-      const list = allSongs();
+      const list = allSongs().filter(song => JOURNEY.isSongOpen(song.id));
       const index = list.findIndex(song => song.id === state.song?.id);
       selectSong(list[(index + 1) % list.length].id);
     });

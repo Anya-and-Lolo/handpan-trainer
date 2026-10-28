@@ -56,10 +56,6 @@
 
       <div class="song-list" id="songList" aria-live="polite"></div>
 
-      <div class="sidebar-footer">
-        <button class="text-btn" id="exportBtn">Export selected song</button>
-        <button class="text-btn danger" id="deleteBtn">Delete selected song</button>
-      </div>
     </aside>
 
     <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="Close songs menu"></button>
@@ -116,7 +112,7 @@
                   <option value="quiet">Wait · Silent</option>
                 </select>
                 <button class="hint-btn wait-style-hint" type="button" data-hint="Don't wait: the song plays on and you play along. Game Mode: the song stops at each note until you play it, with a happy chime when you get it right. Play Note: the app plays each note first, then waits for you. Silent: the song waits for your note in silence." aria-label="About the Wait for note styles">?</button>
-                <button class="mic-chip" id="micChipBtn" type="button" aria-pressed="false">Mic off</button>
+                <button class="mic-chip" id="micChipBtn" type="button" aria-pressed="false">Mic off</button><button class="rec-chip" id="recChipBtn" type="button" aria-pressed="false" title="Record your take: the song and your playing"><i aria-hidden="true"></i><span>Rec</span></button><button class="take-chip" id="takeChipBtn" type="button" hidden>▶ Take</button>
               </div>
               <div class="display-control">
                 <span>Display</span>
@@ -163,8 +159,8 @@
             </div>
             <button class="speed-cycle-btn" id="speedCycleBtn" type="button" aria-label="Speed: tap to slow down" title="Tap to change the speed"><small>Speed</small><b id="speedCycleValue">1×</b></button>
             <div class="stage-practice-chips" id="stagePracticeChips" role="group" aria-label="Practice options">
-              <button class="stage-chip" id="stageWaitBtn" type="button" aria-pressed="false" title="Tap to change: off, game, play note, silent">Wait: off</button>
-              <button class="stage-chip" id="stageMicBtn" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"></rect><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0"></path><path d="M12 17v4"></path></svg><span>Mic off</span></button>
+              <label class="stage-chip stage-tile stage-wait-tile" id="stageWaitBtn" title="Wait for note"><small>Wait</small><b>Off</b><select id="stageWaitSelect" aria-label="Wait for note"><option value="off">Don't wait for note</option><option value="game">Wait · Game Mode</option><option value="hear">Wait · Play Note</option><option value="quiet">Wait · Silent</option></select></label>
+              <button class="stage-chip stage-tile" id="stageMicBtn" type="button" aria-pressed="false"><small><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"></rect><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0"></path><path d="M12 17v4"></path></svg>Mic</small><span>Off</span></button>
             </div>
             <div class="stage-judge" id="stageJudge" aria-hidden="true"></div>
             <div class="stage-overlay top-left">
@@ -424,10 +420,14 @@
           <label class="toggle-label"><input type="checkbox" id="handColorsToggle" checked /><span>Colour notes by hand (blue = left, amber = right)</span></label>
           <label class="toggle-label"><input type="checkbox" id="noteNamesToggle" /><span>Show note names (A3, Bb3…)</span></label>
           <label class="toggle-label"><input type="checkbox" id="usedLanesToggle" checked /><span>Falling lanes: only lanes used by the song</span></label>
+          <label class="toggle-label"><input type="checkbox" id="hapticsToggle" checked /><span>Vibrate when I tap the drum (haptic feedback)</span></label>
         </div>
       </div>
 
       <div class="dialog-actions">
+        <div class="progress-pair" role="group" aria-label="Your progress"><button type="button" class="soft-btn" id="saveProgressBtn">Save progress</button><button type="button" class="soft-btn" id="deleteProgressBtn">Delete progress</button></div>
+        <input id="progressFile" type="file" accept=".json,application/json" hidden />
+        <span class="dialog-actions-gap"></span>
         <button type="button" class="soft-btn" id="micCheckBtn">Microphone check</button>
         <button type="button" class="primary-btn" data-close-dialog="settingsDialog">Done</button>
       </div>
@@ -445,39 +445,68 @@
         <button type="button" class="icon-btn" data-close-dialog="helpDialog" aria-label="Close">×</button>
       </div>
       <div class="help-content">
-        <section>
-          <h3>Strokes</h3>
+        <section data-learn-tab="Strokes">
+          <h3>Notes</h3>
           <ul class="help-strokes">
-            <li><b class="hs hs-d">D</b><span><strong>Ding (Doum)</strong> — the deep bass note in the centre.</span></li>
+            <li><b class="hs hs-d">D</b><span><strong>Ding</strong> — the deep bass note in the centre.</span></li>
             <li><b class="hs">1–9</b><span><strong>Tone fields</strong> — numbered from the lowest note upwards, zig-zagging left and right.</span></li>
             <li><b class="hs">B1 B2</b><span><strong>Bottom notes</strong> (D Kurd 12) — on the underside of the shell.</span></li>
-            <li><b class="hs hs-p">T</b><span><strong>Tak / Tek</strong> — a light fingertip tap on the shell next to the ding, usually right hand.</span></li>
-            <li><b class="hs hs-p">K</b><span><strong>Ka</strong> — the same tap with the other hand, usually left.</span></li>
-            <li><b class="hs hs-p">S</b><span><strong>Slap</strong> — a sharp pop on the outer shoulder. There is one on each side: SL left hand, SR right hand.</span></li>
           </ul>
-          <p class="help-hands"><span class="dot-l"></span> Blue notes = left hand <span class="dot-r"></span> Amber notes = right hand</p>
         </section>
-        <section>
+        <section data-learn-tab="Strokes">
+          <h3>Percussion</h3>
+          <ul class="help-strokes">
+            <li><b class="hs hs-p">T</b><span><strong>Tak</strong> — a sharp fingertip tap on the shoulder of the ding, where the ding meets the shell.</span></li>
+            <li><b class="hs hs-p">K</b><span><strong>Knock</strong> — a dry knock on free metal between the notes, with a knuckle or a fingertip.</span></li>
+            <li><b class="hs hs-p">S</b><span><strong>Slap</strong> — flat fingers on free metal between two notes, a snare-like pop. It works on both sides: <b>SL</b> on the left, <b>SR</b> on the right.</span></li>
+          </ul>
+          <p class="help-note">The letters mark a <strong>zone</strong>, not one exact spot: any free metal in that area is right. In <strong>My Handpan</strong> you can drag T, K and S to where you really play them. With the microphone on, any clear percussive hit counts for T, K or S.</p>
+          <p class="help-note">Teachers don't all use the same letters (some even swap Tak and Slap). The idea is always the same: the letter tells you the kind of stroke and roughly where.</p>
+        </section>
+        <section data-learn-tab="Hands">
+          <h3>Which hand</h3>
+          <p class="help-hands"><span class="dot-l"></span> Blue = left hand <span class="dot-r"></span> Amber = right hand</p>
+          <p>Every stroke in a song has a hand, <strong>L</strong> or <strong>R</strong>, shown by its colour. These are the usual colours in handpan notation. In the song builder the small L / R under each stroke is the hand.</p>
+          <p class="help-note">The hand is a suggestion. Most handpan rhythms <strong>alternate hands</strong> (left, right, left…), which keeps fast parts easy. Each hand can play up to two notes at the same time.</p>
+          <p class="help-note">Left-handed? Turn on <strong>Mirror T and K</strong> in My Handpan.</p>
+        </section>
+        <section data-learn-tab="Rhythm">
+          <h3>Beats and bars</h3>
+          <p>Music is counted in steady <strong>beats</strong>, like tapping your foot. A <strong>bar</strong> groups a few beats, usually four. Only the number of beats per bar matters here: 4/4 is 4 beats, 3/4 is 3, and 6/8 is counted as 6.</p>
+          <h3>How long a stroke lasts</h3>
+          <p>A stroke lasts until the next one starts. Splitting a beat evenly gives the usual lengths:</p>
+          <table class="help-table"><tbody>
+            <tr><th>1 beat</th><td><code>4</code></td><td>quarter note</td></tr>
+            <tr><th>½ beat</th><td><code>4:0.5</code> or <code>4_</code></td><td>eighth note</td></tr>
+            <tr><th>⅓ beat</th><td><code>4:1/3</code></td><td>triplet</td></tr>
+            <tr><th>¼ beat</th><td><code>4:0.25</code> or <code>4=</code></td><td>sixteenth note</td></tr>
+            <tr><th>¾ beat</th><td><code>4:0.75</code></td><td>dotted eighth</td></tr>
+            <tr><th>2 beats</th><td><code>4:2</code></td><td>half note</td></tr>
+          </tbody></table>
+          <p class="help-note">A rest <code>-</code> is one beat of silence. Each beat can be split its own way (two quick strokes, then a triplet), as long as every beat adds up to one.</p>
+        </section>
+        <section data-learn-tab="App">
           <h3>Modes</h3>
           <p><strong>Listen</strong> plays the song so you can sit back and enjoy it. <strong>Practice</strong> scores every stroke from the first note (Perfect, Good, Miss). <strong>Wait for note</strong> lets the notes fly in and then stops on each one until you play it — play in time and it never stops. <strong>Tuner</strong> listens to your handpan and shows how many cents each note is from A4 = 440 Hz.</p>
-          <p>Speed goes down to <strong>0.1×</strong>. Use <kbd>[</kbd> and <kbd>]</kbd> to change it while you play.</p>
+          <p>Speed goes down to <strong>0.1×</strong>. Use <kbd>[</kbd> and <kbd>]</kbd> to change it while you play. After a run, <strong>Smart loop</strong> repeats your trickiest bar: slower first, faster each time you play it clean.</p>
         </section>
-        <section>
+        <section data-learn-tab="App">
           <h3>Song tape</h3>
           <p>Under the handpan the strokes scroll past as numbers, a little of what you just played and more of what comes next. Chords are stacked. In Practice and Wait for note each stroke turns <strong style="color:#5eead4">teal</strong> for Perfect, <strong style="color:#c4b5fd">violet</strong> for Good and <strong style="color:#fb7185">red</strong> for Miss. Press <strong>Tour</strong> to watch the demo tour again.</p>
         </section>
-        <section>
-          <h3>Keyboard</h3>
-          <p><kbd>Space</kbd> play / pause · <kbd>D</kbd> ding · <kbd>1</kbd>–<kbd>9</kbd> tone fields · <kbd>0</kbd> / <kbd>-</kbd> bottoms · <kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> strokes (<kbd>Shift</kbd>+<kbd>S</kbd> right slap) · <kbd>[</kbd> <kbd>]</kbd> speed</p>
-        </section>
-        <section>
+        <section data-learn-tab="App">
           <h3>Microphone (beta)</h3>
           <p>Turn the microphone on and play your real handpan: tone fields are recognised by pitch, and any clear percussive hit counts for T, K or S. Turn the song sound (speaker button) off or use headphones so the app does not hear itself.</p>
         </section>
-        <section>
+        <section data-learn-tab="App">
+          <h3>Keyboard</h3>
+          <p><kbd>Space</kbd> play / pause · <kbd>D</kbd> ding · <kbd>1</kbd>–<kbd>9</kbd> tone fields · <kbd>0</kbd> / <kbd>-</kbd> bottoms · <kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> strokes (<kbd>Shift</kbd>+<kbd>S</kbd> right slap) · <kbd>[</kbd> <kbd>]</kbd> speed</p>
+        </section>
+        <section data-learn-tab="Writing">
           <h3>Writing songs</h3>
           <p>In New song / Edit song your song is shown as boxes, one box per beat: a half-beat stroke takes half a box, strokes played together are stacked, and the small L / R under each stroke is the hand. Tap the handpan to add strokes, tap a box to add after it, and × to remove it.</p>
           <p>Prefer typing? <strong>Edit as text</strong> shows the same song as text: <code>4L 8R - | 4L+2R 8R -</code> — space separates strokes, <code>+</code> plays together, <code>L</code>/<code>R</code> picks the hand, <code>:0.5</code> makes a stroke half a beat, <code>-</code> is a one-beat rest, <code>|</code> is a bar line, <code>#</code> starts a section title.</p>
+          <p class="help-note">To give a song to a friend: <strong>Edit song → Send as a link</strong>. Opening the link adds the song to their My songs.</p>
         </section>
       </div>
       <div class="dialog-actions">
@@ -500,6 +529,9 @@
         <div><strong id="resultStreakValue">0</strong><span>streak</span></div>
       </div>
       <div class="result-best" id="resultBest" hidden></div>
+      <div class="result-history" id="resultHistory" hidden></div>
+      <div class="result-take" id="resultTake" hidden></div>
+      <p class="result-today" id="resultToday"></p>
       <p class="result-mistakes" id="resultMistakes"></p>
       <div class="result-recommendation" id="resultRecommendation" hidden>
         <span class="result-recommendation-label">Recommended next</span>
@@ -507,8 +539,10 @@
       </div>
       <div class="result-actions">
         <button type="button" class="soft-btn" id="resultReplayBtn">Play again</button>
+        <button type="button" class="primary-btn" id="resultDrillBtn" hidden>New drill</button>
         <button type="button" class="primary-btn" id="resultFasterBtn" hidden>Try 1×</button>
         <button type="button" class="primary-btn" id="resultSlowerBtn">Again, a bit slower</button>
+        <button type="button" class="primary-btn" id="resultSmartBtn" hidden>Smart loop for mistakes</button>
         <button type="button" class="soft-btn" id="resultNextBtn">Next in list</button>
       </div>
       <button type="button" class="result-close" data-close-dialog="resultDialog" aria-label="Close results"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></button>
@@ -532,6 +566,11 @@
         <button type="button" class="choice-btn primary" id="choiceNewBtn"><b>＋ Start a new song</b><small>Begin with an empty page, or import or scan one</small></button>
         <button type="button" class="choice-btn" id="choiceEditBtn"><b>Edit this song</b><small id="choiceEditNote">Change its notes, tempo or title</small></button>
         <button type="button" class="choice-btn" id="choiceDraftsBtn" hidden><b>Drafts</b><small>Songs you have not saved yet</small></button>
+      </div>
+      <div class="choice-more">
+        <button type="button" class="text-btn" id="shareSongBtn">Send as a link</button>
+        <button type="button" class="text-btn" id="exportBtn">Export this song</button>
+        <button type="button" class="text-btn danger" id="deleteBtn">Delete this song</button>
       </div>
       <button type="button" class="soft-btn choice-cancel" data-close-dialog="editChoiceDialog">Cancel</button>
     </div>
@@ -659,6 +698,7 @@
 
   <script src="app-files/song-catalog.js"></script>
   <script src="app-files/community-upload-config.js"></script>
+  <script src="app-files/ethereal-cloud-config.js"></script>
   <script src="app-files/ethereal-common.js"></script>
   <script src="app-files/app.js"></script>
 </body>

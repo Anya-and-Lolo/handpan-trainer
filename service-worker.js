@@ -1,4 +1,4 @@
-const CACHE = 'ethereal-handpan-trainer-v20';
+const CACHE = 'ethereal-handpan-trainer-v24';
 const SHELL = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const SHELL = [
   './app-files/ethereal-common-layout.css',
   './app-files/ethereal-common.js',
   './app-files/app.js',
+  './app-files/ethereal-cloud-config.js',
   './app-files/song-catalog.js',
   './app-files/community-upload-config.js',
   './app-files/manifest.webmanifest',
