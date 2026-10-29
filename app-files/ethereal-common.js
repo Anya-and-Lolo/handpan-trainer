@@ -1236,14 +1236,83 @@
     return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8, 12)}`;
   }
 
-  const PRIVACY_HTML = `<div class="privacy-text">
-    <p><b>What is saved:</b> a random sync code, the name or nickname you choose, and your progress in this app: songs played, scores and stars, tries, practice minutes and dates. No email, no account, no recordings, no location.</p>
-    <p><b>Why:</b> to keep your progress safe and let you use it on your other devices. The makers of the app may look at totals (how many people play, which songs are popular) to make the app better.</p>
-    <p><b>Where:</b> in a private Google Sheet that belongs to the makers of the app (Google stores it). It is never sold or shared.</p>
-    <p><b>How long:</b> until you tap <b>Delete progress</b>, which removes it from the cloud straight away.</p>
-    <p><b>Your choice:</b> nothing leaves this device until you agree here. Without the cloud everything stays on this device.</p>
-    <p><b>Questions or a deletion request:</b> write to us through our Ko-fi page.</p>
+  const consentHtml = appName => `<div class="privacy-text">
+    <p class="privacy-title"><b>Save your progress to the cloud</b> (optional)</p>
+    <p>${esc(appName)} keeps your random sync code, the name or nickname you choose and your practice progress with Google, so you can restore your progress and use it on your other devices.</p>
+    <p>Your cloud save includes the songs you played, scores, stars, attempts, practice time and dates, and whether you use a phone or a computer. No email address or sign-up is needed. Recordings and location are not included. We do not sell your data.</p>
+    <p>Your progress is uploaded only after you agree. You can stop cloud saves on a device at any time, and remove your cloud save with <b>Delete progress</b>.</p>
+    <p>Read our <button type="button" class="link-btn" data-privacy>Privacy Policy</button> for details about storage, keeping and deleting saves, and how to contact us.</p>
   </div>`;
+
+  /* ---------- Privacy Policy ---------- */
+  // Who to write to: an email when one is set in ethereal-cloud-config.js
+  // (window.ETHEREAL_PRIVACY_EMAIL), otherwise a message through the Ko-fi page.
+  const KOFI_URL = 'https://ko-fi.com/anya_and_lolo';
+  const POLICY_UPDATED = '29 October 2026';
+
+  function policyHtml(appName) {
+    const email = String(window.ETHEREAL_PRIVACY_EMAIL || '').trim();
+    const owner = String(window.ETHEREAL_PRIVACY_OWNER || '').trim();
+    const contact = email
+      ? `<a href="mailto:${esc(email)}">${esc(email)}</a> (or a message through our <a href="${KOFI_URL}" target="_blank" rel="noopener">Ko-fi page</a>)`
+      : `a message through our <a href="${KOFI_URL}" target="_blank" rel="noopener">Ko-fi page</a>`;
+    return `<div class="policy-text">
+      <p class="policy-date">Last updated: ${POLICY_UPDATED}</p>
+      <h3>1. Who we are</h3>
+      <p>The Ethereal trainers (Ethereal Handpan and Ethereal Drum, here “the apps”) are made by ${owner ? esc(owner) + ', ' : ''}an independent developer based in Australia (“we”). We are responsible for the information described here. Privacy contact: ${contact}.</p>
+      <h3>2. What stays on your device</h3>
+      <p>Your practice progress, settings, your own songs and drafts, and the name you type are kept in your browser’s storage on this device. They are not sent to us unless you turn on cloud saves or send a song to the community gallery.</p>
+      <p><b>Microphone.</b> If you turn it on, the sound is analysed on your device to recognise notes. We do not receive or keep your audio. Recordings you make with <b>Rec</b> stay on your device; you can download them yourself.</p>
+      <p>Clearing your browser data, uninstalling the app or changing devices can remove progress that is only on this device.</p>
+      <h3>3. Optional cloud save</h3>
+      <p>Only if you agree in <b>Save progress</b>, we keep: a randomly generated sync code; the name or nickname you choose; which app it is; whether you use a phone or a computer; the songs you played with your best scores, stars and speed; your attempts; practice minutes and dates; your daily goal and song path progress; and when you first and last saved. No email address or sign-up is needed, and you can use a nickname. Recordings, audio and location are not included.</p>
+      <p>We use it to save, restore and sync your progress between your devices, and to help you if you ask (for example when you lose your code). Where the EU or UK GDPR applies, our legal basis is your consent.</p>
+      <h3>4. Sending a song to the community gallery</h3>
+      <p>If you send a song, we receive the song itself (its title, the artist or arranger name you typed, its notes and settings) so we can review it. Approved songs are published in the apps for everyone. Please do not put personal details in a song you send.</p>
+      <h3>5. Who else is involved</h3>
+      <p><b>Google</b> stores the cloud saves (in a private Google Sheet, through Google Apps Script) and receives community songs. <b>GitHub</b> (GitHub Pages) hosts the apps. Like any website host, these services may process technical connection information such as your IP address, browser and the time of a request. <b>Ko-fi</b> handles donations and messages sent there. Each of them has its own privacy policy.</p>
+      <p>We do not sell your personal information. Only we can open the cloud saves, and we share information only with these providers to run the apps, or when the law requires it. These providers may store and process information outside Australia, for example in the United States.</p>
+      <h3>6. Keeping and deleting your cloud save</h3>
+      <p>We keep your cloud save while you use cloud saves. <b>Delete progress</b> removes it from our list of saves. Google Sheets keeps a version history that only we can open, so a deleted save can stay in earlier versions of the sheet; ask us and we will remove those copies too. If you <b>Start over</b> on the song path, you get a new code and your old save is marked as replaced; it is kept until you or we delete it. We may also delete saves that have not been used for a long time.</p>
+      <p><b>Stop saving on this device</b> (in Save progress) stops this device from sending your progress; your cloud save stays until you delete it. Withdrawing your consent stops future uploads and does not affect what was done before.</p>
+      <h3>7. Your sync code</h3>
+      <p>Anyone with your code can load, change or delete that save, so keep it private and do not post it publicly. No email is linked to a save; if you lose your code, contact us with the name you used and roughly when you last saved, and we will try to find it.</p>
+      <h3>8. Your rights</h3>
+      <p>Depending on the law where you live, you can ask to see, correct or delete your information, get a copy of it, object to or restrict how we use it, and withdraw your consent. Contact us; we may ask for a few details to find your save and check that it is yours. If you are not happy with our answer, you can complain to a data protection authority, such as the OAIC in Australia, the ICO in the UK, or the authority in your EU or EEA country.</p>
+      <h3>9. Children</h3>
+      <p>The apps are for a general audience and are not directed at children. Children should ask a parent or guardian before turning on cloud saves. A parent or guardian can contact us to remove a child’s save.</p>
+      <h3>10. Changes</h3>
+      <p>When the apps or our practices change, we update this policy and the date above, and point out important changes in the apps. We will ask before any new use that needs your consent.</p>
+    </div>`;
+  }
+
+  let policyDialog = null;
+
+  function openPrivacyPolicy(appName = 'the app') {
+    if (!policyDialog) policyDialog = makeDialog('policy-dialog');
+    policyDialog.innerHTML = `<div class="policy-card">
+      <div class="path-head"><div><p class="eyebrow">ETHEREAL TRAINERS</p><h2>Privacy Policy</h2></div><button type="button" class="icon-btn" data-mini-close aria-label="Close">×</button></div>
+      ${policyHtml(appName)}
+      <div class="progress-actions-row"><button type="button" class="primary-btn" data-mini-close>Close</button></div>
+    </div>`;
+    if (!policyDialog.open) policyDialog.showModal();
+    policyDialog.querySelector('.policy-text').scrollTop = 0;
+  }
+
+  // Any element with data-privacy inside a dialog opens the policy.
+  function bindPrivacyLinks(root, appName) {
+    root.querySelectorAll('[data-privacy]').forEach(button => button.addEventListener('click', () => openPrivacyPolicy(appName)));
+  }
+
+  /* ---------- A gentle pulse to show where to tap next ---------- */
+  function nudge(el, ms = 2700) {
+    if (!el) return;
+    el.classList.remove('nudge');
+    void el.offsetWidth;
+    el.classList.add('nudge');
+    clearTimeout(el._nudgeTimer);
+    el._nudgeTimer = setTimeout(() => el.classList.remove('nudge'), ms);
+  }
 
   function createCloud({ app, appName, keys, stats, onMerged, toast }) {
     const url = String(window.ETHEREAL_PROGRESS_SYNC_URL || '').trim();
@@ -1261,9 +1330,9 @@
       return result;
     }
 
-    async function pushNow() {
+    async function pushNow(extra = {}) {
       if (!s.code) return;
-      await call('save', { nickname: s.nickname || '', stats: stats(), device: navigator.userAgent.includes('Mobile') ? 'phone' : 'computer', data: collectProgress(keys) });
+      await call('save', { nickname: s.nickname || '', stats: stats(), device: navigator.userAgent.includes('Mobile') ? 'phone' : 'computer', data: collectProgress(keys), ...extra });
       s.lastSync = Date.now();
       save();
     }
@@ -1321,6 +1390,24 @@
         }
       },
       async rename(nickname) { s.nickname = String(nickname || '').trim().slice(0, 40); save(); await pushNow(); },
+      // Start over: a fresh save under a new code; the old one is marked as replaced.
+      async restart() {
+        if (!s.code) return '';
+        const old = s.code;
+        clearTimeout(timer);
+        timer = 0;
+        s = { ...s, code: newSyncCode(), lastSync: 0 };
+        save();
+        await pushNow({ replaces: old });
+        return s.code;
+      },
+      // Stop saving on this device (the cloud save stays until it is deleted).
+      forget() {
+        clearTimeout(timer);
+        timer = 0;
+        s = {};
+        save();
+      },
       async remove() {
         clearTimeout(timer);
         timer = 0;
@@ -1357,6 +1444,38 @@
     };
   }
 
+  // The same progress in words, for the columns of the cloud sheet.
+  function progressReadable({ keys, titleOf = id => id, journey = null }) {
+    const best = readJson(keys.best, {}) || {};
+    const history = readJson(keys.history, {}) || {};
+    const songs = Object.entries(best).filter(([, item]) => item && Number(item.accuracy) > 0)
+      .sort((a, b) => bestStars(b[1]) - bestStars(a[1]) || Number(b[1].accuracy) - Number(a[1].accuracy))
+      .map(([id, item]) => {
+        const stars = bestStars(item);
+        const tries = Array.isArray(history[id]) ? history[id].length : Number(item.runs) || 0;
+        return `${titleOf(id) || id}: ${'★'.repeat(stars)}${'☆'.repeat(STAR_COUNT - stars)} ${Math.round(Number(item.accuracy))}% at ${speedLabel(Number(item.speed) || 1)}${tries ? ` (${tries} ${tries === 1 ? 'try' : 'tries'})` : ''}`;
+      });
+    const log = readJson(keys.practice, null) || {};
+    const days = Object.entries(log.days || {}).map(([day, devices]) => [day, Object.values(devices || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)])
+      .filter(([, seconds]) => seconds >= 30).sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 14)
+      .map(([day, seconds]) => {
+        const date = new Date(`${day}T12:00:00`);
+        const label = Number.isNaN(date.getTime()) ? day : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        return `${label}: ${Math.max(1, Math.round(seconds / 60))} min`;
+      });
+    if (days.length && log.goal) days.unshift(`Goal ${log.goal} min a day`);
+    let path = '';
+    if (journey) {
+      path = journey.paths.map(p => {
+        const nodes = journey.nodes.filter(node => node.path === p.id);
+        const done = nodes.filter(node => journey.starsOf(node) >= journey.need).length;
+        return `${p.name}: ${done} of ${nodes.length}`;
+      }).join('\n');
+      if (journey.admin) path += '\n(admin: all open)';
+    }
+    return { best: songs.join('\n'), practice: days.join('\n'), path };
+  }
+
   let progressDialog = null;
 
   // "Save progress": the cloud (with the privacy note first) or a file.
@@ -1376,9 +1495,9 @@
         body = `<p class="path-sub">Cloud saves are not switched on in this copy of ${esc(appName)} yet. You can still carry your progress to another device with a file.</p>`;
       } else if (view === 'consent' || view === 'join') {
         body = `<p class="path-sub">${view === 'join' ? 'Enter the code from your other device. Your progress from both devices is joined.' : 'Your stars, history and practice days are kept online, and your other devices can use them with a code.'}</p>
-          ${PRIVACY_HTML}
+          ${consentHtml(appName)}
           ${view === 'join' ? '<label class="progress-field"><span>Code from your other device</span><input type="text" data-p="code" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" maxlength="16"></label>' : ''}
-          <label class="progress-field"><span>${view === 'join' ? 'Your name (leave empty to keep the one from your other device)' : 'Your name or nickname (the app makers see it)'}</span><input type="text" data-p="nick" maxlength="40" placeholder="e.g. Anya" autocomplete="nickname"></label>
+          <label class="progress-field"><span>${view === 'join' ? 'Your name (leave empty to keep the one from your other device)' : 'Your name or nickname'}</span><input type="text" data-p="nick" maxlength="40" placeholder="e.g. John Appleseed" autocomplete="nickname"></label>
           <label class="toggle-label progress-agree"><input type="checkbox" data-p="agree"><span>I have read this and agree</span></label>
           <div class="progress-actions-row"><button type="button" class="soft-btn" data-p="back">Back</button><button type="button" class="primary-btn" data-p="${view === 'join' ? 'do-join' : 'do-start'}" disabled>${view === 'join' ? 'Join and save' : 'Save to the cloud'}</button></div>`;
       } else if (cloud.connected) {
@@ -1387,11 +1506,13 @@
           <p class="path-sub">On another device: <b>Save progress → I have a code</b>, then enter this code. Keep it private: anyone with the code can see and delete this progress.</p>
           <label class="progress-field"><span>Your name</span><input type="text" data-p="nick" maxlength="40" value="${esc(cloud.nickname())}"></label>
           <p class="progress-meta">Last saved: ${esc(ago(cloud.lastSync()))}</p>
-          <div class="progress-actions-row"><button type="button" class="primary-btn" data-p="sync">Save now</button></div>`;
+          <div class="progress-actions-row"><button type="button" class="primary-btn" data-p="sync">Save now</button></div>
+          <div class="progress-links"><button type="button" class="text-btn" data-p="stop">Stop saving on this device</button><button type="button" class="text-btn" data-privacy>Privacy Policy</button></div>`;
       } else {
         body = `<p class="path-sub">Keep your stars, history and daily streak safe, and use them on your phone, tablet and computer.</p>
           <div class="progress-choice"><button type="button" class="choice-btn primary" data-p="consent"><b>Save to the cloud</b><small>Get a code for your other devices</small></button>
-          <button type="button" class="choice-btn" data-p="join"><b>I have a code</b><small>Join the progress from another device</small></button></div>`;
+          <button type="button" class="choice-btn" data-p="join"><b>I have a code</b><small>Join the progress from another device</small></button></div>
+          <div class="progress-links"><button type="button" class="text-btn" data-privacy>Privacy Policy</button></div>`;
       }
       d.innerHTML = `<div class="progress-card">${head}${body}${fileRow}<p class="mini-note"></p></div>`;
       const q = name => d.querySelector(`[data-p="${name}"]`);
@@ -1426,6 +1547,13 @@
           toast('Progress saved.');
         } catch (error) { note(error.message); }
       });
+      q('stop')?.addEventListener('click', () => {
+        if (!window.confirm('Stop saving to the cloud on this device?\n\nYour cloud save stays (use Delete progress to remove it). Your progress on this device stays too.')) return;
+        cloud.forget();
+        toast('This device no longer saves to the cloud.');
+        paint('');
+      });
+      bindPrivacyLinks(d, appName);
       q('copy')?.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(cloud.code); note('Code copied.'); } catch { note(cloud.code); }
       });
@@ -1443,11 +1571,13 @@
     const online = cloud.enabled && cloud.connected;
     d.innerHTML = `<div class="progress-card">
       <div class="path-head"><div><p class="eyebrow">YOUR PROGRESS</p><h2>Delete progress</h2></div><button type="button" class="icon-btn" data-mini-close aria-label="Close">×</button></div>
-      <p class="path-sub">${online ? 'This deletes your saved progress from the cloud and stops saving it there. Your other devices keep what they already have.' : 'This clears your stars, history and practice days on this device.'}</p>
+      <p class="path-sub">${online ? 'This deletes your save from our cloud list and stops saving it there. Your other devices keep what they already have.' : 'This clears your stars, history and practice days on this device.'}</p>
       ${online ? '<label class="toggle-label"><input type="checkbox" data-p="local"><span>Also clear it on this device</span></label>' : ''}
       <div class="progress-actions-row"><button type="button" class="soft-btn" data-mini-close>Cancel</button><button type="button" class="primary-btn danger-btn" data-p="go">Delete</button></div>
+      <div class="progress-links"><button type="button" class="text-btn" data-privacy>Privacy Policy</button></div>
       <p class="mini-note"></p>
     </div>`;
+    bindPrivacyLinks(d, 'the app');
     d.querySelector('[data-p="go"]').addEventListener('click', async () => {
       const note = d.querySelector('.mini-note');
       try {
@@ -1636,7 +1766,7 @@
       d.querySelectorAll('[data-node]').forEach(button => button.addEventListener('click', () => play(Number(button.dataset.node))));
       d.querySelector('[data-play]')?.addEventListener('click', event => play(Number(event.currentTarget.dataset.play)));
       d.querySelector('[data-j="over"]').addEventListener('click', () => {
-        if (!window.confirm('Start the journey from the beginning?\n\nThis clears your stars and history on this device, and locks the songs again.')) return;
+        if (!window.confirm('Start the journey from the beginning?\n\nThis clears your stars and history on this device and locks the songs again. If you save to the cloud, you get a new code.')) return;
         onStartOver();
         tab = 0;
         paint();
@@ -1673,7 +1803,7 @@
     historySummary, historyChartHtml, resultHistoryHtml, openHistory, bindHistoryBadges, exportProgress, importProgress,
     mergeProgress, collectProgress, createPracticeLog, todayCard, todayLine, openSongPath, createTakeRecorder, takeHtml,
     generateRhythm, openDrills, nextDrill, createCloud, openSaveProgress, openDeleteProgress, bindRecChips, progressStats,
-    createJourney, openJourney, journeyLockedRow, codeHash,
+    createJourney, openJourney, journeyLockedRow, codeHash, progressReadable, openPrivacyPolicy, nudge,
     smartLoopSpeeds, createSmartLoop, worstSection, haptic, bindHapticsToggle, hapticsSupported,
     encodeShare, decodeShare, shareSongLink, readSharedSong, tabify,
     startHereCard,

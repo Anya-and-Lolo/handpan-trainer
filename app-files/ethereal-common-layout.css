@@ -1411,3 +1411,71 @@ body.wide-fit .trainer-grid:not(.radial-layout):not(.tuner-mode) .trainer-card {
 .j-locked-copy b { font-size:13px; color:#e0f2fe; }
 
 .j-locked-copy small { font-size:11.5px; color:#7dd3fc; }
+
+/* ===================== r26: easier to read ===================== */
+/* No crumbs: small labels a little bigger in both apps. */
+.brand-row p { font-size:13.5px; }
+.start-copy b { font-size:14px; white-space:normal; }
+.start-copy small { font-size:12.5px; white-space:normal; }
+.today-copy b { font-size:14px; }
+.today-copy small { font-size:12.5px; }
+.today-actions button { font-size:13.5px; }
+.today-goal select { font-size:12.5px; }
+.journey-locked-row small { font-size:12.5px; }
+.journey-eyebrow { font-size:12px; }
+.journey-tabs small { font-size:11.5px; }
+.journey-tabs b { font-size:14px; }
+.journey-admin { font-size:14px; padding:8px 12px; }
+.j-here { font-size:11px; letter-spacing:.16em; }
+.j-next small { font-size:11.5px; letter-spacing:.18em; }
+.j-links { gap:26px; margin-top:10px; }
+.j-links button { font-size:14px; color:#94a3b8; }
+@media (min-width:561px) { .j-badge { font-size:11.5px; letter-spacing:.1em; } }
+.settings-h { font-size:12px; }
+.scale-card span, .layout-card span { font-size:12.5px; }
+.note-row em { font-size:12px; }
+.text-tool-btn { font-size:12.5px; }
+.result-stats span { font-size:11px; }
+.stage-tile small, .speed-cycle-btn small { font-size:10.5px; }
+.wb-item small, .nn-item small { font-size:10.5px; }
+.tuner-scale { font-size:11px; }
+.result-recommendation-label, .album-source { font-size:10.5px; }
+body.wide-fit .speed-row .speed-control > label { font-size:10px; }
+@media (min-width:1101px) {
+  .top-actions > .donate-btn span, .top-actions .btn-text, .top-actions .install-btn span, .top-actions .tour-btn span { font-size:12.5px !important; }
+}
+@media (max-width:900px) {
+  .stage-overlay.top-left span { font-size:10.5px !important; }
+}
+
+/* Phones: the song's times above the tape ends, without the slider (drag the tape instead). */
+@media (max-width:760px) {
+  html body .note-tape > .progress-wrap { display:block !important; inset:-20px 0 0; }
+  .note-tape > .progress-wrap .progress-track-shell { display:none; }
+  .note-tape > .progress-wrap #elapsedLabel, .note-tape > .progress-wrap #durationLabel { font-size:11.5px; }
+}
+
+/* A gentle pulse where to tap next (Listen / Practice after opening a song from the Song path). */
+.nudge { animation:etherealNudge 0.9s ease-in-out 3; }
+@keyframes etherealNudge {
+  0%, 100% { box-shadow:0 0 0 0 rgba(94,234,212,0); }
+  50% { box-shadow:0 0 0 3px rgba(94,234,212,.75), 0 0 22px rgba(94,234,212,.45); }
+}
+
+/* Cloud consent and the Privacy Policy. */
+.privacy-text { max-height:240px; font-size:13px; }
+.privacy-text .privacy-title { font-size:14px; color:#e2e8f0; }
+.link-btn { display:inline; padding:0; border:0; background:none; color:#5eead4; font:inherit; font-weight:700; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.progress-links { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 18px; margin-top:12px; }
+.progress-links .text-btn { font-size:13px; color:#94a3b8; text-decoration:underline; text-underline-offset:3px; }
+.policy-dialog { width:min(640px, calc(100vw - 20px)); }
+.policy-card { padding:20px 18px 18px; }
+.policy-text { max-height:min(62vh, 560px); overflow-y:auto; padding:4px 6px 4px 2px; color:#cbd5e1; font-size:14px; line-height:1.55; }
+.policy-text h3 { margin:16px 0 6px; font-size:15px; color:#e2e8f0; }
+.policy-text p { margin:0 0 8px; }
+.policy-text a { color:#5eead4; }
+.policy-date { color:var(--muted); font-size:13px; }
+@media (max-width:560px) {
+  .journey-eyebrow { font-size:11px; letter-spacing:.14em; }
+  .journey-tabs b { font-size:13px; }
+}

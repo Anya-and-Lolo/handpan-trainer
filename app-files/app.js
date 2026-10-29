@@ -38,15 +38,50 @@
   };
   const DEFAULT_BOTTOMS = ['F3', 'G3'];
   const BOTTOM_CHOICES = ['C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'Bb3', 'C4', 'D5', 'E5', 'F5', 'G5'];
-  // Percussion zones. There are two slap zones, one under each hand; both are written "S".
-  const PERC_IDS = ['T', 'K', 'SL', 'SR'];
+  // Percussion zones. My Handpan keeps the default zones (a slap under each hand, both
+  // written "S"); a song can bring its own zones, also more than one of a kind: T2, S2...
+  const PERC_IDS = ['T', 'K', 'SL', 'SR', 'P', 'F'];
+  const PERC_BASES = ['T', 'K', 'S', 'P', 'F'];
   const PERC_INFO = {
     T: { label: 'T', name: 'Tak', sound: 'T' },
     K: { label: 'K', name: 'Ka', sound: 'K' },
+    S: { label: 'S', name: 'Slap', sound: 'S' },
     SL: { label: 'S', name: 'Slap (left)', sound: 'S' },
-    SR: { label: 'S', name: 'Slap (right)', sound: 'S' }
+    SR: { label: 'S', name: 'Slap (right)', sound: 'S' },
+    P: { label: 'P', name: 'Palm', sound: 'P' },
+    F: { label: 'F', name: 'Fist', sound: 'F' }
   };
-  const KEY_MAP = { d: 'D', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': 'B1', '-': 'B2', t: 'T', k: 'K' };
+  const PERC_WORDS = { T: 'tak', K: 'ka', S: 'slap', P: 'palm', F: 'fist' };
+  const PERC_ID_PATTERN = /^(?:[TKSPF][2-9]?|S[LR])$/;
+  const ZONE_R = 0.08;
+  const SUBSCRIPT = { 2: '\u2082', 3: '\u2083', 4: '\u2084', 5: '\u2085', 6: '\u2086', 7: '\u2087', 8: '\u2088', 9: '\u2089' };
+  const KEY_MAP = { d: 'D', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': 'B1', '-': 'B2', t: 'T', k: 'K', p: 'P', f: 'F' };
+
+  function isPercId(id) {
+    return PERC_ID_PATTERN.test(String(id || ''));
+  }
+
+  function percBase(id) {
+    return id === 'SL' || id === 'SR' ? 'S' : String(id || '').charAt(0);
+  }
+
+  function zoneIndex(id) {
+    return /^[TKSPF][2-9]$/.test(String(id || '')) ? String(id).slice(1) : '';
+  }
+
+  function percInfo(id) {
+    if (PERC_INFO[id]) return PERC_INFO[id];
+    const base = PERC_INFO[percBase(id)];
+    return base && isPercId(id) ? { label: base.label, name: `${base.name} ${zoneIndex(id)}`, sound: base.sound } : null;
+  }
+
+  // How a zone is written on the drum: S, S\u2082, T\u2083...
+  function strokeMark(id) {
+    const info = percInfo(id);
+    if (!info) return String(id);
+    const index = zoneIndex(id);
+    return index ? `${info.label}${SUBSCRIPT[index]}` : info.label;
+  }
 
   // Fallback copies so the two headline songs are there even if song-catalog.js is missing.
   const FALLBACK_SONGS = [
@@ -72,7 +107,7 @@
     'loopBtn', 'stopBtn', 'playBtn', 'metronomeBtn', 'guideBtn', 'speedSelect', 'countInToggle', 'micBtn', 'micStatus', 'modeHint',
     'practiceCard', 'instrumentTitle', 'keyboardHint', 'drumWrap', 'nextNoteValue', 'nextNoteTime', 'strokeKey',
     'editorDialog', 'editorForm', 'editorHeading', 'songTitleInput', 'songBpmInput', 'songMeterInput', 'chordModeToggle', 'composeDrum',
-    'appendRestBtn', 'appendBarBtn', 'undoTokenBtn', 'previewSongBtn', 'sequenceInput', 'sequenceStatus', 'saveSongBtn', 'deleteEditorBtn',
+    'zonePanel', 'zoneTools', 'zoneSelected', 'addMuteBtn', 'appendRestBtn', 'appendBarBtn', 'undoTokenBtn', 'previewSongBtn', 'sequenceInput', 'sequenceStatus', 'saveSongBtn', 'deleteEditorBtn',
     'settingsDialog', 'scaleCards', 'bottomsConfig', 'noteTable', 'percToggle', 'mirrorToggle', 'settingsDrum', 'resetPercBtn',
     'handColorsToggle', 'noteNamesToggle', 'usedLanesToggle', 'helpDialog',
     'resultDialog', 'resultTitle', 'resultSummary', 'resultStats', 'resultHitValue', 'resultAccuracyValue', 'resultStreakValue', 'resultMistakes',
@@ -217,15 +252,18 @@
     // reach the same distance (both slaps sound the same).
     const left = polar((topAngle(4, count) + topAngle(6, count)) / 2 + offset, 0.895);
     const right = { x: -left.x, y: left.y };
+    // P is the palm on the ding (just below its centre); F, the fist, sits low on the right.
     return {
       T: { x: 0.37, y: -0.02 },
       K: { x: -0.37, y: -0.02 },
       SL: { x: left.x, y: left.y },
-      SR: { x: right.x, y: right.y }
+      SR: { x: right.x, y: right.y },
+      P: { x: 0, y: 0.15 },
+      F: polar((topAngle(1, count) + topAngle(3, count)) / 2 + offset, 0.895)
     };
   }
 
-  function buildPads(instrument, offsetOverride) {
+  function buildPads(instrument, offsetOverride, zoneCtx = songZoneCtx(state.song)) {
     const scale = SCALES[instrument.scale];
     const count = scale.top.length;
     const offset = Number.isFinite(offsetOverride) ? offsetOverride : rotationOffset(instrument, count);
@@ -254,22 +292,109 @@
         side: sign < 0 ? 'L' : 'R', hand: sign < 0 ? 'L' : 'R', color: '#94a3b8'
       });
     }
-    if (instrument.percussion) {
-      const defaults = defaultPercPositions(count, offset);
-      const custom = instrument.percPos[instrument.scale] || {};
-      PERC_IDS.forEach(id => {
-        const base = custom[id] && Number.isFinite(custom[id].x) ? custom[id] : defaults[id];
-        // Mirroring swaps the taps only; there is a slap zone under each hand already.
-        const mirrored = instrument.mirror && (id === 'T' || id === 'K');
-        const x = mirrored ? -base.x : base.x;
-        const hand = id === 'SL' ? 'L' : id === 'SR' ? 'R' : (x < 0 ? 'L' : 'R');
-        pads.push({
-          id, label: PERC_INFO[id].label, kind: 'perc', midi: null, name: PERC_INFO[id].name, sound: PERC_INFO[id].sound,
-          x, y: base.y, rx: 0.08, ry: 0.08, rot: 0, side: x < 0 ? 'L' : 'R', hand, color: PERC_COLOR
-        });
+    if (instrument.percussion) zonePads(instrument, count, offset, pads, zoneCtx).forEach(pad => pads.push(pad));
+    return pads;
+  }
+
+  /* ---------- Stroke zones ---------- */
+
+  // Turn a point around the centre (angles as in polar(): from the bottom, to the right).
+  function turnPoint(x, y, degrees) {
+    if (!degrees) return { x, y };
+    return polar(Math.atan2(x, y) * 180 / Math.PI + degrees, Math.hypot(x, y));
+  }
+
+  // What a song brings: its own zones (or none) and the zone ids it writes.
+  function songZoneCtx(song) {
+    return { zones: Array.isArray(song?.zones) ? song.zones : null, used: percIdsIn(song?.sequence || '') };
+  }
+
+  const DEFAULT_ZONE_CTX = { zones: null, used: new Set(), defaultsOnly: true };
+
+  // A zone never sits on a note: not on a tone field and not on the ding (except P, the
+  // palm on the ding). It keeps clear of the other zones and stays on the shell.
+  function zoneBlocked(x, y, id, pads, placed) {
+    if (Math.hypot(x, y) > 0.93) return true;
+    const palm = percBase(id) === 'P';
+    const margin = ZONE_R * 0.9;
+    for (const pad of pads) {
+      if (pad.kind !== 'tone' && pad.kind !== 'ding') continue;
+      if (pad.kind === 'ding' && palm) continue;
+      const a = -(pad.rot || 0) * Math.PI / 180;
+      const dx = x - pad.x;
+      const dy = y - pad.y;
+      const lx = dx * Math.cos(a) - dy * Math.sin(a);
+      const ly = dx * Math.sin(a) + dy * Math.cos(a);
+      if ((lx / (pad.rx + margin)) ** 2 + (ly / (pad.ry + margin)) ** 2 < 1) return true;
+    }
+    return placed.some(p => Math.hypot(p.x - x, p.y - y) < ZONE_R * 2 + 0.012);
+  }
+
+  // The nearest free metal: rings around the wanted spot, a little wider each time. On a
+  // ring the spot that stays as far from the centre as the wanted one wins, so a zone
+  // slides round a note rather than jumping inwards or outwards.
+  function snapZone(x, y, id, pads, placed) {
+    if (!zoneBlocked(x, y, id, pads, placed)) return { x, y };
+    const wanted = Math.hypot(x, y);
+    for (let r = 0.02; r <= 1.3; r += 0.02) {
+      let best = null;
+      let bestScore = Infinity;
+      for (let k = 0; k < 32; k += 1) {
+        const a = (k / 32) * Math.PI * 2;
+        const px = x + Math.cos(a) * r;
+        const py = y + Math.sin(a) * r;
+        if (zoneBlocked(px, py, id, pads, placed)) continue;
+        const score = Math.abs(Math.hypot(px, py) - wanted);
+        if (score < bestScore) { best = { x: px, y: py }; bestScore = score; }
+      }
+      if (best) return best;
+    }
+    return { x, y };
+  }
+
+  function zonePads(instrument, count, offset, tonePads, ctx = {}) {
+    const defaults = defaultPercPositions(count, offset);
+    const custom = instrument.percPos[instrument.scale] || {};
+    const used = ctx.used || new Set();
+    const specs = new Map();
+    PERC_IDS.forEach(id => {
+      const base = custom[id] && Number.isFinite(custom[id].x) ? custom[id] : defaults[id];
+      // Mirroring moves the zones to the other hand; there is a slap under each hand already.
+      const flip = instrument.mirror && id !== 'SL' && id !== 'SR';
+      const x = flip ? -base.x : base.x;
+      const hand = id === 'SL' ? 'L' : id === 'SR' ? 'R' : Math.abs(x) < 0.02 ? (instrument.mirror ? 'L' : 'R') : (x < 0 ? 'L' : 'R');
+      specs.set(id, { id, x, y: base.y, hand, rank: used.has(id) ? 1 : 3, own: false });
+    });
+    if (!ctx.defaultsOnly && Array.isArray(ctx.zones)) {
+      ctx.zones.forEach(zone => {
+        if (!zone || !isPercId(zone.id) || zone.id === 'S' || !Number.isFinite(zone.x) || !Number.isFinite(zone.y)) return;
+        // A song's zones are kept as on the unturned drum, so they turn with the notes.
+        const p = turnPoint(zone.x, zone.y, offset);
+        const fixed = zone.id === 'SL' || zone.id === 'SR';
+        const flip = instrument.mirror && !fixed;
+        let hand = zone.id === 'SL' ? 'L' : zone.id === 'SR' ? 'R' : zone.hand === 'L' || zone.hand === 'R' ? zone.hand : (p.x < 0 ? 'L' : 'R');
+        if (flip) hand = hand === 'L' ? 'R' : 'L';
+        specs.set(zone.id, { id: zone.id, x: flip ? -p.x : p.x, y: p.y, hand, rank: 0, own: true });
       });
     }
-    return pads;
+    used.forEach(id => {
+      if (specs.has(id) || !isPercId(id) || id === 'S') return;
+      // An extra zone (T2, S3...) with no spot yet starts a little round from the first of its kind.
+      const base = percBase(id);
+      const first = specs.get(base === 'S' ? (Number(zoneIndex(id)) % 2 ? 'SR' : 'SL') : base);
+      const p = turnPoint(first.x, first.y, first.x < 0 ? -26 : 26);
+      specs.set(id, { id, x: p.x, y: p.y, hand: first.hand, rank: 2, own: false });
+    });
+    const placed = [];
+    return [...specs.values()].sort((a, b) => a.rank - b.rank).map(spec => {
+      const spot = snapZone(spec.x, spec.y, spec.id, tonePads, placed);
+      placed.push(spot);
+      const info = percInfo(spec.id);
+      return {
+        id: spec.id, label: info.label, mark: strokeMark(spec.id), kind: 'perc', midi: null, name: info.name, sound: info.sound,
+        x: spot.x, y: spot.y, rx: ZONE_R, ry: ZONE_R, rot: 0, side: spot.x < 0 ? 'L' : 'R', hand: spec.hand, color: PERC_COLOR, own: spec.own
+      };
+    });
   }
 
   // Lanes read like the drum seen from above: even notes on the left, odd notes on the
@@ -303,7 +428,46 @@
   /* Song parsing                                                        */
   /* ------------------------------------------------------------------ */
 
-  const ITEM_PATTERN = /^(DING|D|B[12]|[1-9]|T|K|S)([LR])?$/i;
+  const ITEM_PATTERN = /^(DING|D|B[12]|[1-9]|[TKSPF][2-9]?|M)([LR])?$/i;
+
+  // One stroke inside a token: "4R", "(T)" a ghost note, "*S2L" a flam, "M" a mute.
+  function parsePart(part) {
+    let text = String(part || '');
+    let ghost = false;
+    let flam = false;
+    if (text.startsWith('*')) { flam = true; text = text.slice(1); }
+    const bracket = /^\((.+)\)$/.exec(text);
+    if (bracket) { ghost = true; text = bracket[1]; }
+    if (!flam && text.startsWith('*')) { flam = true; text = text.slice(1); }
+    const match = ITEM_PATTERN.exec(text);
+    if (!match) return null;
+    let id = match[1].toUpperCase();
+    if (id === 'DING') id = 'D';
+    const hand = match[2] ? match[2].toUpperCase() : '';
+    const item = { pad: id, hand, explicitHand: Boolean(hand) };
+    if (ghost) item.ghost = true;
+    if (flam) item.flam = true;
+    return item;
+  }
+
+  // The zone ids a song writes (an "S" may land on either slap).
+  function percIdsIn(text) {
+    const ids = new Set();
+    String(text || '').replace(/#[^\n]*/g, ' ').split(/[\s|]+/).forEach(token => {
+      if (!token) return;
+      splitToken(token).core.split('+').forEach(part => {
+        const item = parsePart(part);
+        if (!item || !isPercId(item.pad)) return;
+        if (item.pad === 'S') {
+          if (item.hand !== 'R') ids.add('SL');
+          if (item.hand !== 'L') ids.add('SR');
+          return;
+        }
+        ids.add(item.pad);
+      });
+    });
+    return ids;
+  }
 
   function parseDuration(text) {
     if (text == null || text === '') return 1;
@@ -354,12 +518,9 @@
       const items = [];
       let bad = false;
       core.split('+').filter(Boolean).forEach(part => {
-        const match = ITEM_PATTERN.exec(part);
-        if (!match) { bad = true; return; }
-        let id = match[1].toUpperCase();
-        if (id === 'DING') id = 'D';
-        const hand = match[2] ? match[2].toUpperCase() : '';
-        items.push({ pad: id, hand, explicitHand: Boolean(hand) });
+        const item = parsePart(part);
+        if (!item) { bad = true; return; }
+        items.push(item);
       });
       if (bad || !items.length) { errors.push(token); beat += duration; return; }
       const index = events.length;
@@ -373,19 +534,29 @@
     assignHands(events, padMap);
     const missing = new Set();
     const used = new Set();
+    const percOn = Boolean(state.instrument?.percussion);
+    const mirror = percOn && Boolean(state.instrument?.mirror);
+    let mutes = 0;
     events.forEach(event => event.items.forEach(item => {
+      // M is not a note: a hand rests on the shell and the ringing stops.
+      if (item.pad === 'M') { item.fx = 'mute'; item.missing = true; mutes += 1; return; }
       // "S" is written once; the hand decides which slap zone it lands on.
       if (item.pad === 'S') item.pad = item.hand === 'R' ? 'SR' : 'SL';
-      item.missing = !padMap.has(item.pad);
+      // Mirrored for left-handed playing, a hand written on a zone swaps with it.
+      if (mirror && item.explicitHand && isPercId(item.pad) && item.pad !== 'SL' && item.pad !== 'SR') item.hand = item.hand === 'L' ? 'R' : 'L';
+      // Extra zones (T2, S3...) always find a free spot on the drum.
+      item.missing = !padMap.has(item.pad) && !(percOn && isPercId(item.pad));
       used.add(item.pad);
-      if (item.missing) missing.add(item.pad === 'SL' || item.pad === 'SR' ? 'S' : item.pad);
+      if (item.missing) missing.add(isPercId(item.pad) ? percBase(item.pad) : item.pad);
     }));
     const playable = events.flatMap(e => e.items.filter(i => !i.missing));
     return {
       events, bars, errors, missing, used, spb, bpm: tempo,
       beatsPerBar: Math.max(1, Number(beatsPerBar) || 4),
       totalBeats, duration: totalBeats * spb,
-      itemCount: playable.length,
+      // Ghost notes are a bonus on top: they are not counted.
+      itemCount: playable.filter(i => !i.ghost).length,
+      mutes,
       chordCount: events.filter(e => e.items.length > 1).length
     };
   }
@@ -708,11 +879,14 @@
     const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!Offline) return null;
     const sampleRate = audio.ctx?.sampleRate || 44100;
-    const seconds = id === 'S' ? 1.6 : 1.2;
+    const seconds = id === 'S' ? 1.6 : id === 'P' ? 2.4 : id === 'F' ? 1.8 : 1.2;
     const context = new Offline(1, Math.ceil(sampleRate * seconds), sampleRate);
     const out = context.createGain();
     out.connect(context.destination);
     const spec = {
+      // P: the palm on the ding, a deep warm "dum" (the ding rings on). F: a low fist thump.
+      P: { band: 760, q: 0.8, noise: 0.42, noiseDecay: 0.05, knock: 96, knockAmp: 0.78, knockDecay: 0.24, ring: [], ringAmp: 0, ringDecay: 0.2, ding: 0.5 },
+      F: { band: 520, q: 0.7, noise: 0.6, noiseDecay: 0.06, knock: 74, knockAmp: 0.95, knockDecay: 0.17, ring: [560, 860], ringAmp: 0.05, ringDecay: 0.16, ding: 0.2 },
       T: { band: 3300, q: 1.3, noise: 0.9, noiseDecay: 0.05, knock: 230, knockAmp: 0.32, ring: [1230, 1810, 2730], ringAmp: 0.13, ringDecay: 0.2, ding: 0.07 },
       K: { band: 2200, q: 1.1, noise: 0.8, noiseDecay: 0.055, knock: 190, knockAmp: 0.3, ring: [1050, 1590, 2410], ringAmp: 0.11, ringDecay: 0.2, ding: 0.07 },
       S: { band: 2600, q: 0.6, noise: 1.25, noiseDecay: 0.11, knock: 120, knockAmp: 0.55, ring: [1480, 2270, 3390], ringAmp: 0.16, ringDecay: 0.34, ding: 0.12 }
@@ -733,10 +907,10 @@
     knock.frequency.setValueAtTime(spec.knock * 1.5, 0);
     knock.frequency.exponentialRampToValueAtTime(spec.knock, 0.04);
     const knockGain = context.createGain();
-    envelope(context, knockGain.gain, 0, spec.knockAmp, 0.002, id === 'S' ? 0.14 : 0.07);
+    envelope(context, knockGain.gain, 0, spec.knockAmp, 0.002, spec.knockDecay || (id === 'S' ? 0.14 : 0.07));
     knock.connect(knockGain).connect(out);
     knock.start(0);
-    knock.stop(0.3);
+    knock.stop(Math.max(0.3, (spec.knockDecay || 0) + 0.12));
 
     spec.ring.forEach((freq, k) => {
       const osc = context.createOscillator();
@@ -760,7 +934,7 @@
       osc.stop(seconds);
     });
     const buffer = await context.startRendering();
-    return normaliseBuffer(buffer, id === 'S' ? 0.62 : 0.5);
+    return normaliseBuffer(buffer, id === 'S' || id === 'P' || id === 'F' ? 0.62 : 0.5);
   }
 
   // Phone and tablet speakers drop almost everything below ~300 Hz, so the ding (147 Hz)
@@ -799,7 +973,7 @@
     // Sounds for the selected song first, then everything else on the drum.
     if (state.parsed) state.parsed.events.forEach(e => e.items.forEach(i => addPad(state.padMap.get(i.pad))));
     state.pads.forEach(addPad);
-    ['T', 'K', 'S'].forEach(id => addPad({ id, kind: 'perc', sound: id }));
+    PERC_BASES.forEach(id => addPad({ id, kind: 'perc', sound: id }));
     const total = wanted.length + 2;
     let done = 0;
     loaderProgress(done, total);
@@ -876,7 +1050,8 @@
   function playPad(padId, when = 0, velocity = 1, list = audio.scheduled) {
     const context = audio.ctx;
     if (!context || context.state !== 'running') return;
-    const pad = state.padMap.get(padId) || (PERC_INFO[padId] ? { id: padId, kind: 'perc', sound: PERC_INFO[padId].sound } : null);
+    const info = percInfo(padId);
+    const pad = state.padMap.get(padId) || (info ? { id: padId, kind: 'perc', sound: info.sound } : null);
     if (!pad) return;
     const start = Math.max(context.currentTime, when || 0);
     const buffer = audio.buffers.get(soundKeyForPad(pad));
@@ -917,6 +1092,30 @@
       osc.stop(start + decay + 0.05);
       trackSource(osc, start, list);
     });
+  }
+
+  // One written stroke: a ghost note is played softly; a flam adds a quick grace stroke.
+  function playItem(item, when = 0, velocity = 1, list = audio.scheduled) {
+    const v = item.ghost ? velocity * 0.32 : velocity;
+    if (!item.flam || !audio.ctx) { playPad(item.pad, when, v, list); return; }
+    const now = audio.ctx.currentTime;
+    const main = when ? Math.max(now + 0.04, when) : now + 0.04;
+    playPad(item.pad, main - 0.04, v * 0.45, list);
+    playPad(item.pad, main, v, list);
+  }
+
+  // M: a hand rests on the shell and every ringing note stops.
+  function muteRinging(when = 0) {
+    if (!audio.ctx || !audio.voices) return;
+    const at = Math.max(audio.ctx.currentTime, when || 0);
+    audio.voices.forEach(list => list.forEach(voice => {
+      if (voice.choked || voice.start >= at - 0.004 || voice.end <= at) return;
+      voice.choked = true;
+      try {
+        voice.gain.gain.setTargetAtTime(0, at, 0.035);
+        voice.source.stop(at + 0.3);
+      } catch (error) { /* already stopped */ }
+    }));
   }
 
   // A wooden metronome tick: a pure ~1.57 kHz knock that dies away in about 40 ms
@@ -1004,11 +1203,29 @@
       bpm: Math.min(260, Math.max(20, Math.round(Number(raw.bpm) || 90))),
       beatsPerBar: Math.min(12, Math.max(1, Math.round(Number(raw.beatsPerBar) || 4))),
       sequence,
+      zones: cleanZones(raw.zones),
       order: Number(raw.order) || 999,
       folder,
       builtIn: folder === 'demo' || folder === 'community',
       communitySubmittedFingerprint: folder === 'mine' ? String(raw.communitySubmittedFingerprint || '') : ''
     };
+  }
+
+  // A song's own stroke zones: [{ id: 'S2', x, y, hand }], kept as on the unturned drum.
+  function cleanZones(list) {
+    if (!Array.isArray(list)) return undefined;
+    const seen = new Set();
+    const out = [];
+    list.forEach(zone => {
+      const id = String(zone?.id || '').toUpperCase();
+      const x = Number(zone?.x);
+      const y = Number(zone?.y);
+      if (!isPercId(id) || id === 'S' || seen.has(id) || !Number.isFinite(x) || !Number.isFinite(y) || out.length >= 30) return;
+      seen.add(id);
+      const hand = zone.hand === 'L' || zone.hand === 'R' ? zone.hand : undefined;
+      out.push({ id, x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000, ...(hand ? { hand } : {}) });
+    });
+    return out.length ? out : undefined;
   }
 
   function loadSongs() {
@@ -1021,7 +1238,7 @@
   }
 
   function saveMySongs() {
-    const ok = writeJson(STORAGE_SONGS, state.mySongs.map(({ id, title, artist, bpm, beatsPerBar, sequence, communitySubmittedFingerprint }) => ({ id, title, artist, bpm, beatsPerBar, sequence, communitySubmittedFingerprint })));
+    const ok = writeJson(STORAGE_SONGS, state.mySongs.map(({ id, title, artist, bpm, beatsPerBar, sequence, zones, communitySubmittedFingerprint }) => ({ id, title, artist, bpm, beatsPerBar, sequence, zones, communitySubmittedFingerprint })));
     if (!ok) showToast('This browser blocked saving. Export the song to keep it.', 'warning');
   }
 
@@ -1040,7 +1257,44 @@
   // Percussion zones are drawn only when the current song uses them.
   function visiblePercIds() {
     const used = state.parsed?.used || new Set();
-    return new Set(PERC_IDS.filter(id => used.has(id) && state.padMap.has(id)));
+    return new Set(state.pads.filter(pad => pad.kind === 'perc' && used.has(pad.id)).map(pad => pad.id));
+  }
+
+  // The pads follow the song: its own stroke zones, or the default ones.
+  function refreshPads() {
+    state.pads = buildPads(state.instrument);
+    state.padMap = new Map(state.pads.map(p => [p.id, p]));
+  }
+
+  // On the stage a zone shows up about a beat before its stroke and fades out after it.
+  function updateZoneVisibility(t) {
+    const parsed = state.parsed;
+    const on = new Set();
+    if (parsed && state.mode !== 'tuner') {
+      const lead = Math.max(parsed.spb * 1.25, 0.6 * state.speed);
+      const after = Math.max(parsed.spb * 0.35, 0.3 * state.speed);
+      const events = parsed.events;
+      for (let i = firstEventIndexAtOrAfter(t - after); i < events.length && events[i].time <= t + lead; i += 1) {
+        events[i].items.forEach(item => { if (!item.missing && state.padMap.get(item.pad)?.kind === 'perc') on.add(item.pad); });
+      }
+    }
+    const key = [...on].sort().join(',');
+    if (key === state.zoneKey) return;
+    state.zoneKey = key;
+    state.drums.forEach(drum => drum.padEls.forEach((g, id) => {
+      if (g.classList.contains('pad-perc')) g.classList.toggle('zone-on', on.has(id));
+    }));
+  }
+
+  function cueMutes(t) {
+    const events = state.parsed.events;
+    let i = state.muteIdx || 0;
+    while (i < events.length && events[i].time <= t + 0.012) {
+      const event = events[i];
+      if (event.time >= t - 0.25 && event.items.some(item => item.fx === 'mute')) addEffect('text', 'D', '#cbd5e1', 'Mute');
+      i += 1;
+    }
+    state.muteIdx = i;
   }
 
   function selectSong(id, options = {}) {
@@ -1055,6 +1309,7 @@
     if (!song) return;
     stopPlayback(false);
     state.song = song;
+    refreshPads();
     state.parsed = parseSong(song);
     state.particlePhaseCache.clear();
     state.loopA = null;
@@ -1135,7 +1390,7 @@
       </section>`;
     };
     const openDemos = JOURNEY ? state.demoSongs.filter(song => JOURNEY.isSongOpen(song.id)) : state.demoSongs;
-    els.songList.innerHTML = group('Demo songs', openDemos, query ? 'No demo songs match that search.' : 'Drop .handsong files into demo-songs.', 'demo-collection')
+    els.songList.innerHTML = group('Song library', openDemos, query ? 'No songs in the library match that search.' : 'Drop .handsong files into demo-songs.', 'demo-collection')
       + group('My songs', state.mySongs, query ? 'No My songs match that search.' : 'Create or import a song and it will appear here.', 'community-collection personal-collection');
     if (JOURNEY) addJourneyLockedRow(state.demoSongs.map(song => song.id), query);
     const startHere = query ? null : startHereCard();
@@ -1181,19 +1436,20 @@
     svgEl('circle', { r: 0.985, fill: 'none', stroke: `url(#${uid}-rim)`, 'stroke-width': 0.022, class: 'hp-rim' }, body);
     svgEl('ellipse', { cx: -0.3, cy: -0.42, rx: 0.42, ry: 0.22, class: 'hp-sheen', transform: 'rotate(-28 -0.3 -0.42)' }, body);
 
-    const percShown = options.showAllPerc ? new Set(PERC_IDS) : visiblePercIds();
+    const percShown = options.showAllPerc ? null : visiblePercIds();
     const padGroup = svgEl('g', { class: 'hp-pads' }, svg);
     const padEls = new Map();
-    const ordered = state.pads
-      .filter(pad => pad.kind !== 'perc' || percShown.has(pad.id))
+    const ordered = (options.pads || state.pads)
+      .filter(pad => pad.kind !== 'perc' || !percShown || percShown.has(pad.id))
       .sort((a, b) => (a.kind === 'perc') - (b.kind === 'perc'));
     ordered.forEach(pad => {
-      const g = svgEl('g', { class: `pad pad-${pad.kind}`, 'data-pad': pad.id, transform: `translate(${pad.x.toFixed(4)} ${pad.y.toFixed(4)})` });
+      const zoneClass = pad.kind === 'perc' ? ` zone-${pad.hand}${pad.own ? ' own' : ''}` : '';
+      const g = svgEl('g', { class: `pad pad-${pad.kind}${zoneClass}`, 'data-pad': pad.id, transform: `translate(${pad.x.toFixed(4)} ${pad.y.toFixed(4)})` });
       g.style.setProperty('--note', pad.color);
       if (pad.kind === 'perc') {
         svgEl('circle', { r: 0.12, class: 'hit-area' }, g);
         svgEl('circle', { r: pad.rx, class: 'field' }, g);
-        svgEl('text', { class: 'num perc-num', y: 0.004 }, g).textContent = pad.label;
+        svgEl('text', { class: 'num perc-num', y: 0.004 }, g).textContent = pad.mark || pad.label;
       } else if (pad.kind === 'ding') {
         svgEl('ellipse', { rx: pad.rx, ry: pad.ry, class: 'field', fill: `url(#${uid}-pad)` }, g);
         svgEl('ellipse', { rx: pad.rx * 0.42, ry: pad.ry * 0.42, class: 'dimple' }, g);
@@ -1216,7 +1472,7 @@
       padGroup.appendChild(g);
       padEls.set(pad.id, g);
     });
-    if (state.pads.some(p => p.kind === 'bottom')) {
+    if ((options.pads || state.pads).some(p => p.kind === 'bottom')) {
       svgEl('text', { class: 'under-caption', x: 0, y: 1.215 }, svg).textContent = 'bottom notes (underside)';
     }
     const drum = { svg, padEls, options };
@@ -1265,6 +1521,7 @@
     els.stageDrumWrap.replaceChildren(stage.svg);
     state.drums = [side, stage];
     state.nextKey = '';
+    state.zoneKey = null;
     updateNextHint(true);
     renderInstrumentInfo();
   }
@@ -1298,14 +1555,18 @@
     const perc = visiblePercIds();
     const keys = [`D, 1–${scale.top.length}`];
     if (scale.bottoms) keys.push('0 / -');
-    if (perc.size) keys.push([...new Set([...perc].map(id => PERC_INFO[id].label))].join(' '));
+    const bases = new Set([...perc].map(percBase));
+    if (perc.size) keys.push(PERC_BASES.filter(base => bases.has(base)).join(' '));
     els.keyboardHint.textContent = `Keys ${keys.join(', ')}`;
     const strokes = [];
     if (state.parsed?.used.has('D')) strokes.push('<span><b>D</b> ding</span>');
-    if (perc.has('T')) strokes.push('<span><b>T</b> tak</span>');
-    if (perc.has('K')) strokes.push('<span><b>K</b> ka</span>');
-    if (perc.has('SL') || perc.has('SR')) strokes.push('<span><b>S</b> slap</span>');
-    els.strokeKey.innerHTML = perc.size ? strokes.join('') : '';
+    PERC_BASES.forEach(base => { if (bases.has(base)) strokes.push(`<span><b>${base}</b> ${PERC_WORDS[base]}</span>`); });
+    const items = state.parsed ? state.parsed.events.flatMap(event => event.items) : [];
+    const extras = [];
+    if (items.some(item => item.ghost)) extras.push('<span><b>( )</b> ghost</span>');
+    if (items.some(item => item.flam)) extras.push('<span><b>*</b> flam</span>');
+    if (items.some(item => item.fx === 'mute')) extras.push('<span><b>M</b> mute</span>');
+    els.strokeKey.innerHTML = perc.size || extras.length ? strokes.concat(extras).join('') : '';
   }
 
   /* ------------------------------------------------------------------ */
@@ -1334,7 +1595,7 @@
   }
 
   function playableItems() {
-    return state.parsed ? state.parsed.events.flatMap(e => e.items.filter(i => !i.missing)) : [];
+    return state.parsed ? state.parsed.events.flatMap(e => e.items.filter(i => !i.missing && !i.ghost)) : [];
   }
 
   function firstEventIndexAtOrAfter(time) {
@@ -1348,12 +1609,13 @@
     return lo;
   }
 
+  // Ghost notes are a bonus: Wait for note does not stop for them, and a missed one is no miss.
   function eventPlayable(event) {
-    return event.items.some(item => !item.missing);
+    return event.items.some(item => !item.missing && !item.ghost);
   }
 
   function eventDone(event) {
-    return event.items.every(item => item.missing || state.results.has(item.id));
+    return event.items.every(item => item.missing || item.ghost || state.results.has(item.id));
   }
 
   function resetRun(time = 0) {
@@ -1382,6 +1644,7 @@
     state.waitIdx = firstEventIndexAtOrAfter(t);
     state.schedIdx = state.waitIdx;
     state.flashIdx = state.waitIdx;
+    state.muteIdx = state.waitIdx;
     state.missIdx = state.waitIdx;
     state.schedBeat = Math.ceil(t / state.parsed.spb - 1e-6);
     state.holding = false;
@@ -1506,7 +1769,8 @@
     const events = parsed.events;
     while (state.schedIdx < events.length && events[state.schedIdx].time <= horizon) {
       const event = events[state.schedIdx];
-      if (event.time >= t - 0.04 && autoPlaysNotes() && !eventDone(event)) {
+      if (parsed.mutes && event.time >= t - 0.04 && event.items.some(item => item.fx === 'mute')) muteRinging(state.clock === 'audio' ? songToCtx(event.time) : 0);
+      if (event.time >= t - 0.04 && autoPlaysNotes() && event.items.some(item => !item.missing && !state.results.has(item.id))) {
         const when = songToCtx(event.time);
         const velocity = listening() ? 1 : 0.55;
         // The microphone must not take the app's own "hear it first" note for yours.
@@ -1514,7 +1778,7 @@
           const delay = state.clock === 'audio' && audio.ctx ? Math.max(0, when - audio.ctx.currentTime) * 1000 : 0;
           mic.echoUntil = Math.max(mic.echoUntil || 0, performance.now() + delay + 900);
         }
-        event.items.forEach(item => { if (!item.missing) playPad(item.pad, state.clock === 'audio' ? when : 0, velocity); });
+        event.items.forEach(item => { if (!item.missing) playItem(item, state.clock === 'audio' ? when : 0, velocity); });
       }
       state.schedIdx += 1;
     }
@@ -1570,6 +1834,7 @@
         }
       }
       if (listening()) flashDueNotes(t);
+      if (parsed.mutes) cueMutes(t);
       if (state.mode === 'practice') markMissedNotes(t);
       if (state.abLoop && state.loopA != null && state.loopB != null && t >= state.loopB) {
         restartSection();
@@ -1590,6 +1855,7 @@
     const busy = state.playing || state.effects.length || state.laneFlash.size || spin.active;
     const interval = state.playing ? profile.visualInterval : busy ? 0 : effectiveAmbientInterval(profile);
     updateTape(songNow());
+    updateZoneVisibility(state.playing ? songNow() : state.songTime);
     if (state.dirty || !interval || nowMs - state.lastRenderAt >= interval) {
       applySpin(nowMs);
       state.dirty = false;
@@ -1634,6 +1900,7 @@
       let missed = false;
       event.items.forEach(item => {
         if (item.missing || state.results.has(item.id)) return;
+        if (item.ghost) { state.results.set(item.id, 'skip'); return; }
         state.results.set(item.id, 'miss');
         missed = true;
         addEffect('miss', item.pad, WRONG_COLOR);
@@ -2901,10 +3168,11 @@
         const growth = 0.72 + Math.pow(travel, 0.72) * 0.48;
         let alpha = noteAlpha(dt, travel, preview);
         if (isPending && state.holding) alpha = Math.max(alpha, 0.82);
+        if (item.ghost) alpha *= 0.62;
         if (alpha <= 0.01) return;
         const approach = Math.max(0, Math.min(1, 1 - Math.abs(dt) / 0.6));
         // Round notes: the same gradient sprite as Ethereal Drum, drawn as a circle.
-        const diameter = Math.max(30, Math.min(40, 32 * scale + 8)) * growth * (1 + approach * 0.06);
+        const diameter = Math.max(30, Math.min(40, 32 * scale + 8)) * growth * (1 + approach * 0.06) * (item.ghost ? 0.72 : 1);
         const capsuleW = diameter * 1.15;
         const capsuleH = diameter * 0.85;
 
@@ -2985,6 +3253,14 @@
           ctx.restore();
         }
 
+        if (item.flam) {
+          // The grace stroke of a flam: a small note just ahead of the main one.
+          ctx.save();
+          ctx.globalAlpha = alpha * 0.85;
+          ctx.translate(x - target.dx * diameter * 0.78, y - target.dy * diameter * 0.78);
+          drawCachedNoteSprite(ctx, cachedNoteSprite('round', color, diameter * 0.4, diameter * 0.4, 6));
+          ctx.restore();
+        }
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.translate(x, y);
@@ -3148,10 +3424,12 @@
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = flash && age < 0.6 ? '#0b1020' : '#e8ecf6';
-      ctx.font = `800 ${Math.round(labelR * (pad.label.length > 1 ? 0.78 : 0.95))}px Inter, system-ui, sans-serif`;
+      // A second zone of a kind is told apart on its lane: T₂, S₂...
+      const laneText = pad.mark || pad.label;
+      ctx.font = `800 ${Math.round(labelR * (laneText.length > 1 ? 0.78 : 0.95))}px Inter, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(pad.label, x, hitY + 1);
+      ctx.fillText(laneText, x, hitY + 1);
       ctx.restore();
     });
 
@@ -3198,11 +3476,21 @@
         const x = centers.get(item.pad);
         const result = state.results.get(item.id);
         const color = result === 'miss' ? WRONG_COLOR : itemColor(item);
-        if (noteIsMoving && particleCount) drawFallingNoteParticles(ctx, item.id, x, y, noteW / 2, noteH, color, alpha, particleCount, profile.particleShadows, particleClock);
+        // Ghost notes fall smaller and fainter; a flam has its grace stroke just below.
+        const size = item.ghost ? noteW * 0.72 : noteW;
+        const itemAlpha = item.ghost ? alpha * 0.62 : alpha;
+        if (noteIsMoving && particleCount && !item.ghost) drawFallingNoteParticles(ctx, item.id, x, y, noteW / 2, noteH, color, alpha, particleCount, profile.particleShadows, particleClock);
+        if (item.flam) {
+          ctx.save();
+          ctx.globalAlpha = itemAlpha * 0.85;
+          ctx.translate(x, y + size * 0.78);
+          drawCachedNoteSprite(ctx, cachedNoteSprite('round', color, size * 0.4, size * 0.4, 6));
+          ctx.restore();
+        }
         ctx.save();
-        ctx.globalAlpha = alpha;
+        ctx.globalAlpha = itemAlpha;
         ctx.translate(x, y);
-        drawCachedNoteSprite(ctx, cachedNoteSprite('round', color, noteW, noteW, Math.abs(dt) < 0.15 || (isPending && state.holding) ? 24 : 10));
+        drawCachedNoteSprite(ctx, cachedNoteSprite('round', color, size, size, Math.abs(dt) < 0.15 || (isPending && state.holding) ? 24 : 10));
         ctx.restore();
         if (isPending && state.holding) {
           const phase = (nowMs % 900) / 900;
@@ -3678,7 +3966,7 @@
     app: 'ethereal-handpan',
     appName: 'Ethereal Handpan',
     keys: PROGRESS_KEYS,
-    stats: () => COMMON.progressStats(PROGRESS_KEYS, PRACTICE),
+    stats: () => ({ ...COMMON.progressStats(PROGRESS_KEYS, PRACTICE), ...COMMON.progressReadable({ keys: PROGRESS_KEYS, titleOf: id => (id === DRILL_ID ? 'Rhythm drill' : findSong(id)?.title || ''), journey: JOURNEY }) }),
     onMerged: () => { BEST.reload(); PRACTICE.reload(); renderSongList(); },
     toast: message => showToast(message, 'success')
   });
@@ -3775,9 +4063,10 @@
     }
     JOURNEY.activeDrill = null;
     selectSong(node.id);
-    state.waitPref = false;
-    setMode('practice');
-    startPlayback();
+    // You choose how to play it: Listen or Practice, then Play.
+    
+    COMMON.nudge(document.querySelector('.mode-segmented'));
+    showToast('Choose Listen or Practice, then press Play.', 'success');
   }
 
   function startJourneyOver() {
@@ -3785,9 +4074,12 @@
     BEST.reload();
     JOURNEY.reload();
     journeyMark = JOURNEY.current()?.key || '';
+    // Starting over locks everything again, also for the admin.
+    JOURNEY.adminOff();
     selectSong(JOURNEY.fallbackSong());
     renderSongList();
-    if (CLOUD.connected) CLOUD.push().catch(() => {});
+    // A cloud save starts fresh under a new code; the old one is marked as replaced.
+    if (CLOUD.connected) CLOUD.restart().then(code => { if (code) showToast(`Started over. Your new cloud code is ${code}.`, 'success'); }).catch(() => {});
   }
 
   function openSongPathDialog() {
@@ -3813,7 +4105,7 @@
     if (!song) return;
     const chooser = document.getElementById('editChoiceDialog');
     if (chooser?.open) chooser.close();
-    const doc = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || undefined, bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence } };
+    const doc = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || undefined, bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence, zones: song.zones } };
     const how = await COMMON.shareSongLink({ doc, title: song.title, appName: 'Ethereal Handpan' });
     if (how === 'copied') showToast('Link copied. Paste it in a message to a friend.', 'success');
   }
@@ -4022,6 +4314,8 @@
       bpm: els.songBpmInput.value,
       beatsPerBar: els.songMeterInput.value,
       sequence: els.sequenceInput.value,
+      zones: editor.zones,
+      changedZones: [...editor.changed],
       savedAt: Date.now()
     };
   }
@@ -4062,6 +4356,10 @@
     }
     if (meter) els.songMeterInput.value = meter;
     els.sequenceInput.value = draft.sequence || '';
+    if ('zones' in draft) {
+      editor.zones = Array.isArray(draft.zones) ? draft.zones.map(zone => ({ ...zone })) : null;
+      editor.changed = new Set(Array.isArray(draft.changedZones) ? draft.changedZones : []);
+    }
   }
 
   function updateDraftNotice(restored) {
@@ -4178,7 +4476,8 @@
     syncWaitControls();
   }
 
-  const editor = { songId: null, sourceId: null, draftKey: '', draftTimer: 0, loading: false, hand: '', len: 1, drum: null, previewTimer: 0 };
+  const editor = { songId: null, sourceId: null, draftKey: '', draftTimer: 0, loading: false, hand: '', len: 1, drum: null, previewTimer: 0,
+    style: '', zones: null, changed: new Set(), zoneMode: 'write', selectedZone: '', pads: null, zoneIdsKey: '' };
 
   function openEditor(song, options = {}) {
     flushDraftSave();
@@ -4197,13 +4496,16 @@
       els.songMeterInput.value = option.value;
     }
     els.sequenceInput.value = song ? song.sequence : '';
+    editor.zones = song && Array.isArray(song.zones) ? song.zones.map(zone => ({ ...zone })) : null;
+    editor.changed = new Set((editor.zones || []).map(zone => zone.id));
+    editor.selectedZone = '';
+    setZoneMode('write');
     els.deleteEditorBtn.hidden = !editor.songId;
     els.saveSongBtn.textContent = song && song.folder !== 'mine' ? 'Save as my song' : 'Save song';
     const draft = readDrafts().find(item => item.draftKey === editor.draftKey) || null;
     if (draft) applyEditorDraft(draft);
     updateDraftNotice(draft);
-    editor.drum = buildDrumSvg({ interactive: true, className: 'compose-svg', onTap: composeTap, showAllPerc: true });
-    els.composeDrum.replaceChildren(editor.drum.svg);
+    renderComposeDrum();
     updateSequenceStatus();
     editor.loading = false;
     openDialog(els.editorDialog);
@@ -4211,6 +4513,11 @@
   }
 
   function composeTap(padId) {
+    if (editor.zoneMode === 'move') {
+      // Placing zones: zones are picked up by dragging; a note just sounds.
+      if (!isPercId(padId)) ensureAudio().then(() => playPad(padId, 0, 0.9)).catch(() => {});
+      return;
+    }
     ensureAudio().then(() => playPad(padId, 0, 0.9)).catch(() => {});
     const g = editor.drum.padEls.get(padId);
     if (g) {
@@ -4222,6 +4529,8 @@
     let token;
     if (padId === 'SL' || padId === 'SR') token = `S${padId === 'SR' ? 'R' : 'L'}`;
     else token = `${padId}${editor.hand}`;
+    if (editor.style === 'ghost') token = `(${token})`;
+    else if (editor.style === 'flam') token = `*${token}`;
     const lenSuffix = editor.len === 1 ? '' : `:${editor.len}`;
     const input = els.sequenceInput;
     const before = input.value.slice(0, input.selectionStart);
@@ -4267,7 +4576,169 @@
   }
 
   function editorParsed() {
-    return parseSequence(els.sequenceInput.value, els.songBpmInput.value, els.songMeterInput.value, state.padMap);
+    return parseSequence(els.sequenceInput.value, els.songBpmInput.value, els.songMeterInput.value, new Map(editorPads().map(pad => [pad.id, pad])));
+  }
+
+  /* ---------- Song builder: the song's own stroke zones ---------- */
+
+  function editorPads() {
+    return buildPads(state.instrument, undefined, { zones: editor.zones, used: percIdsIn(els.sequenceInput.value) });
+  }
+
+  function renderComposeDrum() {
+    editor.zoneIdsKey = [...percIdsIn(els.sequenceInput.value)].sort().join(',');
+    editor.pads = editorPads();
+    editor.drum = buildDrumSvg({ interactive: true, className: `compose-svg${editor.zoneMode === 'move' ? ' zone-move' : ''}`, onTap: composeTap, showAllPerc: true, pads: editor.pads });
+    els.composeDrum.replaceChildren(editor.drum.svg);
+    bindZoneEditing(editor.drum);
+    renderZoneTools();
+  }
+
+  function setZoneMode(mode) {
+    editor.zoneMode = mode === 'move' ? 'move' : 'write';
+    els.zonePanel?.querySelectorAll('[data-zone-mode]').forEach(button => button.classList.toggle('active', button.dataset.zoneMode === editor.zoneMode));
+    editor.drum?.svg.classList.toggle('zone-move', editor.zoneMode === 'move');
+    if (editor.zoneMode !== 'move') editor.selectedZone = '';
+    renderZoneTools();
+  }
+
+  // Zones are kept as on the unturned drum (and for right-handed playing), so they turn
+  // with the notes and follow the mirror setting.
+  function zoneRecord(pad, x = pad.x, y = pad.y) {
+    const inst = state.instrument;
+    const flip = inst.mirror && pad.id !== 'SL' && pad.id !== 'SR';
+    const p = turnPoint(flip ? -x : x, y, -rotationOffset(inst, SCALES[inst.scale].top.length));
+    let hand = pad.hand;
+    if (flip) hand = hand === 'L' ? 'R' : 'L';
+    return { id: pad.id, x: Math.round(p.x * 1000) / 1000, y: Math.round(p.y * 1000) / 1000, hand };
+  }
+
+  // The first change to a zone gives the song its own copy of every zone on the drum.
+  function materialiseZones() {
+    if (editor.zones) return;
+    editor.zones = (editor.pads || editorPads()).filter(pad => pad.kind === 'perc').map(pad => zoneRecord(pad));
+  }
+
+  function zonesChanged() {
+    renderComposeDrum();
+    updateSequenceStatus();
+  }
+
+  function setEditorZone(id, change) {
+    const pad = (editor.pads || []).find(item => item.id === id);
+    if (!pad) return;
+    materialiseZones();
+    const record = zoneRecord({ ...pad, hand: change.hand || pad.hand }, change.x ?? pad.x, change.y ?? pad.y);
+    editor.zones = editor.zones.filter(zone => zone.id !== id).concat(record);
+    editor.changed.add(id);
+    zonesChanged();
+  }
+
+  function addZone(base) {
+    const pads = editor.pads || editorPads();
+    let n = 2;
+    while (n <= 9 && pads.some(pad => pad.id === `${base}${n}`)) n += 1;
+    if (n > 9) { showToast(`That is the most ${base} zones a song can have.`, 'warning'); return; }
+    const id = `${base}${n}`;
+    const first = pads.find(pad => pad.id === (base === 'S' ? (n % 2 ? 'SR' : 'SL') : base));
+    if (!first) return;
+    const spot = turnPoint(first.x, first.y, first.x < 0 ? -26 : 26);
+    materialiseZones();
+    editor.zones.push(zoneRecord({ id, hand: first.hand }, spot.x, spot.y));
+    editor.changed.add(id);
+    editor.selectedZone = id;
+    zonesChanged();
+  }
+
+  function removeZone(id) {
+    if (!editor.zones) return;
+    editor.zones = editor.zones.filter(zone => zone.id !== id);
+    editor.changed.delete(id);
+    if (editor.selectedZone === id && zoneIndex(id)) editor.selectedZone = '';
+    zonesChanged();
+  }
+
+  // What the song keeps: the zones it writes and the ones you placed or added.
+  function editorSongZones() {
+    if (!editor.zones) return undefined;
+    const used = percIdsIn(els.sequenceInput.value);
+    const list = editor.zones.filter(zone => used.has(zone.id) || editor.changed.has(zone.id) || zoneIndex(zone.id));
+    return cleanZones(list);
+  }
+
+  function renderZoneTools() {
+    if (!els.zoneTools) return;
+    const move = editor.zoneMode === 'move';
+    els.zoneTools.hidden = !move;
+    editor.drum?.padEls.forEach((g, id) => g.classList.toggle('selected', move && id === editor.selectedZone));
+    if (!move) return;
+    const pad = editor.selectedZone ? (editor.pads || []).find(item => item.id === editor.selectedZone) : null;
+    if (!pad) {
+      els.zoneSelected.innerHTML = '<span class="zone-hint">Drag a zone to where you play it in this song. Tap one to pick its hand.</span>';
+      return;
+    }
+    const used = percIdsIn(els.sequenceInput.value).has(pad.id);
+    const fixedHand = pad.id === 'SL' || pad.id === 'SR';
+    const hands = ['L', 'R'].map(hand => `<button type="button" data-zone-hand="${hand}" class="hand-${hand.toLowerCase()}${pad.hand === hand ? ' active' : ''}"${fixedHand ? ' disabled' : ''}>${hand === 'L' ? 'Left' : 'Right'}</button>`).join('');
+    const action = zoneIndex(pad.id)
+      ? `<button type="button" class="text-tool-btn" data-zone-remove${used ? ' disabled title="The song still uses this zone"' : ''}>Remove</button>`
+      : editor.changed.has(pad.id) ? '<button type="button" class="text-tool-btn" data-zone-reset title="Back to the zone from My Handpan">Reset</button>' : '';
+    els.zoneSelected.innerHTML = `<b class="zone-name">${escapeHtml(pad.mark)}</b><span class="zone-label">${escapeHtml(pad.name)}</span><span class="mini-seg zone-hand" role="group" aria-label="Hand">${hands}</span>${action}`;
+  }
+
+  function bindZoneEditing(drum) {
+    let drag = null;
+    drum.svg.addEventListener('pointerdown', event => {
+      if (editor.zoneMode !== 'move') return;
+      const g = event.target.closest('.pad-perc');
+      if (!g) return;
+      event.preventDefault();
+      drag = { id: g.getAttribute('data-pad'), g, pointer: event.pointerId, moved: false };
+      editor.selectedZone = drag.id;
+      renderZoneTools();
+      try { drum.svg.setPointerCapture(event.pointerId); } catch (error) { /* not capturable */ }
+      g.classList.add('dragging');
+    });
+    drum.svg.addEventListener('pointermove', event => {
+      if (!drag || event.pointerId !== drag.pointer) return;
+      const point = drum.svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const local = point.matrixTransform(drum.svg.getScreenCTM().inverse());
+      const pads = editor.pads || [];
+      const spot = snapZone(local.x, local.y, drag.id, pads, pads.filter(pad => pad.kind === 'perc' && pad.id !== drag.id));
+      drag.x = spot.x;
+      drag.y = spot.y;
+      drag.moved = true;
+      drag.g.setAttribute('transform', `translate(${spot.x.toFixed(4)} ${spot.y.toFixed(4)})`);
+    });
+    const end = event => {
+      if (!drag || event.pointerId !== drag.pointer) return;
+      drag.g.classList.remove('dragging');
+      const done = drag;
+      drag = null;
+      if (done.moved) setEditorZone(done.id, { x: done.x, y: done.y });
+    };
+    drum.svg.addEventListener('pointerup', end);
+    drum.svg.addEventListener('pointercancel', end);
+  }
+
+  function bindZonePanel() {
+    els.zonePanel?.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (!button || button.disabled) return;
+      if (button.dataset.zoneMode) { setZoneMode(button.dataset.zoneMode); return; }
+      if (button.dataset.addZone) { setZoneMode('move'); addZone(button.dataset.addZone); return; }
+      const id = editor.selectedZone;
+      if (button.dataset.zoneHand && id) { setEditorZone(id, { hand: button.dataset.zoneHand }); return; }
+      if (button.hasAttribute('data-zone-remove') && id) { removeZone(id); return; }
+      if (button.hasAttribute('data-zone-reset') && id) removeZone(id);
+    });
+    els.editorDialog.querySelectorAll('[data-style]').forEach(button => button.addEventListener('click', () => {
+      editor.style = button.dataset.style;
+      els.editorDialog.querySelectorAll('[data-style]').forEach(b => b.classList.toggle('active', b === button));
+    }));
+    els.addMuteBtn?.addEventListener('click', () => insertAtCursor(editor.len === 1 ? 'M' : `M:${editor.len}`));
   }
 
   function updateSequenceStatus() {
@@ -4278,6 +4749,9 @@
     if (parsed.missing.size) parts.push(`Not on ${SCALES[state.instrument.scale].name}: ${[...parsed.missing].join(', ')}`);
     els.sequenceStatus.textContent = parts.join(' · ') || 'Tap the handpan or type strokes.';
     els.sequenceStatus.dataset.tone = parsed.errors.length ? 'error' : parsed.missing.size ? 'warn' : 'ok';
+    // A new zone written as text (S3, T2...) shows up on the builder's handpan.
+    if (editor.drum && [...percIdsIn(els.sequenceInput.value)].sort().join(',') !== editor.zoneIdsKey) renderComposeDrum();
+    else renderZoneTools();
     renderRhythmView(parsed);
     queueDraftSave();
   }
@@ -4293,7 +4767,10 @@
     if (!context) return;
     const parsed = editorParsed();
     const start = context.currentTime + 0.15;
-    parsed.events.forEach(event => event.items.forEach(item => { if (!item.missing) playPad(item.pad, start + event.time, 0.9, audio.preview); }));
+    parsed.events.forEach(event => event.items.forEach(item => {
+      if (item.fx === 'mute') muteRinging(start + event.time);
+      else if (!item.missing) playItem(item, start + event.time, 0.9, audio.preview);
+    }));
     els.previewSongBtn.textContent = '■ Stop';
     clearTimeout(editor.previewTimer);
     startEditorPreviewVisuals(parsed, (start - context.currentTime) * 1000);
@@ -4312,7 +4789,7 @@
     strip.replaceChildren(...parsed.events.map(event => {
       const chip = document.createElement('span');
       chip.className = 'preview-chip';
-      chip.textContent = event.items.map(item => state.padMap.get(item.pad)?.label || item.pad).join('+');
+      chip.textContent = event.items.map(item => item.fx ? 'M' : isPercId(item.pad) ? strokeMark(item.pad) : state.padMap.get(item.pad)?.label || item.pad).join('+');
       chip.style.setProperty('--c', itemColor(event.items[0]));
       return chip;
     }));
@@ -4647,7 +5124,7 @@
     if (!song || song.folder !== 'mine') { showToast('Select one of your own songs first.', 'warning'); return; }
     if (!COMMUNITY_UPLOAD_URL || communityUploadRequest) return;
     if (songUnderReview(song)) { showToast('This version is already waiting for review.', 'warning'); return; }
-    const payload = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || '', bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence, folder: 'community' } };
+    const payload = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || '', bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence, zones: song.zones, folder: 'community' } };
     const nonce = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `community-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     const frame = document.createElement('iframe');
     frame.name = `community-upload-${nonce.replace(/[^a-z0-9]/gi, '')}`;
@@ -4762,7 +5239,7 @@
       if (!Number.isFinite(duration)) { cells.push({ ...token, kind: 'error', beat, dur: 0 }); return; }
       if (core === '-' || core === '0' || core === '.' || core === '') { cells.push({ ...token, kind: 'rest', beat, dur: duration }); beat += duration; return; }
       const parts = core.split('+').filter(Boolean);
-      if (!parts.length || !parts.every(part => ITEM_PATTERN.test(part))) { cells.push({ ...token, kind: 'error', beat, dur: duration }); beat += duration; return; }
+      if (!parts.length || !parts.every(part => parsePart(part))) { cells.push({ ...token, kind: 'error', beat, dur: duration }); beat += duration; return; }
       cells.push({ ...token, kind: 'stroke', beat, dur: duration, event: parsed.events[k], eventIndex: k });
       k += 1;
       beat += duration;
@@ -4804,7 +5281,7 @@
     }
     const caret = els.sequenceInput.selectionEnd;
     const atEnd = !text.slice(caret).trim();
-    const label = item => state.padMap.get(item.pad)?.label || PERC_INFO[item.pad]?.label || item.pad;
+    const label = item => item.fx ? 'M' : isPercId(item.pad) ? strokeMark(item.pad) : state.padMap.get(item.pad)?.label || item.pad;
     const maxBeats = Math.max(...rows.map(row => Math.ceil(row.end - row.start - 1e-6)), 1);
     const room = (view.clientWidth || 340) - 40;
     const beatW = Math.max(50, Math.min(124, Math.floor(room / Math.max(maxBeats, 4))));
@@ -4828,8 +5305,8 @@
           inner += `<button type="button" class="rv-cell error${narrow}${cursor}" ${pos} aria-label="Not understood">?<span class="rv-del" aria-label="Remove">×</span></button>`;
         } else {
           const items = cell.event?.items || [];
-          const notes = items.map(item => `<b class="h-${item.hand || 'R'}${item.missing ? ' missing' : ''}">${escapeHtml(label(item))}</b>`).join('');
-          const hands = items.map(item => `<i class="h-${item.hand || 'R'}">${item.hand || ''}</i>`).join('');
+          const notes = items.map(item => `<b class="h-${item.hand || 'R'}${item.fx ? ' fx' : item.missing ? ' missing' : ''}${item.ghost ? ' ghost' : ''}${item.flam ? ' flam' : ''}">${escapeHtml(label(item))}</b>`).join('');
+          const hands = items.map(item => `<i class="h-${item.hand || 'R'}">${item.fx ? '' : item.hand || ''}</i>`).join('');
           inner += `<button type="button" class="rv-cell stroke${items.length > 1 ? ' chord' : ''}${narrow}${cursor}" ${pos} data-event="${cell.eventIndex}"><span class="rv-notes">${notes}</span><span class="rv-hands">${hands}</span><span class="rv-del" aria-label="Remove">×</span></button>`;
         }
       });
@@ -4886,10 +5363,13 @@
       beatsPerBar: Number(els.songMeterInput.value) || 4,
       sequence: els.sequenceInput.value.trim()
     };
+    const zones = editorSongZones();
+    if (zones) data.zones = zones;
     let song;
     if (editor.songId) {
       song = state.mySongs.find(s => s.id === editor.songId);
       Object.assign(song, data);
+      if (!zones) delete song.zones;
     } else {
       song = normaliseSong(data, 'mine');
       state.mySongs.push(song);
@@ -4918,7 +5398,7 @@
   function exportSong() {
     const song = state.song;
     if (!song) return;
-    const documentData = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || undefined, bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence } };
+    const documentData = { format: SONG_FORMAT, song: { title: song.title, artist: song.artist || undefined, bpm: song.bpm, beatsPerBar: song.beatsPerBar, scale: 'D Kurd', sequence: song.sequence, zones: song.zones } };
     const blob = new Blob([JSON.stringify(documentData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -4960,7 +5440,8 @@
   }
 
   function renderSettingsDrum() {
-    const drum = buildDrumSvg({ interactive: true, className: 'settings-svg', showAllPerc: true, onTap: padId => { ensureAudio().then(() => playPad(padId)).catch(() => {}); } });
+    const pads = buildPads(state.instrument, undefined, DEFAULT_ZONE_CTX);
+    const drum = buildDrumSvg({ interactive: true, className: 'settings-svg', showAllPerc: true, pads, onTap: padId => { ensureAudio().then(() => playPad(padId)).catch(() => {}); } });
     state.settingsDrum = drum;
     els.settingsDrum.replaceChildren(drum.svg);
     bindPercDrag(drum);
@@ -5011,9 +5492,9 @@
       point.x = event.clientX;
       point.y = event.clientY;
       const local = point.matrixTransform(drum.svg.getScreenCTM().inverse());
-      let { x, y } = local;
-      const r = Math.hypot(x, y);
-      if (r > 0.95) { x *= 0.95 / r; y *= 0.95 / r; }
+      // The zone slides round the notes to the nearest free metal.
+      const pads = drum.options.pads || state.pads;
+      const { x, y } = snapZone(local.x, local.y, drag.id, pads, pads.filter(pad => pad.kind === 'perc' && pad.id !== drag.id));
       drag.x = x;
       drag.y = y;
       drag.g.setAttribute('transform', `translate(${x.toFixed(4)} ${y.toFixed(4)})`);
@@ -5023,7 +5504,7 @@
       drag.g.classList.remove('dragging');
       if (Number.isFinite(drag.x)) {
         const inst = state.instrument;
-        const mirrored = inst.mirror && (drag.id === 'T' || drag.id === 'K');
+        const mirrored = inst.mirror && drag.id !== 'SL' && drag.id !== 'SR';
         const stored = { x: mirrored ? -drag.x : drag.x, y: drag.y };
         // Only the dragged zone is stored; the others keep following the layout.
         inst.percPos[inst.scale] = { ...(inst.percPos[inst.scale] || {}), [drag.id]: stored };
@@ -5076,7 +5557,7 @@
     state.padMap = new Map(pads.map(pad => [pad.id, pad]));
     [...state.drums, editor.drum, state.settingsDrum].filter(Boolean).forEach(drum => drum.padEls.forEach((g, id) => {
       const pad = state.padMap.get(id);
-      if (!pad) return;
+      if (!pad || (pad.kind === 'perc' && !state.drums.includes(drum))) return;
       g.setAttribute('transform', `translate(${pad.x.toFixed(4)} ${pad.y.toFixed(4)})`);
       const inner = g.querySelector(':scope > g');
       if (inner) inner.setAttribute('transform', `rotate(${pad.rot.toFixed(2)})`);
@@ -5116,6 +5597,7 @@
       rebuildLanes();
       renderDrums();
       if (els.settingsDialog.open) renderSettings();
+      if (els.editorDialog.open) renderComposeDrum();
     };
     rotation.raf = requestAnimationFrame(tick);
   }
@@ -5142,7 +5624,9 @@
   }
 
   function tapeLabel(padId) {
-    return state.padMap.get(padId)?.label || PERC_INFO[padId]?.label || padId;
+    const pad = state.padMap.get(padId);
+    if (pad?.kind === 'perc' || (!pad && isPercId(padId))) return strokeMark(padId);
+    return pad?.label || padId;
   }
 
   function tapePitch(padId) {
@@ -5182,17 +5666,19 @@
       frag.appendChild(bar);
     });
     parsed.events.forEach(event => {
-      const items = event.items.filter(item => !item.missing).sort((a, b) => tapePitch(b.pad) - tapePitch(a.pad));
+      const items = event.items.filter(item => !item.missing || item.fx).sort((a, b) => tapePitch(b.pad) - tapePitch(a.pad));
       if (!items.length) return;
       const col = document.createElement('span');
       col.className = `tape-ev${items.length > 1 ? ` chord chord-${Math.min(3, items.length)}` : ''}`;
       col.style.left = `${(event.beat * ppb).toFixed(1)}px`;
       const chips = items.map(item => {
         const chip = document.createElement('b');
-        chip.textContent = tapeLabel(item.pad);
-        chip.style.setProperty('--c', itemColor(item));
+        chip.textContent = item.fx ? 'M' : tapeLabel(item.pad);
+        const base = [item.ghost ? 'ghost' : '', item.flam ? 'flam' : '', item.fx ? 'fx' : ''].filter(Boolean).join(' ');
+        chip.className = base;
+        chip.style.setProperty('--c', item.fx ? '#94a3b8' : itemColor(item));
         col.appendChild(chip);
-        return { item, chip, cls: '' };
+        return { item, chip, cls: base, base };
       });
       frag.appendChild(col);
       tape.events.push({ event, col, chips, cls: '' });
@@ -5203,7 +5689,7 @@
   function placeTape(layout, width, height) {
     const show = tapeWanted();
     tape.visible = show;
-    placeProgressInTape(show && document.body.classList.contains('wide-fit'));
+    placeProgressInTape(show && (document.body.classList.contains('wide-fit') || window.innerWidth <= 760));
     els.noteTape.hidden = !show;
     if (!show) return;
     const tapeH = width <= 760 ? 46 : 52;
@@ -5294,7 +5780,7 @@
       }
       entry.chips.forEach(chip => {
         const result = judged ? state.results.get(chip.item.id) : null;
-        const c = result ? `r-${result}` : '';
+        const c = [chip.base, result ? `r-${result}` : ''].filter(Boolean).join(' ');
         if (c !== chip.cls) {
           chip.chip.className = c;
           chip.cls = c;
@@ -5374,7 +5860,7 @@
     {
       target: '#songList', sidebar: true,
       title: 'Songs and grooves',
-      text: 'Demo songs, grooves and low-note pieces, with your own songs underneath in My songs.'
+      text: 'The Song library: songs, grooves and low-note pieces that open up as you follow the Song path. Your own songs are underneath in My songs.'
     },
     {
       target: '#editBtn',
@@ -5433,7 +5919,66 @@
   }
 
   function tourTarget(step) {
-    return step ? document.querySelector(step.target) : null;
+    if (!step) return null;
+    // A list of places: the first one that is on screen (desktop and phone differ).
+    const targets = Array.isArray(step.target) ? step.target : [step.target];
+    return targets.map(selector => document.querySelector(selector)).find(el => elementVisible(el)) || document.querySelector(targets[0]);
+  }
+
+  const STORAGE_MODE_TOURS = 'ethereal-handpan-mode-tours-v1';
+  const MODE_TOURS = {
+    practice: [
+      { target: '.mode-segmented [data-mode="practice"]', title: 'Practice mode',
+        text: 'Play along with the moving song: tap the handpan on screen, use your keyboard, or turn on the microphone and play your real handpan. Every stroke is scored Perfect, Good or Miss.' },
+      { target: '#noteStage', title: 'Follow the flying notes',
+        text: 'Each note flies to the field you play, blue for the left hand and amber for the right. Play it as it lands on the field.' },
+      { target: ['#waitStyleSelect', '#stageWaitBtn'], title: 'Wait for note',
+        text: 'Want to learn slowly? Choose Wait for note: the song stops on each stroke until you play it. Game Mode chimes for every right note, Play Note plays the note first, Silent just waits.' },
+      { target: ['.stat-pills', '#scorePill', '.mobile-stage-pill'], title: 'Score and streak',
+        text: 'Score is your accuracy and streak counts right notes in a row. After a run you get up to five stars, and Smart loop repeats your trickiest bar.' }
+    ],
+    wait: [
+      { target: ['#waitStyleSelect', '#stageWaitBtn'], title: 'Wait for note',
+        text: 'The song stops on every stroke until you play it, so you can learn at your own pace. Play in time and it never stops.' },
+      { target: '#noteStage', title: 'One stroke at a time',
+        text: 'The field to play pulses, and the banner shows which notes and which hand. Small, faint ghost notes do not stop the song.' },
+      { target: ['#micBtn', '#stageMicBtn', '#micChipBtn'], title: 'Use your real handpan',
+        text: 'Turn on the microphone and the trainer hears your handpan. You can also tap the screen or use the keyboard.' }
+    ],
+    tuner: [
+      { target: '.mode-segmented [data-mode="tuner"]', title: 'Tuner mode',
+        text: 'The tuner listens to one note at a time and compares it with A4 = 440 Hz.' },
+      { target: ['#micBtn', '#stageMicBtn', '#micChipBtn'], title: 'Allow the microphone',
+        text: 'Turn on the microphone, then strike one note clearly. A quiet room gives the steadiest reading.' },
+      { target: '#tunerPanel', title: 'Read the meter',
+        text: 'The centre is in tune, the left side is flat and the right side is sharp. A few cents either way is normal while a note rings out.' }
+    ]
+  };
+
+  function modeToursSeen() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_MODE_TOURS) || '[]'); } catch (error) { return []; }
+  }
+
+  function startModeTour(mode) {
+    if (tour.active || !MODE_TOURS[mode]) return;
+    tour.active = true;
+    tour.kind = 'mode';
+    tour.mode = mode;
+    tour.index = 0;
+    tour.previous = null;
+    els.tourOverlay.hidden = false;
+    els.tourSoundBtn.hidden = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      tour.steps = MODE_TOURS[mode].filter(step => elementVisible(tourTarget(step)));
+      if (!tour.steps.length) { finishTour(); return; }
+      renderTourStep();
+    }));
+    setTimeout(() => els.tourNextBtn.focus(), 60);
+  }
+
+  function maybeStartModeTour(mode) {
+    if (!MODE_TOURS[mode] || modeToursSeen().includes(mode) || !tourSeen()) return;
+    setTimeout(() => { if (!document.querySelector('dialog[open]')) startModeTour(mode); }, 120);
   }
 
   function positionTour() {
@@ -5527,6 +6072,7 @@
     const song = state.demoSongs.find(item => /^interstellar/i.test(item.title)) || state.demoSongs[0];
     if (song) selectSong(song.id);
     tour.active = true;
+    tour.kind = 'main';
     tour.index = 0;
     tour.steps = TOUR_STEPS;
     els.tourOverlay.hidden = false;
@@ -5546,6 +6092,13 @@
 
   function finishTour() {
     if (!tour.active) return;
+    if (tour.kind === 'mode') {
+      tour.active = false;
+      tour.kind = '';
+      els.tourOverlay.hidden = true;
+      try { localStorage.setItem(STORAGE_MODE_TOURS, JSON.stringify([...new Set([...modeToursSeen(), tour.mode])])); } catch (error) { /* ignored */ }
+      return;
+    }
     tour.active = false;
     markTourSeen();
     els.tourOverlay.hidden = true;
@@ -5586,7 +6139,12 @@
   }
 
   function bindTourEvents() {
-    els.tourBtn.addEventListener('click', () => { startTour(); unlockTourAudio(); });
+    els.tourBtn.addEventListener('click', () => {
+      // In Practice, Wait for note and Tuner the ? explains that mode; otherwise the demo tour.
+      if (MODE_TOURS[state.mode]) { startModeTour(state.mode); return; }
+      startTour();
+      unlockTourAudio();
+    });
     els.tourNextBtn.addEventListener('click', nextTourStep);
     els.tourBackBtn.addEventListener('click', previousTourStep);
     els.tourSkipBtn.addEventListener('click', finishTour);
@@ -5982,11 +6540,15 @@
     document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
       const mode = button.dataset.mode;
       setMode(mode === 'practice' ? (state.waitPref ? 'wait' : 'practice') : mode);
+      maybeStartModeTour(state.mode);
     }));
     els.waitToggle.addEventListener('change', () => {
       state.waitPref = els.waitToggle.checked;
       savePrefs();
-      if (state.mode === 'practice' || state.mode === 'wait') setMode(state.waitPref ? 'wait' : 'practice');
+      if (state.mode === 'practice' || state.mode === 'wait') {
+        setMode(state.waitPref ? 'wait' : 'practice');
+        maybeStartModeTour(state.mode);
+      }
     });
     els.micChipBtn.addEventListener('click', () => els.micBtn.click());
     els.topNewSongBtn.addEventListener('click', () => { setSidebar(false); openEditor(null); });
@@ -6100,6 +6662,7 @@
       editor.len = Number(button.dataset.len);
       els.editorDialog.querySelectorAll('[data-len]').forEach(b => b.classList.toggle('active', b === button));
     }));
+    bindZonePanel();
 
     // My handpan
     els.scaleCards.addEventListener('click', event => {
@@ -6237,10 +6800,12 @@
     if (event.repeat) return;
     const key = event.key.toLowerCase();
     let padId = KEY_MAP[key];
-    if (key === 's') {
-      // S plays the slap the song is asking for; Shift+S is always the right-hand slap.
-      const slap = nextUpcomingEvent()?.items.find(item => item.pad === 'SL' || item.pad === 'SR');
-      padId = event.shiftKey ? 'SR' : slap ? slap.pad : 'SL';
+    const base = { t: 'T', k: 'K', s: 'S', p: 'P', f: 'F' }[key];
+    if (base) {
+      // T, K, S, P and F play the zone of that kind the song is asking for (T2, S2...);
+      // Shift+S is always the right-hand slap.
+      const wanted = nextUpcomingEvent()?.items.find(item => !item.missing && percBase(item.pad) === base);
+      padId = base === 'S' && event.shiftKey ? 'SR' : wanted ? wanted.pad : base === 'S' ? 'SL' : base;
     }
     if (padId && state.padMap.has(padId)) {
       event.preventDefault();

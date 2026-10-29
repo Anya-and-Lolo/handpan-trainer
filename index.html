@@ -337,6 +337,12 @@
             <button type="button" data-len="2">2</button>
           </div>
           <label class="toggle-label compact"><input type="checkbox" id="chordModeToggle" /><span>Chord (+)</span></label>
+          <div class="mini-seg stroke-style" role="group" aria-label="How the stroke is played">
+            <button type="button" data-style="" class="active">Normal</button>
+            <button type="button" data-style="ghost" title="A whisper-quiet touch, written (4)">Ghost</button>
+            <button type="button" data-style="flam" title="A quick grace stroke just before, written *4">Flam</button>
+          </div>
+          <button type="button" class="soft-btn compact mute-btn" id="addMuteBtn" title="A hand rests on the shell and the ringing stops (M)">Mute</button>
         </div>
       </div>
       <div class="compose-row">
@@ -348,11 +354,27 @@
             <button class="rotate-drum-btn" id="composeRotateRightBtn" type="button" aria-label="Rotate the handpan clockwise" title="Rotate clockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 12.4a7.6 7.6 0 1 1-2.3-6"></path><path d="M19.6 3.2v4.4h-4.4"></path></svg></button>
           </div>
         </div>
+        <div class="compose-side">
         <div class="compose-buttons">
           <button type="button" class="soft-btn compact" id="appendRestBtn">Add rest</button>
           <button type="button" class="soft-btn compact" id="appendBarBtn">Add bar</button>
           <button type="button" class="soft-btn compact" id="undoTokenBtn">Clear last</button>
           <button type="button" class="soft-btn compact play-preview-btn" id="previewSongBtn">▶ Play</button>
+        </div>
+        <div class="zone-panel" id="zonePanel">
+          <div class="zone-head">
+            <b>Stroke zones</b>
+            <div class="mini-seg zone-mode" role="group" aria-label="Tapping the handpan">
+              <button type="button" data-zone-mode="write" class="active">Write strokes</button>
+              <button type="button" data-zone-mode="move">Place zones</button>
+            </div>
+          </div>
+          <div class="zone-tools" id="zoneTools" hidden>
+            <div class="zone-add"><small>Add a zone</small><button type="button" data-add-zone="T">T</button><button type="button" data-add-zone="K">K</button><button type="button" data-add-zone="S">S</button><button type="button" data-add-zone="P">P</button><button type="button" data-add-zone="F">F</button></div>
+            <div class="zone-selected" id="zoneSelected"></div>
+          </div>
+          <p class="zone-note">The zones belong to this song. They never sit on a note, and on the stage each one shows up just before its stroke.</p>
+        </div>
         </div>
       </div>
 
@@ -367,7 +389,7 @@
         <p class="rhythm-hint">Each box is one beat. A half-beat stroke takes half a box. <b class="h-L">L</b> left hand, <b class="h-R">R</b> right hand. Tap a stroke to add after it, or × to remove it.</p>
         <textarea id="sequenceInput" rows="6" wrap="soft" spellcheck="false" placeholder="DR TR:0.5 KL:0.5 SR - | 4L+2R 8R -"></textarea>
         <div class="notation-cheats">
-          <span><kbd>D</kbd> ding</span><span><kbd>1</kbd>–<kbd>9</kbd> tone fields</span><span><kbd>B1</kbd> <kbd>B2</kbd> bottoms</span><span><kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> tak / ka / slap</span><span><kbd>L</kbd> <kbd>R</kbd> after a stroke = hand (SL / SR = left / right slap)</span><span><kbd>+</kbd> together</span><span><kbd>:0.5</kbd> half beat</span><span><kbd>-</kbd> one beat rest</span><span><kbd>|</kbd> bar</span><span><kbd>#</kbd> comment</span>
+          <span><kbd>D</kbd> ding</span><span><kbd>1</kbd>–<kbd>9</kbd> tone fields</span><span><kbd>B1</kbd> <kbd>B2</kbd> bottoms</span><span><kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> <kbd>P</kbd> <kbd>F</kbd> tak / ka / slap / palm / fist</span><span><kbd>S2</kbd> <kbd>T2</kbd> another zone</span><span><kbd>(4)</kbd> ghost note</span><span><kbd>*4</kbd> flam</span><span><kbd>M</kbd> mute</span><span><kbd>L</kbd> <kbd>R</kbd> after a stroke = hand (SL / SR = left / right slap)</span><span><kbd>+</kbd> together</span><span><kbd>:0.5</kbd> half beat</span><span><kbd>-</kbd> one beat rest</span><span><kbd>|</kbd> bar</span><span><kbd>#</kbd> comment</span>
         </div>
       </div>
 
@@ -411,9 +433,9 @@
         </div>
         <div class="settings-col">
           <h3 class="settings-h">Percussion strokes</h3>
-          <label class="toggle-label"><input type="checkbox" id="percToggle" checked /><span>Use T, K and S strokes</span></label>
-          <label class="toggle-label"><input type="checkbox" id="mirrorToggle" /><span>Mirror T and K for left-handed playing</span></label>
-          <p class="settings-note">They appear on the handpan only when a song uses them. Drag <b>T</b>, <b>K</b> or either <b>S</b> to where you actually play them. <b>D</b> is always the ding.</p>
+          <label class="toggle-label"><input type="checkbox" id="percToggle" checked /><span>Use percussion strokes (T, K, S, P, F)</span></label>
+          <label class="toggle-label"><input type="checkbox" id="mirrorToggle" /><span>Mirror the strokes for left-handed playing</span></label>
+          <p class="settings-note"><b>Default zones</b> for songs that have no zones of their own. Drag <b>T</b>, <b>K</b>, either <b>S</b>, <b>P</b> or <b>F</b> to where you play them; a zone slides off the notes. A song can place its own zones in Create song.</p>
           <div class="settings-drum" id="settingsDrum"></div>
           <button type="button" class="text-tool-btn" id="resetPercBtn">Reset stroke positions</button>
           <h3 class="settings-h">Display</h3>
@@ -459,16 +481,26 @@
             <li><b class="hs hs-p">T</b><span><strong>Tak</strong> — a sharp fingertip tap on the shoulder of the ding, where the ding meets the shell.</span></li>
             <li><b class="hs hs-p">K</b><span><strong>Knock</strong> — a dry knock on free metal between the notes, with a knuckle or a fingertip.</span></li>
             <li><b class="hs hs-p">S</b><span><strong>Slap</strong> — flat fingers on free metal between two notes, a snare-like pop. It works on both sides: <b>SL</b> on the left, <b>SR</b> on the right.</span></li>
+            <li><b class="hs hs-p">P</b><span><strong>Palm</strong> — a soft flat palm on the ding: a deep, warm “dum”.</span></li>
+            <li><b class="hs hs-p">F</b><span><strong>Fist</strong> — the side of a loose fist on free metal near the rim: a low thump.</span></li>
           </ul>
-          <p class="help-note">The letters mark a <strong>zone</strong>, not one exact spot: any free metal in that area is right. In <strong>My Handpan</strong> you can drag T, K and S to where you really play them. With the microphone on, any clear percussive hit counts for T, K or S.</p>
+          <p class="help-note">The letters mark a <strong>zone</strong>, not one exact spot: any free metal in that area is right. A song can have more zones of one kind: <b>S2</b>, <b>T2</b>… In <strong>Create song → Place zones</strong> you drag each zone to where it is played in that song and pick its hand. Zones never sit on a note. On the stage a zone shows up about a beat before its stroke and fades out after. Songs without their own zones use the zones from <strong>My Handpan</strong>. With the microphone on, any clear percussive hit counts for T, K, S, P or F.</p>
           <p class="help-note">Teachers don't all use the same letters (some even swap Tak and Slap). The idea is always the same: the letter tells you the kind of stroke and roughly where.</p>
+        </section>
+        <section data-learn-tab="Strokes">
+          <h3>Ghost notes, flams and mutes</h3>
+          <ul class="help-strokes">
+            <li><b class="hs">(4)</b><span><strong>Ghost note</strong> — the stroke in brackets: a whisper-quiet touch, more feel than sound. It falls smaller and fainter, and a missed ghost note never counts as a miss.</span></li>
+            <li><b class="hs">*4</b><span><strong>Flam</strong> — a star before the stroke: a tiny grace stroke just before the main one, with the same hand.</span></li>
+            <li><b class="hs">M</b><span><strong>Mute</strong> — rest a hand on the shell and the ringing stops. It is not scored.</span></li>
+          </ul>
         </section>
         <section data-learn-tab="Hands">
           <h3>Which hand</h3>
           <p class="help-hands"><span class="dot-l"></span> Blue = left hand <span class="dot-r"></span> Amber = right hand</p>
           <p>Every stroke in a song has a hand, <strong>L</strong> or <strong>R</strong>, shown by its colour. These are the usual colours in handpan notation. In the song builder the small L / R under each stroke is the hand.</p>
           <p class="help-note">The hand is a suggestion. Most handpan rhythms <strong>alternate hands</strong> (left, right, left…), which keeps fast parts easy. Each hand can play up to two notes at the same time.</p>
-          <p class="help-note">Left-handed? Turn on <strong>Mirror T and K</strong> in My Handpan.</p>
+          <p class="help-note">Left-handed? Turn on <strong>Mirror the strokes</strong> in My Handpan.</p>
         </section>
         <section data-learn-tab="Rhythm">
           <h3>Beats and bars</h3>
@@ -496,16 +528,17 @@
         </section>
         <section data-learn-tab="App">
           <h3>Microphone (beta)</h3>
-          <p>Turn the microphone on and play your real handpan: tone fields are recognised by pitch, and any clear percussive hit counts for T, K or S. Turn the song sound (speaker button) off or use headphones so the app does not hear itself.</p>
+          <p>Turn the microphone on and play your real handpan: tone fields are recognised by pitch, and any clear percussive hit counts for T, K, S, P or F. Turn the song sound (speaker button) off or use headphones so the app does not hear itself.</p>
         </section>
         <section data-learn-tab="App">
           <h3>Keyboard</h3>
-          <p><kbd>Space</kbd> play / pause · <kbd>D</kbd> ding · <kbd>1</kbd>–<kbd>9</kbd> tone fields · <kbd>0</kbd> / <kbd>-</kbd> bottoms · <kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> strokes (<kbd>Shift</kbd>+<kbd>S</kbd> right slap) · <kbd>[</kbd> <kbd>]</kbd> speed</p>
+          <p><kbd>Space</kbd> play / pause · <kbd>D</kbd> ding · <kbd>1</kbd>–<kbd>9</kbd> tone fields · <kbd>0</kbd> / <kbd>-</kbd> bottoms · <kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> <kbd>P</kbd> <kbd>F</kbd> strokes (<kbd>Shift</kbd>+<kbd>S</kbd> right slap) · <kbd>[</kbd> <kbd>]</kbd> speed</p>
         </section>
         <section data-learn-tab="Writing">
           <h3>Writing songs</h3>
           <p>In New song / Edit song your song is shown as boxes, one box per beat: a half-beat stroke takes half a box, strokes played together are stacked, and the small L / R under each stroke is the hand. Tap the handpan to add strokes, tap a box to add after it, and × to remove it.</p>
-          <p>Prefer typing? <strong>Edit as text</strong> shows the same song as text: <code>4L 8R - | 4L+2R 8R -</code> — space separates strokes, <code>+</code> plays together, <code>L</code>/<code>R</code> picks the hand, <code>:0.5</code> makes a stroke half a beat, <code>-</code> is a one-beat rest, <code>|</code> is a bar line, <code>#</code> starts a section title.</p>
+          <p>Prefer typing? <strong>Edit as text</strong> shows the same song as text: <code>4L 8R - | 4L+2R 8R -</code> — space separates strokes, <code>+</code> plays together, <code>L</code>/<code>R</code> picks the hand, <code>:0.5</code> makes a stroke half a beat, <code>-</code> is a one-beat rest, <code>|</code> is a bar line, <code>#</code> starts a section title. <code>(4)</code> is a ghost note, <code>*4</code> a flam and <code>M</code> a mute.</p>
+          <p>Percussion has its own zones in every song: switch to <strong>Place zones</strong> under the handpan, drag a zone to where it is played, tap it to pick its hand, or add another one (<b>S2</b>, <b>T2</b>…).</p>
           <p class="help-note">To give a song to a friend: <strong>Edit song → Send as a link</strong>. Opening the link adds the song to their My songs.</p>
         </section>
       </div>
