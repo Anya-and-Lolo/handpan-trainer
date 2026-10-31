@@ -1038,7 +1038,7 @@ input[type="range"] { width:100%; accent-color:var(--accent); }
 
 /* This room used to be given only to notes with a low-octave dot. Because the value row
    above absorbs the spare height, that margin lifted those beams ~4px above their
-   neighbours' — so give every token the same reserve instead. */
+   neighbours' - so give every token the same reserve instead. */
 
 .timing-token .jianpu-beams,
 .timing-token .jianpu-beam-spacer { margin-bottom:4px; }

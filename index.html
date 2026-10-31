@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -12,6 +12,10 @@
   <link rel="stylesheet" href="app-files/ethereal-common.css" />
   <link rel="stylesheet" href="app-files/styles.css" />
   <link rel="stylesheet" href="app-files/ethereal-common-layout.css" />
+  <link rel="stylesheet" href="app-files/ethereal-cosmetics.css" />
+  <link rel="stylesheet" href="app-files/ethereal-i18n.css" />
+  <script src="app-files/ethereal-translations.js"></script>
+  <script src="app-files/ethereal-i18n.js"></script>
 </head>
 <body class="app-loading">
   <div class="startup-loader" id="startupLoader" role="status" aria-live="polite" aria-label="Preparing Ethereal Handpan">
@@ -67,9 +71,10 @@
           <p class="eyebrow">NOW PRACTISING</p>
           <div class="song-title-row">
             <h2 id="currentTitle">Interstellar</h2>
-            <span id="currentDifficulty" class="difficulty-badge" data-level="easy">Easy difficulty</span>
-            <span id="currentFit" class="collection-badge fit-badge" data-fit="ok">D Kurd 10</span>
+
           </div>
+          <div class="song-meta-row">            <span id="currentDifficulty" class="difficulty-badge" data-level="easy">Easy difficulty</span>
+            <span id="currentFit" class="collection-badge fit-badge" data-fit="ok">D Kurd 10</span></div>
         </div>
         <div class="top-actions">
           <a class="donate-btn" href="https://ko-fi.com/anya_and_lolo" target="_blank" rel="noopener noreferrer" aria-label="Donate on Ko-fi" title="Support Ethereal Handpan on Ko-fi">
@@ -122,11 +127,7 @@
                 </div>
               </div>
             </div>
-            <div class="stat-pills">
-              <span class="stat-pill" id="scorePill" data-tone="neutral"><b id="scoreValue">0%</b> score</span>
-              <span class="stat-pill" id="streakPill" data-tone="neutral"><b id="streakValue">0</b> streak</span>
-              <span class="stat-pill" id="notesLeftPill" data-tone="notes"><b id="notesLeftValue">0</b> notes left</span>
-            </div>
+
           </div>
 
           <div class="note-stage radial-view" id="noteStage">
@@ -135,6 +136,11 @@
             <button class="focus-mode-btn" id="focusModeBtn" type="button" aria-pressed="false" aria-label="Enter focus mode" title="Focus mode">
               <span aria-hidden="true">⛶</span><b>Focus Mode</b>
             </button>
+            <div class="stat-pills stage-score-pills">
+              <span class="stat-pill" id="scorePill" data-tone="neutral"><b id="scoreValue">0%</b> score</span>
+              <span class="stat-pill" id="streakPill" data-tone="neutral"><b id="streakValue">0</b> streak</span>
+              <span class="stat-pill" id="notesLeftPill" data-tone="notes"><b id="notesLeftValue">0</b> notes left</span>
+            </div>
             <div class="rotate-drum-pair" role="group" aria-label="Rotate the handpan">
               <button class="rotate-drum-btn" id="rotateLeftBtn" type="button" aria-label="Rotate the handpan anticlockwise" title="Rotate anticlockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 12.4a7.6 7.6 0 1 0 2.3-6"></path><path d="M4.4 3.2v4.4h4.4"></path></svg></button>
               <button class="rotate-drum-btn" id="rotateRightBtn" type="button" aria-label="Rotate the handpan clockwise" title="Rotate clockwise"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 12.4a7.6 7.6 0 1 1-2.3-6"></path><path d="M19.6 3.2v4.4h-4.4"></path></svg></button>
@@ -265,7 +271,7 @@
               <p class="eyebrow">YOUR HANDPAN</p>
               <h3 id="instrumentTitle">D Kurd 10 · 440 Hz</h3>
             </div>
-            <span class="keyboard-hint" id="keyboardHint">Keys D, 1–9</span>
+            <span class="keyboard-hint" id="keyboardHint">Keys D, 1-9</span>
           </div>
           <div class="hand-legend" aria-hidden="true">
             <span class="hl-left"><i></i><em>Left</em> <em>hand</em></span>
@@ -274,7 +280,7 @@
           <div class="drum-wrap" id="drumWrap" aria-label="Interactive handpan"></div>
           <div class="next-note-card">
             <span>Next stroke</span>
-            <strong id="nextNoteValue">–</strong>
+            <strong id="nextNoteValue">-</strong>
             <small id="nextNoteTime">Ready</small>
           </div>
           <div class="stroke-key" id="strokeKey"></div>
@@ -389,7 +395,7 @@
         <p class="rhythm-hint">Each box is one beat. A half-beat stroke takes half a box. <b class="h-L">L</b> left hand, <b class="h-R">R</b> right hand. Tap a stroke to add after it, or × to remove it.</p>
         <textarea id="sequenceInput" rows="6" wrap="soft" spellcheck="false" placeholder="DR TR:0.5 KL:0.5 SR - | 4L+2R 8R -"></textarea>
         <div class="notation-cheats">
-          <span><kbd>D</kbd> ding</span><span><kbd>1</kbd>–<kbd>9</kbd> tone fields</span><span><kbd>B1</kbd> <kbd>B2</kbd> bottoms</span><span><kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> <kbd>P</kbd> <kbd>F</kbd> tak / ka / slap / palm / fist</span><span><kbd>S2</kbd> <kbd>T2</kbd> another zone</span><span><kbd>(4)</kbd> ghost note</span><span><kbd>*4</kbd> flam</span><span><kbd>M</kbd> mute</span><span><kbd>L</kbd> <kbd>R</kbd> after a stroke = hand (SL / SR = left / right slap)</span><span><kbd>+</kbd> together</span><span><kbd>:0.5</kbd> half beat</span><span><kbd>-</kbd> one beat rest</span><span><kbd>|</kbd> bar</span><span><kbd>#</kbd> comment</span>
+          <span><kbd>D</kbd> ding</span><span><kbd>1</kbd>-<kbd>9</kbd> tone fields</span><span><kbd>B1</kbd> <kbd>B2</kbd> bottoms</span><span><kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> <kbd>P</kbd> <kbd>F</kbd> tak / ka / slap / palm / fist</span><span><kbd>S2</kbd> <kbd>T2</kbd> another zone</span><span><kbd>(4)</kbd> ghost note</span><span><kbd>*4</kbd> flam</span><span><kbd>M</kbd> mute</span><span><kbd>L</kbd> <kbd>R</kbd> after a stroke = hand (SL / SR = left / right slap)</span><span><kbd>+</kbd> together</span><span><kbd>:0.5</kbd> half beat</span><span><kbd>-</kbd> one beat rest</span><span><kbd>|</kbd> bar</span><span><kbd>#</kbd> comment</span>
         </div>
       </div>
 
@@ -470,19 +476,19 @@
         <section data-learn-tab="Strokes">
           <h3>Notes</h3>
           <ul class="help-strokes">
-            <li><b class="hs hs-d">D</b><span><strong>Ding</strong> — the deep bass note in the centre.</span></li>
-            <li><b class="hs">1–9</b><span><strong>Tone fields</strong> — numbered from the lowest note upwards, zig-zagging left and right.</span></li>
-            <li><b class="hs">B1 B2</b><span><strong>Bottom notes</strong> (D Kurd 12) — on the underside of the shell.</span></li>
+            <li><b class="hs hs-d">D</b><span><strong>Ding</strong> - the deep bass note in the centre.</span></li>
+            <li><b class="hs">1-9</b><span><strong>Tone fields</strong> - numbered from the lowest note upwards, zig-zagging left and right.</span></li>
+            <li><b class="hs">B1 B2</b><span><strong>Bottom notes</strong> (D Kurd 12) - on the underside of the shell.</span></li>
           </ul>
         </section>
         <section data-learn-tab="Strokes">
           <h3>Percussion</h3>
           <ul class="help-strokes">
-            <li><b class="hs hs-p">T</b><span><strong>Tak</strong> — a sharp fingertip tap on the shoulder of the ding, where the ding meets the shell.</span></li>
-            <li><b class="hs hs-p">K</b><span><strong>Knock</strong> — a dry knock on free metal between the notes, with a knuckle or a fingertip.</span></li>
-            <li><b class="hs hs-p">S</b><span><strong>Slap</strong> — flat fingers on free metal between two notes, a snare-like pop. It works on both sides: <b>SL</b> on the left, <b>SR</b> on the right.</span></li>
-            <li><b class="hs hs-p">P</b><span><strong>Palm</strong> — a soft flat palm on the ding: a deep, warm “dum”.</span></li>
-            <li><b class="hs hs-p">F</b><span><strong>Fist</strong> — the side of a loose fist on free metal near the rim: a low thump.</span></li>
+            <li><b class="hs hs-p">T</b><span><strong>Tak</strong> - a sharp fingertip tap on the shoulder of the ding, where the ding meets the shell.</span></li>
+            <li><b class="hs hs-p">K</b><span><strong>Knock</strong> - a dry knock on free metal between the notes, with a knuckle or a fingertip.</span></li>
+            <li><b class="hs hs-p">S</b><span><strong>Slap</strong> - flat fingers on free metal between two notes, a snare-like pop. It works on both sides: <b>SL</b> on the left, <b>SR</b> on the right.</span></li>
+            <li><b class="hs hs-p">P</b><span><strong>Palm</strong> - a soft flat palm on the ding: a deep, warm “dum”.</span></li>
+            <li><b class="hs hs-p">F</b><span><strong>Fist</strong> - the side of a loose fist on free metal near the rim: a low thump.</span></li>
           </ul>
           <p class="help-note">The letters mark a <strong>zone</strong>, not one exact spot: any free metal in that area is right. A song can have more zones of one kind: <b>S2</b>, <b>T2</b>… In <strong>Create song → Place zones</strong> you drag each zone to where it is played in that song and pick its hand. Zones never sit on a note. On the stage a zone shows up about a beat before its stroke and fades out after. Songs without their own zones use the zones from <strong>My Handpan</strong>. With the microphone on, any clear percussive hit counts for T, K, S, P or F.</p>
           <p class="help-note">Teachers don't all use the same letters (some even swap Tak and Slap). The idea is always the same: the letter tells you the kind of stroke and roughly where.</p>
@@ -490,9 +496,9 @@
         <section data-learn-tab="Strokes">
           <h3>Ghost notes, flams and mutes</h3>
           <ul class="help-strokes">
-            <li><b class="hs">(4)</b><span><strong>Ghost note</strong> — the stroke in brackets: a whisper-quiet touch, more feel than sound. It falls smaller and fainter, and a missed ghost note never counts as a miss.</span></li>
-            <li><b class="hs">*4</b><span><strong>Flam</strong> — a star before the stroke: a tiny grace stroke just before the main one, with the same hand.</span></li>
-            <li><b class="hs">M</b><span><strong>Mute</strong> — rest a hand on the shell and the ringing stops. It is not scored.</span></li>
+            <li><b class="hs">(4)</b><span><strong>Ghost note</strong> - the stroke in brackets: a whisper-quiet touch, more feel than sound. It falls smaller and fainter, and a missed ghost note never counts as a miss.</span></li>
+            <li><b class="hs">*4</b><span><strong>Flam</strong> - a star before the stroke: a tiny grace stroke just before the main one, with the same hand.</span></li>
+            <li><b class="hs">M</b><span><strong>Mute</strong> - rest a hand on the shell and the ringing stops. It is not scored.</span></li>
           </ul>
         </section>
         <section data-learn-tab="Hands">
@@ -519,7 +525,7 @@
         </section>
         <section data-learn-tab="App">
           <h3>Modes</h3>
-          <p><strong>Listen</strong> plays the song so you can sit back and enjoy it. <strong>Practice</strong> scores every stroke from the first note (Perfect, Good, Miss). <strong>Wait for note</strong> lets the notes fly in and then stops on each one until you play it — play in time and it never stops. <strong>Tuner</strong> listens to your handpan and shows how many cents each note is from A4 = 440 Hz.</p>
+          <p><strong>Listen</strong> plays the song so you can sit back and enjoy it. <strong>Practice</strong> scores every stroke from the first note (Perfect, Good, Miss). <strong>Wait for note</strong> lets the notes fly in and then stops on each one until you play it - play in time and it never stops. <strong>Tuner</strong> listens to your handpan and shows how many cents each note is from A4 = 440 Hz.</p>
           <p>Speed goes down to <strong>0.1×</strong>. Use <kbd>[</kbd> and <kbd>]</kbd> to change it while you play. After a run, <strong>Smart loop</strong> repeats your trickiest bar: slower first, faster each time you play it clean.</p>
         </section>
         <section data-learn-tab="App">
@@ -532,12 +538,12 @@
         </section>
         <section data-learn-tab="App">
           <h3>Keyboard</h3>
-          <p><kbd>Space</kbd> play / pause · <kbd>D</kbd> ding · <kbd>1</kbd>–<kbd>9</kbd> tone fields · <kbd>0</kbd> / <kbd>-</kbd> bottoms · <kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> <kbd>P</kbd> <kbd>F</kbd> strokes (<kbd>Shift</kbd>+<kbd>S</kbd> right slap) · <kbd>[</kbd> <kbd>]</kbd> speed</p>
+          <p><kbd>Space</kbd> play / pause · <kbd>D</kbd> ding · <kbd>1</kbd>-<kbd>9</kbd> tone fields · <kbd>0</kbd> / <kbd>-</kbd> bottoms · <kbd>T</kbd> <kbd>K</kbd> <kbd>S</kbd> <kbd>P</kbd> <kbd>F</kbd> strokes (<kbd>Shift</kbd>+<kbd>S</kbd> right slap) · <kbd>[</kbd> <kbd>]</kbd> speed</p>
         </section>
         <section data-learn-tab="Writing">
           <h3>Writing songs</h3>
           <p>In New song / Edit song your song is shown as boxes, one box per beat: a half-beat stroke takes half a box, strokes played together are stacked, and the small L / R under each stroke is the hand. Tap the handpan to add strokes, tap a box to add after it, and × to remove it.</p>
-          <p>Prefer typing? <strong>Edit as text</strong> shows the same song as text: <code>4L 8R - | 4L+2R 8R -</code> — space separates strokes, <code>+</code> plays together, <code>L</code>/<code>R</code> picks the hand, <code>:0.5</code> makes a stroke half a beat, <code>-</code> is a one-beat rest, <code>|</code> is a bar line, <code>#</code> starts a section title. <code>(4)</code> is a ghost note, <code>*4</code> a flam and <code>M</code> a mute.</p>
+          <p>Prefer typing? <strong>Edit as text</strong> shows the same song as text: <code>4L 8R - | 4L+2R 8R -</code> - space separates strokes, <code>+</code> plays together, <code>L</code>/<code>R</code> picks the hand, <code>:0.5</code> makes a stroke half a beat, <code>-</code> is a one-beat rest, <code>|</code> is a bar line, <code>#</code> starts a section title. <code>(4)</code> is a ghost note, <code>*4</code> a flam and <code>M</code> a mute.</p>
           <p>Percussion has its own zones in every song: switch to <strong>Place zones</strong> under the handpan, drag a zone to where it is played, tap it to pick its hand, or add another one (<b>S2</b>, <b>T2</b>…).</p>
           <p class="help-note">To give a song to a friend: <strong>Edit song → Send as a link</strong>. Opening the link adds the song to their My songs.</p>
         </section>
@@ -732,6 +738,8 @@
   <script src="app-files/song-catalog.js"></script>
   <script src="app-files/community-upload-config.js"></script>
   <script src="app-files/ethereal-cloud-config.js"></script>
+  <script src="app-files/ethereal-cosmetics.js"></script>
+  <script src="app-files/ethereal-lessons.js"></script>
   <script src="app-files/ethereal-common.js"></script>
   <script src="app-files/app.js"></script>
 </body>

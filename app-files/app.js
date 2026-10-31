@@ -270,15 +270,15 @@
     const pads = [];
     const dingMidi = noteToMidi(scale.ding);
     pads.push({ id: 'D', label: 'D', kind: 'ding', midi: dingMidi, name: midiToName(dingMidi), x: 0, y: 0, rx: 0.27, ry: 0.24, rot: 0, side: 'C', hand: 'R', color: DING_COLOR, rayAngle: dingRayAngle(count, offset) });
+    const fieldPositions = window.EtherealCosmetics.handpanFields(count, offset);
     scale.top.forEach((noteName, i) => {
       const num = i + 1;
-      const p = polar(topAngle(num, count) + offset, 0.645);
-      const t = count > 1 ? i / (count - 1) : 0;
+      const p = fieldPositions[i];
       const midi = noteToMidi(noteName);
       const side = num === 1 ? 'R' : (num % 2 === 0 ? 'L' : 'R');
       pads.push({
         id: String(num), num, label: String(num), kind: 'tone', midi, name: midiToName(midi),
-        x: p.x, y: p.y, rx: 0.185 - 0.05 * t, ry: 0.15 - 0.038 * t,
+        x: p.x, y: p.y, rx: p.rx, ry: p.ry,
         rot: Math.atan2(p.y, p.x) * 180 / Math.PI, side, hand: side, color: NOTE_COLORS[i % NOTE_COLORS.length]
       });
     });
@@ -1298,6 +1298,7 @@
   }
 
   function selectSong(id, options = {}) {
+    if(id !== DRILL_ID) COACH?.clear();
     if (JOURNEY && !JOURNEY.isSongOpen(id)) {
       if (state.song && state.song.id !== id && JOURNEY.isSongOpen(state.song.id)) {
         showToast('That song is still locked. Reach it on the Song path.', 'warning');
@@ -1334,6 +1335,8 @@
     const song = state.song;
     const parsed = state.parsed;
     if (!song || !parsed) return;
+    els.currentTitle.setAttribute('translate', song.folder === 'mine' ? 'no' : 'yes');
+    els.stageSongName?.setAttribute('translate', song.folder === 'mine' ? 'no' : 'yes');
     els.currentTitle.textContent = song.title;
     const byline = song.artist || song.about;
     els.stageSongName.innerHTML = `<b>${escapeHtml(song.title)}</b>${byline ? `<small>${escapeHtml(byline)}</small>` : ''}`;
@@ -1369,7 +1372,7 @@
       const level = songDifficulty(parseSong(song)).level;
       return state.levelFilter === 'hard' ? level === 'hard' || level === 'expert' : level === state.levelFilter;
     };
-    const filter = song => levelOk(song) && (!query || `${song.title} ${song.artist} ${song.about || ''}`.toLowerCase().includes(query));
+    const filter = song => levelOk(song) && (!query || `${song.title} ${song.artist} ${song.about || ''} ${window.EtherealI18n?.t(song.title) || ''} ${window.EtherealI18n?.t(song.about || '') || ''}`.toLowerCase().includes(query));
     const group = (label, songs, emptyText, className) => {
       const shown = songs.filter(filter);
       const items = shown.map(song => {
@@ -1378,7 +1381,7 @@
         const active = state.song && state.song.id === song.id;
         const meta = `${song.bpm} BPM · ${parsed.itemCount} strokes${song.artist ? ` · ${escapeHtml(song.artist)}` : ''}`;
         return `<button class="song-item${active ? ' active' : ''}" data-song-id="${escapeHtml(song.id)}" type="button" title="${escapeHtml(song.title)}">
-          <span class="song-item-title"><strong>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span>
+          <span class="song-item-title"><strong${song.folder === 'mine' ? ' translate="no"' : ''}>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span>
           <span>${meta}${BEST.badge(song.id)}</span>
           ${song.about ? `<span class="song-item-about">${escapeHtml(song.about)}</span>` : ''}
           ${parsed.missing.size ? `<span class="song-item-warn">needs ${escapeHtml([...parsed.missing].join(', '))}</span>` : ''}
@@ -1397,6 +1400,8 @@
     if (startHere) els.songList.prepend(startHere);
     const today = query || !PRACTICE ? null : COMMON.todayCard({ log: PRACTICE, onPath: openSongPathDialog, onDrills: openDrillsDialog });
     if (today) els.songList.prepend(today);
+    const player = query || !GAME ? null : COMMON.playerCard({ game: GAME, onOpen: openHubDialog });
+    if (player) els.songList.prepend(player);
     els.deleteBtn.disabled = !(state.song && state.song.folder === 'mine');
   }
 
@@ -1419,22 +1424,29 @@
     const svg = svgEl('svg', { viewBox: `${VIEWBOX.x} ${VIEWBOX.y} ${VIEWBOX.w} ${VIEWBOX.h}`, class: `handpan-svg${options.className ? ` ${options.className}` : ''}`, role: 'group' });
     const defs = svgEl('defs', {}, svg);
     const shellGrad = svgEl('radialGradient', { id: `${uid}-shell`, cx: '42%', cy: '36%', r: '72%' }, defs);
-    svgEl('stop', { offset: '0%', 'stop-color': '#5b6175' }, shellGrad);
-    svgEl('stop', { offset: '55%', 'stop-color': '#363b4b' }, shellGrad);
-    svgEl('stop', { offset: '100%', 'stop-color': '#1d2130' }, shellGrad);
+    svgEl('stop', { offset: '0%', style: 'stop-color:var(--skin-a,#5b6175)' }, shellGrad);
+    svgEl('stop', { offset: '55%', style: 'stop-color:var(--skin-b,#363b4b)' }, shellGrad);
+    svgEl('stop', { offset: '100%', style: 'stop-color:var(--skin-c,#1d2130)' }, shellGrad);
     const padGrad = svgEl('radialGradient', { id: `${uid}-pad`, cx: '45%', cy: '40%', r: '70%' }, defs);
-    svgEl('stop', { offset: '0%', 'stop-color': '#7d849b', 'stop-opacity': '0.55' }, padGrad);
-    svgEl('stop', { offset: '100%', 'stop-color': '#2a2f40', 'stop-opacity': '0.55' }, padGrad);
+    svgEl('stop', { offset: '0%', style: 'stop-color:var(--skin-pad-a,#7d849b);stop-opacity:var(--skin-pad-op,.55)' }, padGrad);
+    svgEl('stop', { offset: '100%', style: 'stop-color:var(--skin-pad-b,#2a2f40);stop-opacity:var(--skin-pad-op,.55)' }, padGrad);
     const rimGrad = svgEl('linearGradient', { id: `${uid}-rim`, x1: '0', y1: '0', x2: '1', y2: '1' }, defs);
-    svgEl('stop', { offset: '0%', 'stop-color': '#c9cfdf', 'stop-opacity': '0.7' }, rimGrad);
-    svgEl('stop', { offset: '50%', 'stop-color': '#545b70', 'stop-opacity': '0.5' }, rimGrad);
-    svgEl('stop', { offset: '100%', 'stop-color': '#a9b0c4', 'stop-opacity': '0.6' }, rimGrad);
+    svgEl('stop', { offset: '0%', style: 'stop-color:var(--skin-rim-a,#c9cfdf);stop-opacity:.7' }, rimGrad);
+    svgEl('stop', { offset: '50%', style: 'stop-color:var(--skin-rim-b,#545b70);stop-opacity:.5' }, rimGrad);
+    svgEl('stop', { offset: '100%', style: 'stop-color:var(--skin-rim-c,#a9b0c4);stop-opacity:.6' }, rimGrad);
+    // Clouds for the nebula skin.
+    [['neb1', '#a78bfa'], ['neb2', '#38bdf8'], ['neb3', '#f472b6']].forEach(([name, color]) => {
+      const grad = svgEl('radialGradient', { id: `${uid}-${name}` }, defs);
+      svgEl('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': '0.55' }, grad);
+      svgEl('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': '0' }, grad);
+    });
 
     const body = svgEl('g', { class: 'hp-body' }, svg);
     if (!options.noHalo) svgEl('circle', { r: 1.035, class: 'hp-halo' }, body);
     svgEl('circle', { r: 1, fill: `url(#${uid}-shell)`, class: 'hp-shell' }, body);
     svgEl('circle', { r: 0.985, fill: 'none', stroke: `url(#${uid}-rim)`, 'stroke-width': 0.022, class: 'hp-rim' }, body);
     svgEl('ellipse', { cx: -0.3, cy: -0.42, rx: 0.42, ry: 0.22, class: 'hp-sheen', transform: 'rotate(-28 -0.3 -0.42)' }, body);
+    drumDecor(body, uid);
 
     const percShown = options.showAllPerc ? null : visiblePercIds();
     const padGroup = svgEl('g', { class: 'hp-pads' }, svg);
@@ -1475,9 +1487,37 @@
     if ((options.pads || state.pads).some(p => p.kind === 'bottom')) {
       svgEl('text', { class: 'under-caption', x: 0, y: 1.215 }, svg).textContent = 'bottom notes (underside)';
     }
+    window.EtherealCosmetics.enhanceDrum(svg, uid);
     const drum = { svg, padEls, options };
     if (options.interactive) bindDrumInput(drum);
     return drum;
+  }
+
+  // Patterns that some drum colours add: marble veins, a gold mandala, nebula clouds and stars.
+  function drumDecor(body, uid) {
+    const marble = svgEl('g', { class: 'hp-decor hp-decor-marble' }, body);
+    ['M-0.95 -0.15 C -0.6 -0.45 -0.35 0.05 0.05 -0.2 S 0.6 -0.62 0.9 -0.38',
+      'M-0.8 0.45 C -0.45 0.2 -0.15 0.62 0.25 0.38 S 0.7 0.1 0.96 0.22',
+      'M-0.35 -0.88 C -0.2 -0.6 0.15 -0.75 0.3 -0.5 S 0.4 -0.1 0.62 0.02',
+      'M-0.62 0.78 C -0.35 0.62 -0.1 0.92 0.18 0.74'].forEach((d, i) => svgEl('path', { d, class: `vein${i % 2 ? ' thin' : ''}` }, marble));
+    const mandala = svgEl('g', { class: 'hp-decor hp-decor-mandala' }, body);
+    svgEl('circle', { r: 0.335, class: 'mandala-ring' }, mandala);
+    svgEl('circle', { r: 0.425, class: 'mandala-ring thin' }, mandala);
+    for (let k = 0; k < 24; k += 1) {
+      const a = (k / 24) * Math.PI * 2;
+      svgEl('circle', { cx: (Math.cos(a) * 0.38).toFixed(4), cy: (Math.sin(a) * 0.38).toFixed(4), r: k % 2 ? 0.008 : 0.014, class: 'mandala-dot' }, mandala);
+    }
+    const nebula = svgEl('g', { class: 'hp-decor hp-decor-nebula' }, body);
+    svgEl('ellipse', { cx: -0.35, cy: -0.25, rx: 0.75, ry: 0.42, fill: `url(#${uid}-neb1)`, transform: 'rotate(-25 -0.35 -0.25)' }, nebula);
+    svgEl('ellipse', { cx: 0.3, cy: 0.3, rx: 0.7, ry: 0.38, fill: `url(#${uid}-neb2)`, transform: 'rotate(20 0.3 0.3)' }, nebula);
+    svgEl('ellipse', { cx: 0.1, cy: -0.05, rx: 0.4, ry: 0.25, fill: `url(#${uid}-neb3)` }, nebula);
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let k = 0; k < 46; k += 1) {
+      const a = rnd() * Math.PI * 2;
+      const r = Math.sqrt(rnd()) * 0.95;
+      svgEl('circle', { cx: (Math.cos(a) * r).toFixed(3), cy: (Math.sin(a) * r).toFixed(3), r: (0.004 + rnd() * 0.008).toFixed(4), class: 'nebula-star' }, nebula);
+    }
   }
 
   function bindDrumInput(drum) {
@@ -1553,7 +1593,7 @@
     const scale = SCALES[state.instrument.scale];
     els.instrumentTitle.textContent = `${scale.name} · 440 Hz`;
     const perc = visiblePercIds();
-    const keys = [`D, 1–${scale.top.length}`];
+    const keys = [`D, 1-${scale.top.length}`];
     if (scale.bottoms) keys.push('0 / -');
     const bases = new Set([...perc].map(percBase));
     if (perc.size) keys.push(PERC_BASES.filter(base => bases.has(base)).join(' '));
@@ -1624,6 +1664,7 @@
     state.wrong = 0;
     state.streak = 0;
     state.bestStreak = 0;
+    GAME?.runReset();
     state.effects = [];
     state.runStartedAt = performance.now();
     seekTo(time, { keepResults: true });
@@ -1640,7 +1681,7 @@
     if (!state.parsed) return;
     const duration = state.parsed.duration;
     const t = Math.max(-60, Math.min(duration, time));
-    if (!options.keepResults) clearResultsFrom(Math.max(0, t));
+    if (!options.keepResults) { GAME?.invalidateRun(); clearResultsFrom(Math.max(0, t)); }
     state.waitIdx = firstEventIndexAtOrAfter(t);
     state.schedIdx = state.waitIdx;
     state.flashIdx = state.waitIdx;
@@ -1701,6 +1742,7 @@
         start -= Math.max(1.5 * parsed.spb, 0.6);
       }
     }
+    GAME?.startRun({ id: state.song.id, speed: state.speed, from: state.songTime, mode: state.mode });
     state.playing = true;
     // On a phone, Play goes straight to the full-screen focus view.
     if (isPhone() && !state.focusMode && !tour.active) setFocusMode(true);
@@ -1914,6 +1956,7 @@
   }
 
   function restartSection() {
+    GAME?.invalidateRun();
     if (SMART?.active && smartLoopPass() === 'done') return;
     clearResultsFrom(state.loopA, state.loopB);
     cancelScheduledAudio();
@@ -1943,6 +1986,7 @@
       return;
     }
     if (state.loop) {
+      if (state.mode === 'practice' || state.mode === 'wait') showResults({ silent: true });
       state.loopTimer = window.setTimeout(() => {
         resetRun(0);
         startPlayback();
@@ -2040,7 +2084,11 @@
         if (delta < bestDelta) { best = item; bestDelta = delta; }
       });
     }
-    if (best) registerHit(best, bestDelta <= perfectWindow() ? 'perfect' : 'good');
+    if (best) {
+      const event = events[Number(best.id.split(':')[0])];
+      GAME?.noteTiming((t - event.time) / state.speed);
+      registerHit(best, bestDelta <= perfectWindow() ? 'perfect' : 'good');
+    }
     else registerWrong(padId);
   }
 
@@ -2167,7 +2215,7 @@
     state.nextKey = key;
     state.drums.forEach(drum => drum.padEls.forEach(g => g.classList.remove('next')));
     if (!event) {
-      els.nextNoteValue.innerHTML = state.parsed && state.songTime >= state.parsed.duration - 0.01 ? '✓' : '–';
+      els.nextNoteValue.innerHTML = state.parsed && state.songTime >= state.parsed.duration - 0.01 ? '✓' : '-';
       return;
     }
     // Before the transport rolls, keep the drum clean (no highlighted pads).
@@ -2184,7 +2232,7 @@
     els.nextNoteValue.innerHTML = event.items.filter(i => !i.missing).map(item => {
       const label = state.padMap.get(item.pad)?.label || item.pad;
       return `<span class="nn-item" style="--hand:${itemColor(item)}">${escapeHtml(label)}<small>${item.hand === 'L' ? 'left' : 'right'}</small></span>`;
-    }).join('<em>+</em>') || '–';
+    }).join('<em>+</em>') || '-';
   }
 
   function updateTransportUI() {
@@ -2301,6 +2349,7 @@
 
   function setSpeed(value, announce = false) {
     state.speed = clampSpeed(value);
+    GAME?.speedChanged(state.speed);
     if (state.playing) {
       const t = songNow();
       cancelScheduledAudio();
@@ -2392,7 +2441,7 @@
     if (hasA) els.abMarkerA.style.left = pos(state.loopA);
     if (hasB) els.abMarkerB.style.left = pos(state.loopB);
     const barOf = time => Math.round(time / parsed.spb / parsed.beatsPerBar) + 1;
-    if (hasA && hasB) els.abLoopStatus.textContent = state.abLoop ? `Looping bars ${barOf(state.loopA)}–${barOf(state.loopB) - 1}.` : `Bars ${barOf(state.loopA)}–${barOf(state.loopB) - 1} are ready. Press Loop A-B.`;
+    if (hasA && hasB) els.abLoopStatus.textContent = state.abLoop ? `Looping bars ${barOf(state.loopA)}-${barOf(state.loopB) - 1}.` : `Bars ${barOf(state.loopA)}-${barOf(state.loopB) - 1} are ready. Press Loop A-B.`;
     else if (hasA) els.abLoopStatus.textContent = `A is at bar ${barOf(state.loopA)}. Move on and set B.`;
     else els.abLoopStatus.textContent = '';
   }
@@ -3919,6 +3968,7 @@
         if (isHitResult(state.results.get(item.id))) hits += 1;
       });
     });
+    if (finishWorkoutSection({ id: state.song.id, from: state.loopA, to: state.loopB, total, hits })) return 'done';
     return SMART.pass(total, hits);
   }
 
@@ -3946,7 +3996,7 @@
     state.abLoop = true;
     updateABLoopUI();
     resetRun(0);
-    SMART.start(COMMON.smartLoopSpeeds(target), section.firstBar === section.lastBar ? `bar ${section.firstBar}` : `bars ${section.firstBar}–${section.lastBar}`);
+    SMART.start(COMMON.smartLoopSpeeds(target), section.firstBar === section.lastBar ? `bar ${section.firstBar}` : `bars ${section.firstBar}-${section.lastBar}`);
     startPlayback();
   }
 
@@ -3967,7 +4017,7 @@
     appName: 'Ethereal Handpan',
     keys: PROGRESS_KEYS,
     stats: () => ({ ...COMMON.progressStats(PROGRESS_KEYS, PRACTICE), ...COMMON.progressReadable({ keys: PROGRESS_KEYS, titleOf: id => (id === DRILL_ID ? 'Rhythm drill' : findSong(id)?.title || ''), journey: JOURNEY }) }),
-    onMerged: () => { BEST.reload(); PRACTICE.reload(); renderSongList(); },
+    onMerged: () => { BEST.reload(); JOURNEY.reload(); GAME.reload(); PRACTICE.reload(); renderSongList(); },
     toast: message => showToast(message, 'success')
   });
   BEST.onChange = () => CLOUD.changed();
@@ -3987,7 +4037,7 @@
   });
 
   function openDrillsDialog() {
-    COMMON.openDrills({ onStart: drill => { JOURNEY.activeDrill = null; loadDrill(drill); } });
+    COACH.open();
   }
 
   function progressFileSave() {
@@ -3998,6 +4048,9 @@
   function clearLocalProgress() {
     Object.values(PROGRESS_KEYS).forEach(key => { try { localStorage.removeItem(key); } catch {} });
     BEST.reload();
+    JOURNEY.reload();
+    GAME.reload();
+    COACH.clear();
     PRACTICE.reload();
     renderSongList();
   }
@@ -4016,7 +4069,7 @@
   }
 
   function loadDrill(drill) {
-    const song = normaliseSong({ id: DRILL_ID, title: 'Rhythm drill', about: 'A new random rhythm to read and play', bpm: drill.bpm, beatsPerBar: 4, sequence: drillSequence(drill.bars) }, 'mine');
+    const song = normaliseSong({ id: DRILL_ID, title: drill.title || 'Guided practice', about: drill.about || 'Build a musical skill', bpm: drill.bpm, beatsPerBar: drill.beatsPerBar || 4, sequence: drill.sequence || drillSequence(drill.bars) }, 'mine');
     if (!song) return;
     const index = state.mySongs.findIndex(item => item.id === DRILL_ID);
     if (index >= 0) state.mySongs[index] = song; else state.mySongs.push(song);
@@ -4027,20 +4080,100 @@
     state.waitPref = false;
     setMode('practice');
     renderSongList();
-    showToast('Read the rhythm, then press Play and play along.', 'success');
+    COACH?.showBanner();
+    showToast(drill.about || 'Listen first, then practise the complete phrase.', 'success');
   }
 
 
   /* ---------- Reach the stars: the song journey ---------- */
   const S_ = (id, title, level) => ({ type: 'song', id, title, level });
-  const D_ = (level, bpm, bars = 2) => ({ type: 'drill', level, bpm, bars, title: 'Rhythm drill', levelName: ['', 'Beginner', 'Steady', 'Advanced'][level] });
+  const D_ = (level, bpm, bars = 2) => ({ type: 'drill', level, bpm, bars, title: 'Song preparation', levelName: ['', 'Beginner', 'Steady', 'Advanced'][level] });
+  // The final trial of a path: a song at a given speed with a number of stars, and a prize.
+  const B_ = (id, title, level, stars, reward, rewardName, speed = 1) => ({ type: 'boss', id, title, level, stars, reward, rewardName, speed });
   const JOURNEY_PATHS = [
-    { id: 'p1', name: 'First Light', nodes: [S_('demo-easy-first-steps', 'First steps', 'easy'), S_('demo-mary-had-a-little-lamb', 'Mary Had a Little Lamb', 'easy'), D_(1, 70), S_('demo-jingle-bells', 'Jingle Bells', 'easy'), D_(1, 80), S_('demo-kurd-warm-up', 'Kurd scale warm-up', 'medium')] },
-    { id: 'p2', name: 'Moonrise', nodes: [S_('demo-interstellar', 'Interstellar', 'medium'), D_(2, 70), S_('demo-minecraft', 'Minecraft Menu', 'medium'), S_('demo-beethoven-5-fate', 'Symphony No. 5 · Fate motif', 'medium'), D_(2, 80), S_('demo-groove-d-t-k-s', 'Space Tribal', 'medium')] },
-    { id: 'p3', name: 'Reach the Stars', nodes: [D_(2, 90), S_('demo-groove-3-heartbeat', 'Heartbeat groove', 'hard'), D_(3, 70), S_('demo-carol-of-the-bells', 'Carol of the Bells', 'hard'), D_(3, 80, 4)] }
+    { id: 'p1', name: 'First Light', nodes: [S_('demo-easy-first-steps', 'First steps', 'easy'), S_('demo-mary-had-a-little-lamb', 'Mary Had a Little Lamb', 'easy'), D_(1, 70), S_('demo-jingle-bells', 'Jingle Bells', 'easy'), D_(1, 80), S_('demo-kurd-warm-up', 'Kurd scale warm-up', 'medium'), B_('demo-jingle-bells', 'Jingle Bells', 'easy', 3, 'silver', 'Silver drum')] },
+    { id: 'p2', name: 'Moonrise', nodes: [S_('demo-interstellar', 'Interstellar', 'medium'), D_(2, 70), S_('demo-minecraft', 'Minecraft Menu', 'medium'), S_('demo-beethoven-5-fate', 'Symphony No. 5 · Fate motif', 'medium'), D_(2, 80), S_('demo-groove-d-t-k-s', 'Space Tribal', 'medium'), B_('demo-interstellar', 'Interstellar', 'medium', 3, 'gold', 'Gold drum')] },
+    { id: 'p3', name: 'Reach the Stars', nodes: [D_(2, 90), S_('demo-groove-3-heartbeat', 'Heartbeat groove', 'hard'), D_(3, 70), S_('demo-carol-of-the-bells', 'Carol of the Bells', 'hard'), D_(3, 80, 4), B_('demo-carol-of-the-bells', 'Carol of the Bells', 'hard', 4, 'obsidian', 'Obsidian & gold drum')] }
   ];
   var JOURNEY = COMMON.createJourney({ app: 'ethereal-handpan', paths: JOURNEY_PATHS, best: BEST });
   PROGRESS_KEYS.journey = JOURNEY.key;
+  var GAME = COMMON.createGame({ app: 'ethereal-handpan', keys: PROGRESS_KEYS, best: BEST, journey: JOURNEY, drillId: DRILL_ID,
+    titleOf: id => (id === DRILL_ID ? 'Rhythm drill' : findSong(id)?.title || ''),
+    levelOf: id => { const song = findSong(id); return song ? songDifficulty(parseSong(song)).level : 'easy'; },
+    practice: PRACTICE, songInfo: id => { const song = findSong(id); if (!song) return null; const parsed = parseSong(song); return { duration: parsed.duration, barSeconds: parsed.spb * parsed.beatsPerBar }; } });
+  PROGRESS_KEYS.game = GAME.key;
+  var COACH = window.EtherealLessons.create({
+    app: 'ethereal-handpan', tongue: false,
+    source: () => { const selected = state.song; if(selected && selected.id !== DRILL_ID) return selected; const next = JOURNEY.current(); return next?.id ? findSong(next.id) : JOURNEY.nodes.filter(n => n.type === 'song' && JOURNEY.isSongOpen(n.id)).map(n => findSong(n.id)).find(Boolean); },
+    canPlay: id => JOURNEY.isSongOpen(id),
+    onStart: drill => { JOURNEY.activeDrill = null; loadDrill(drill); },
+    onSong: id => { closeDialog(els.resultDialog); selectSong(id); setMode('practice'); },
+    onLayout: () => requestAnimationFrame(() => { fitPhoneStage(); resizeCanvas(); }),
+    onPractice: () => { stopPlayback(true); setMode('practice'); togglePlayback().catch(() => showToast('Could not start audio.', 'warning')); },
+    onListen: () => { stopPlayback(true); setMode('listen'); togglePlayback().catch(() => showToast('Could not start audio.', 'warning')); }
+  });
+  PROGRESS_KEYS.lessons = COACH.key;
+
+  GAME.applyLook();
+  GAME.onChange(() => CLOUD.changed());
+  PRACTICE.onUpdate(() => GAME.refresh());
+  GAME.attachCombo({ chips: [els.streakPill, els.mobileStreakPill], stage: els.noteStage });
+
+  function openHubDialog(tab) {
+    setSidebar(false);
+    COMMON.openHub({ game: GAME, tab, onWorkout: playWorkoutStep, toast: message => showToast(message, 'success') });
+  }
+
+  // A step of today's workout: a drill, or a song to open (you choose how to play it).
+  function playWorkoutStep(step) {
+    if (step.kind === 'drill') {
+      if(step.nodeKey) { const node = JOURNEY.nodes.find(n => n.key === step.nodeKey); if(node) { playJourneyNode(node); GAME.beginWorkout(step); return; } }
+      COACH.clear();
+      loadDrill({...window.EtherealLessons.exercise(['pulse','hands','332'][(step.level || 1)-1],0,false),bpm:step.bpm || 60});
+      JOURNEY.activeDrill = step.nodeKey || null;
+      GAME.beginWorkout(step);
+      setMode('practice');
+      return;
+    }
+    if (!JOURNEY.isSongOpen(step.id)) { showToast('That song is still locked. Reach it on the Song path.', 'warning'); return; }
+    const node = JOURNEY.current();
+    if (node && node.type === 'boss' && node.id === step.id) { GAME.beginWorkout(step); playJourneyNode(node); return; }
+    JOURNEY.activeDrill = null;
+    selectSong(step.id);
+    GAME.beginWorkout(step);
+    if (step.section) { startWorkoutSection(step); return; }
+    COMMON.nudge(document.querySelector('.mode-segmented'));
+    showToast('Choose Listen or Practice, then press Play.', 'success');
+  }
+
+  // The results: XP from this run, a level up, badges, challenges and prizes.
+  function showGameResult(summary) {
+    let box = document.getElementById('resultGame');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'resultGame';
+      box.className = 'result-game';
+      els.resultBest.after(box);
+    }
+    box.innerHTML = summary ? COMMON.gameResultHtml(summary) : '';
+    box.hidden = !summary;
+    if (summary) COMMON.bindGameResult(box, GAME);
+  }
+
+  function bossTrialStart(node) {
+    JOURNEY.activeDrill = null;
+    selectSong(node.id);
+    state.waitPref = false;
+    setMode('practice');
+    setSpeed(node.speed);
+    state.loop = false;
+    state.abLoop = false;
+    resetRun(0);
+    updateABLoopUI(); updateTransportUI();
+    document.querySelectorAll('#playBtn, #dockPlayBtn').forEach(button => COMMON.nudge(button));
+    showToast(`Final trial: play it at ${COMMON.speedLabel(node.speed)} in Practice and earn ${'★'.repeat(node.stars)}. Press Play when you are ready.`, 'success');
+  }
+
   let journeyMark = JOURNEY.current()?.key || '';
 
   // A drill played from the journey counts for its node; a new node opening is news.
@@ -4056,8 +4189,12 @@
 
   function playJourneyNode(node) {
     setSidebar(false);
+    if (node.type === 'boss') { bossTrialStart(node); return; }
     if (node.type === 'drill') {
-      loadDrill({ level: node.level, bpm: node.bpm, bars: COMMON.generateRhythm({ level: node.level, bars: node.bars }) });
+      const target = JOURNEY.nodes.slice(node.g + 1).find(item => item.id);
+      const targetSong = target ? findSong(target.id) : null;
+      if(targetSong) COACH.begin('song',0,targetSong);
+      else { COACH.clear(); loadDrill(window.EtherealLessons.exercise(['pulse','hands','332'][(node.level || 1)-1],1,false)); }
       JOURNEY.activeDrill = node.key;
       return;
     }
@@ -4084,7 +4221,13 @@
 
   function openSongPathDialog() {
     JOURNEY.nodes.forEach(node => {
-      if (node.type !== 'song') return;
+      if(node.type !== 'drill') return;
+      const target = JOURNEY.nodes.slice(node.g+1).find(next => next.id);
+      const source = target ? findSong(target.id) : null;
+      if(source) { node.title = `Prepare · ${target.title}`; node.levelName = 'Guided phrases'; node.bpm = Math.max(35,Math.round((source.bpm || 80)*.55)); }
+    });
+    JOURNEY.nodes.forEach(node => {
+      if (node.type !== 'song' && node.type !== 'boss') return;
       const song = findSong(node.id);
       if (song) { node.title = song.title; node.level = songDifficulty(parseSong(song)).level; }
     });
@@ -4120,7 +4263,42 @@
     await importSongFile(new File([JSON.stringify(doc)], 'shared.handsong', { type: 'application/json' }));
   }
 
-  function showResults() {
+  function weakestBar() {
+    const parsed = state.parsed;
+    if (!parsed) return null;
+    const times = [];
+    state.results.forEach((value, id) => { if (value === 'miss' || value === 'good') { const event = parsed.events[Number(id.split(':')[0])]; if (event) times.push(event.time); } });
+    const length = parsed.spb * parsed.beatsPerBar;
+    const bars = Array.from({ length: Math.ceil(parsed.duration / length) }, (_, i) => i * length);
+    const section = COMMON.worstSection(times, bars, parsed.duration);
+    return section ? { from: section.from, to: section.to, bar: section.firstBar } : null;
+  }
+
+  function startWorkoutSection(step) {
+    state.waitPref = false;
+    setMode('practice');
+    resetRun(0);
+    state.loop = false;
+    state.loopA = step.section.from;
+    state.loopB = step.section.to;
+    state.abLoop = true;
+    updateABLoopUI();
+    GAME.beginWorkout(step);
+    GAME.invalidateRun();
+    SMART.start([.75], `workout · bar ${step.section.bar}`);
+    showToast('Play this section with at least 75% of the notes. Your workout step will complete automatically.', 'success');
+    startPlayback();
+  }
+
+  function finishWorkoutSection(pass) {
+    const news = GAME?.sectionPass(pass) || [];
+    if (!news.length) return false;
+    SMART.stop(); state.abLoop = false; pausePlayback(); updateABLoopUI();
+    showToast(news.map(item => item.text + (item.xp ? ` +${item.xp} XP` : '')).join(' · '), 'success');
+    return true;
+  }
+
+  function showResults({ silent = false } = {}) {
     const parsed = state.parsed;
     let perfect = 0; let good = 0; let miss = 0; let hit = 0;
     const missedPads = new Map();
@@ -4158,10 +4336,15 @@
     els.resultMistakes.textContent = state.mode === 'wait'
       ? `${state.wrong} wrong ${state.wrong === 1 ? 'stroke' : 'strokes'} · ${formatTime((performance.now() - state.runStartedAt) / 1000)} at ${formatSpeed(state.speed)}×`
       : missedText ? `Missed most often: ${missedText}. Smart loop practises the trickiest bar for you.` : `Perfect ${perfect} · Good ${good} · Wrong ${state.wrong}`;
-    const outcome = BEST.record(state.song.id, { accuracy, speed: state.speed });
-    els.resultBest.innerHTML = outcome ? COMMON.resultBestHtml(outcome, accuracy, state.speed)
+    const prevBest = BEST.get(state.song.id);
+    const runSpeed = GAME.runSpeed(state.speed);
+    const eligible = GAME.canRecordRun();
+    const outcome = eligible ? BEST.record(state.song.id, { accuracy, speed: runSpeed }) : null;
+    els.resultBest.innerHTML = outcome ? COMMON.resultBestHtml(outcome, accuracy, runSpeed)
       : COMMON.bestHtml(BEST.get(state.song.id)) || COMMON.noStarsHtml('No notes were heard this time. Turn on the microphone or tap the handpan to earn stars.');
     els.resultBest.hidden = !els.resultBest.innerHTML;
+    showGameResult(GAME.recordRun({ id: state.song.id, accuracy, speed: state.speed, mode: state.mode, prev: prevBest, wrong: state.wrong, missed: miss, mic: Boolean(mic.on), weakBar: weakestBar() }));
+    if(state.song?.id === DRILL_ID && COACH.active) { const lessonResult = COACH.record({accuracy:accuracy,eligible,mode:state.mode,speed:runSpeed}); if(lessonResult) { els.resultSummary.textContent = lessonResult.text; els.resultDrillBtn.textContent = lessonResult.next; } }
     const faster = COMMON.suggestSpeedUp(state.speed, accuracy);
     els.resultFasterBtn.hidden = !faster;
     els.resultFasterBtn.dataset.speed = faster ? String(faster) : '';
@@ -4173,10 +4356,11 @@
     if (!REC.recording && !REC.armed) { els.resultTake.hidden = true; els.resultTake.innerHTML = ''; }
     els.resultToday.innerHTML = COMMON.todayLine(PRACTICE);
     els.resultDrillBtn.hidden = state.song?.id !== DRILL_ID;
+    if(!COACH?.active) els.resultDrillBtn.textContent = 'Choose a lesson';
     renderSongList();
     renderRecommendedNext(state.song);
-    openDialog(els.resultDialog);
-    requestAnimationFrame(() => celebrateResults(els.resultSparkles, (accuracy || 0) / 100));
+    if (!eligible) els.resultSummary.textContent = 'Section practice. Restart from the beginning to earn song XP and stars.';
+    if (!silent) { openDialog(els.resultDialog); requestAnimationFrame(() => celebrateResults(els.resultSparkles, (accuracy || 0) / 100)); }
   }
 
   /* ------------------------------------------------------------------ */
@@ -4996,7 +5180,7 @@
       const card = document.createElement('button');
       card.type = 'button';
       card.className = `album-card${state.song && song.id === state.song.id ? ' selected' : ''}`;
-      card.innerHTML = `${songCoverMarkup(song)}<span class="album-copy"><span class="album-title-row"><strong>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span><small>${song.bpm} BPM · ${parsed.itemCount} strokes</small><span class="album-source">${escapeHtml(song.artist || 'Community gallery')}</span>${song.about ? `<span class="album-about">${escapeHtml(song.about)}</span>` : ''}</span>`;
+      card.innerHTML = `${songCoverMarkup(song)}<span class="album-copy"><span class="album-title-row"><strong${song.folder === 'mine' ? ' translate="no"' : ''}>${escapeHtml(song.title)}</strong><em class="difficulty-badge" data-level="${difficulty.level}">${difficulty.label}</em></span><small>${song.bpm} BPM · ${parsed.itemCount} strokes</small><span class="album-source">${escapeHtml(song.artist || 'Community gallery')}</span>${song.about ? `<span class="album-about">${escapeHtml(song.about)}</span>` : ''}</span>`;
       card.addEventListener('click', () => { selectSong(song.id, { closeSidebar: true }); els.songLibraryDialog.close(); });
       els.libraryGrid.appendChild(card);
     });
@@ -5300,7 +5484,7 @@
         const cursor = !atEnd && cell.to === caret ? ' at-cursor' : '';
         const pos = `style="grid-column:${col} / span ${span}" data-from="${cell.from}" data-to="${cell.to}"`;
         if (cell.kind === 'rest') {
-          inner += `<button type="button" class="rv-cell rest${narrow}${cursor}" ${pos} aria-label="Rest">–<span class="rv-del" aria-label="Remove">×</span></button>`;
+          inner += `<button type="button" class="rv-cell rest${narrow}${cursor}" ${pos} aria-label="Rest">-<span class="rv-del" aria-label="Remove">×</span></button>`;
         } else if (cell.kind === 'error') {
           inner += `<button type="button" class="rv-cell error${narrow}${cursor}" ${pos} aria-label="Not understood">?<span class="rv-del" aria-label="Remove">×</span></button>`;
         } else {
@@ -5380,6 +5564,7 @@
     closeDialog(els.editorDialog);
     selectSong(song.id);
     showToast('Song saved to My songs.', 'success');
+    GAME.event('composer').forEach((item, index) => setTimeout(() => showToast(`${item.icon} ${item.text}`, 'success'), 1400 * (index + 1)));
   }
 
   function deleteSong(id) {
@@ -5793,6 +5978,7 @@
 
   // A small "Perfect ×12" / "Miss" pop above the tape, like a rhythm game.
   function tapeJudge(kind) {
+    GAME?.judge(kind, state.streak, state.mode);
     if (!JUDGE_TEXT[kind] || state.mode === 'tuner') return;
     const el = els.noteTapeJudge;
     const good = kind === 'perfect' || kind === 'good' || kind === 'hit';
@@ -6707,7 +6893,7 @@
     }));
     els.deleteProgressBtn?.addEventListener('click', () => COMMON.openDeleteProgress({ cloud: CLOUD, clearLocal: clearLocalProgress, toast: message => showToast(message, 'success') }));
     COMMON.bindRecChips({ rec: REC, recBtn: els.recChipBtn, takeBtn: els.takeChipBtn, toast: message => showToast(message, 'success') });
-    els.resultDrillBtn?.addEventListener('click', () => { const node = JOURNEY.nodes.find(item => item.key === JOURNEY.activeDrill); if (node) playJourneyNode(node); else loadDrill(COMMON.nextDrill()); });
+    els.resultDrillBtn?.addEventListener('click', () => { if(COACH.next()) return; const node = JOURNEY.nodes.find(item => item.key === JOURNEY.activeDrill); if (node) playJourneyNode(node); else COACH.open(); });
     els.loadProgressBtn?.addEventListener('click', () => els.progressFile.click());
     els.progressFile?.addEventListener('change', async () => {
       const file = els.progressFile.files[0];
@@ -6716,6 +6902,8 @@
       try {
         const { songs } = await COMMON.importProgress(file, { app: 'ethereal-handpan', keys: PROGRESS_KEYS });
         BEST.reload();
+        JOURNEY.reload();
+        GAME.reload();
         PRACTICE.reload();
         renderSongList();
         CLOUD.changed();
@@ -6844,3 +7032,4 @@
 
   init();
 })();
+

@@ -1,5 +1,21 @@
-const CACHE = 'ethereal-handpan-trainer-v26';
+const CACHE = 'ethereal-handpan-trainer-v31';
 const SHELL = [
+  './app-files/ethereal-translations.js',
+  './app-files/ethereal-i18n.js',
+  './app-files/ethereal-i18n.css',
+  './app-files/ethereal-lessons.js',
+  './app-files/ethereal-cosmetics.js',
+  './app-files/ethereal-cosmetics.css',
+  './app-files/cosmetics/eclipse.svg',
+  './app-files/cosmetics/hammered.svg',
+  './app-files/cosmetics/marble-mint.webp',
+  './app-files/cosmetics/marble-ocean.webp',
+  './app-files/cosmetics/nebula-aqua.webp',
+  './app-files/cosmetics/nebula-blue.webp',
+  './app-files/cosmetics/nebula-violet.webp',
+  './app-files/cosmetics/prism.svg',
+  './app-files/cosmetics/vortex.svg',
+
   './',
   './index.html',
   './app-files/ethereal-common.css',
@@ -27,7 +43,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)));
+    await Promise.all(keys.filter(key => key.startsWith('ethereal-handpan-trainer-') && key !== CACHE).map(key => caches.delete(key)));
     await self.clients.claim();
   })());
 });

@@ -312,7 +312,7 @@
         let verdict;
         if (!peaks.length) verdict = `I did not hear the ${drumName}. Check that the microphone is not muted, move the device closer and try again.`;
         else if (peaks.length < 3) verdict = `I heard ${peaks.length} of 3 strikes. Sensitivity is set; if notes are missed, strike a little firmer or move the device closer.`;
-        else if (weakest < noise * 4) verdict = `It is a little noisy here. Sensitivity is set, but a quieter room or a device 30–50 cm from the ${drumName} works best.`;
+        else if (weakest < noise * 4) verdict = `It is a little noisy here. Sensitivity is set, but a quieter room or a device 30-50 cm from the ${drumName} works best.`;
         else verdict = `Great! The microphone hears your ${drumName} clearly. Sensitivity is set for this room.`;
         $('step').textContent = 'Check finished.';
         $('result').textContent = verdict;
@@ -599,13 +599,58 @@
         Object.entries(devices).forEach(([device, seconds]) => { own[device] = Math.max(Number(own[device]) || 0, Number(seconds) || 0); });
         mine.days[day] = own;
       });
+      if (incoming.practice.freeze) {
+        const f = incoming.practice.freeze;
+        mine.freeze = { since: [mine.freeze?.since, f.since].filter(Boolean).sort()[0] || dayStamp(), days: { ...(f.days || {}), ...(mine.freeze?.days || {}) } };
+      }
       writeJson(keys.practice, mine);
     }
-    if (keys.journey && incoming.journey && incoming.journey.drills && typeof incoming.journey.drills === 'object') {
+    if (keys.lessons && incoming.lessons?.scores) {
+      const mine = readJson(keys.lessons, {scores:{}}); mine.scores = mine.scores || {};
+      Object.entries(incoming.lessons.scores).forEach(([id,n]) => { if(Number.isFinite(n) && n >= 0 && n <= 100) mine.scores[id] = Math.max(Number(mine.scores[id]) || 0,n); });
+      writeJson(keys.lessons,mine);
+    }
+    if (keys.journey && incoming.journey && typeof incoming.journey === 'object') {
       const mine = readJson(keys.journey, null) || { drills: {} };
       mine.drills = mine.drills || {};
-      Object.entries(incoming.journey.drills).forEach(([node, stars]) => { mine.drills[node] = Math.max(Number(mine.drills[node]) || 0, Number(stars) || 0); });
+      Object.entries(incoming.journey.drills || {}).forEach(([node, stars]) => { mine.drills[node] = Math.max(Number(mine.drills[node]) || 0, Number(stars) || 0); });
+      mine.bosses = { ...(incoming.journey.bosses || {}), ...(mine.bosses || {}) };
       writeJson(keys.journey, mine);
+    }
+    if (keys.game && incoming.game && typeof incoming.game === 'object') {
+      const mine = readJson(keys.game, null) || {};
+      const theirs = incoming.game;
+      const out = { ...theirs, ...mine };
+      out.xp = Math.max(Number(mine.xp) || 0, Number(theirs.xp) || 0);
+      out.c = { ...(theirs.c || {}), ...(mine.c || {}) };
+      Object.entries(theirs.c || {}).forEach(([name, value]) => { if (Number.isFinite(Number(value)) && typeof value === 'number') out.c[name] = Math.max(Number(out.c[name]) || 0, value); });
+      out.badges = { ...(theirs.badges || {}), ...(mine.badges || {}) };
+      out.tiers = { ...(theirs.tiers || {}) };
+      Object.entries(mine.tiers || {}).forEach(([id, tier]) => { out.tiers[id] = Math.max(Number(out.tiers[id]) || 0, Number(tier) || 0); });
+      out.owned = [...new Set([...(theirs.owned || []), ...(mine.owned || [])])];
+      for (const name of ['day', 'daily', 'workout']) {
+        const a = mine[name], b = theirs[name];
+        const stamp = value => String(value?.stamp || value?.day || '');
+        if (stamp(b) > stamp(a)) out[name] = b;
+        else if (stamp(a) === stamp(b) && a && b) {
+          const newer = Number(theirs.updatedAt) > Number(mine.updatedAt) ? b : a;
+          out[name] = { ...newer };
+          if (name === 'daily') {
+            out[name].swapped = Boolean(a.swapped || b.swapped);
+            out[name].done = { ...(b.done || {}), ...(a.done || {}) };
+          } else if (name === 'workout' && JSON.stringify(a.steps) === JSON.stringify(b.steps)) {
+            out[name].done = a.steps.map((value, i) => Boolean(value || b.done?.[i]));
+            out[name].bonus = Boolean(a.bonus || b.bonus);
+          } else if (name === 'day') {
+            Object.keys({ ...a, ...b }).forEach(key => { if (typeof a[key] === 'number' || typeof b[key] === 'number') out[name][key] = Math.max(Number(a[key]) || 0, Number(b[key]) || 0); });
+            out[name].songs = [...new Set([...(a.songs || []), ...(b.songs || [])])];
+            out[name].count = { ...(a.count || {}) };
+            Object.entries(b.count || {}).forEach(([id, n]) => out[name].count[id] = Math.max(out[name].count[id] || 0, n));
+          }
+        }
+      }
+      out.updatedAt = Math.max(Number(mine.updatedAt) || 0, Number(theirs.updatedAt) || 0);
+      writeJson(keys.game, out);
     }
     return { songs };
   }
@@ -867,7 +912,7 @@
     const device = deviceId();
     const load = () => {
       const value = readJson(storageKey, null);
-      return value && typeof value === 'object' && value.days ? { goal: Number(value.goal) || 10, days: value.days } : { goal: 10, days: {} };
+      return value && typeof value === 'object' && value.days ? { ...value, goal: Number(value.goal) || 10 } : { goal: 10, days: {} };
     };
     let data = load();
     let last = Date.now();
@@ -886,23 +931,47 @@
       unsaved = 0;
     };
     const notify = () => listeners.forEach(fn => { try { fn(); } catch {} });
+    // One automatic freeze; seven new daily goals refill the one-slot reserve.
+    if (!data.freeze) data.freeze = { since: dayStamp(), days: {} };
+    const freezeBalance = () => {
+      const f = data.freeze;
+      const goals = Object.keys(data.days).filter(day => day >= f.since && secondsOn(day) >= data.goal * 60);
+      const events = [...goals.map(day => [day, 'goal']), ...Object.keys(f.days || {}).map(day => [day, 'freeze'])].sort((a, b) => a[0].localeCompare(b[0]));
+      let tokens = 1, count = 0;
+      events.forEach(([, kind]) => { if (kind === 'freeze') tokens = Math.max(0, tokens - 1); else if (++count % 7 === 0) tokens = 1; });
+      return tokens;
+    };
+    const protectYesterday = () => {
+      const date = new Date(); date.setDate(date.getDate() - 1);
+      const yesterday = dayStamp(date); date.setDate(date.getDate() - 1);
+      data.freeze = data.freeze || { since: dayStamp(), days: {} };
+      data.freeze.days = data.freeze.days || {};
+      if (!data.freeze.days[yesterday] && secondsOn(yesterday) < data.goal * 60 && secondsOn(dayStamp(date)) >= data.goal * 60 && freezeBalance() > 0) {
+        data.freeze.days[yesterday] = Date.now(); save();
+      }
+      return yesterday;
+    };
     const log = {
       key: storageKey,
       get goal() { return data.goal; },
       setGoal(minutes) { data.goal = Math.max(1, Number(minutes) || 10); save(); notify(); },
       todaySeconds() { return secondsOn(dayStamp()); },
       streak() {
+        protectYesterday();
         const need = data.goal * 60;
         const date = new Date();
-        let count = secondsOn(dayStamp(date)) >= need ? 1 : 0;
+        if (secondsOn(dayStamp(date)) < need) date.setDate(date.getDate() - 1);
+        let count = 0;
         for (let i = 0; i < 400; i += 1) {
+          const day = dayStamp(date);
+          if (secondsOn(day) >= need) count += 1;
+          else if (!data.freeze.days[day]) break;
           date.setDate(date.getDate() - 1);
-          if (secondsOn(dayStamp(date)) >= need) count += 1;
-          else break;
         }
         return count;
       },
-      reload() { data = load(); notify(); },
+      freezeStatus() { const yesterday = protectYesterday(); return { tokens: freezeBalance(), protected: Boolean(data.freeze.days[yesterday]) }; },
+      reload() { data = load(); data.freeze = data.freeze || { since: dayStamp(), days: {} }; notify(); },
       onUpdate(fn) { listeners.add(fn); },
       save
     };
@@ -943,7 +1012,7 @@
       <div class="today-bar${done ? ' done' : ''}"><i style="width:${pct}%"></i></div>`;
   }
 
-  // The card at the top of the song list: today's minutes, the streak, Song path, Rhythm drills.
+  // The card at the top of the song list: today's minutes, the streak, Song path, Practice studio.
   function todayCard({ log, onPath, onDrills }) {
     const card = document.createElement('section');
     card.className = 'today-card';
@@ -954,7 +1023,7 @@
     card.innerHTML = `<div class="today-body"></div>
       <div class="today-actions">
         <button type="button" data-today="path"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/><path d="M8.2 16.6c4-1.2 1.6-6.4 6.2-8.6"/></svg>Song path</button>
-        <button type="button" data-today="drills"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 17V6M12 17V9M18 17V4"/><circle cx="4.5" cy="17.5" r="1.8" fill="currentColor"/><circle cx="10.5" cy="17.5" r="1.8" fill="currentColor"/><circle cx="16.5" cy="17.5" r="1.8" fill="currentColor"/></svg>Rhythm drills</button>
+        <button type="button" data-today="drills"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 17V6M12 17V9M18 17V4"/><circle cx="4.5" cy="17.5" r="1.8" fill="currentColor"/><circle cx="10.5" cy="17.5" r="1.8" fill="currentColor"/><circle cx="16.5" cy="17.5" r="1.8" fill="currentColor"/></svg>Practice studio</button>
       </div>`;
     paint();
     card.querySelector('[data-today="path"]').addEventListener('click', onPath);
@@ -1063,6 +1132,7 @@
             if (r.take) URL.revokeObjectURL(r.take.url);
             const blob = new Blob(r.chunks, { type: recorder.mimeType || type || 'audio/webm' });
             r.take = { url: URL.createObjectURL(blob), blob, seconds, at: Date.now(), ext: /mp4/.test(blob.type) ? 'm4a' : /ogg/.test(blob.type) ? 'ogg' : 'webm' };
+            try { window.dispatchEvent(new CustomEvent('ethereal:take')); } catch {}
             onTake?.(r.take);
           }
           r.recorder = null;
@@ -1142,7 +1212,7 @@
     });
   }
 
-  /* ---------- Rhythm drills: short random patterns to read and play ---------- */
+  /* ---------- Practice studio: short random patterns to read and play ---------- */
 
   const DRILL_CELLS = {
     1: [[[1], 7], [[2], 2], [['r1'], 2]],
@@ -1460,7 +1530,7 @@
       .filter(([, seconds]) => seconds >= 30).sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 14)
       .map(([day, seconds]) => {
         const date = new Date(`${day}T12:00:00`);
-        const label = Number.isNaN(date.getTime()) ? day : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        const label = Number.isNaN(date.getTime()) ? day : date.toLocaleDateString(window.EtherealI18n?.language || 'en-GB', { day: 'numeric', month: 'short' });
         return `${label}: ${Math.max(1, Math.round(seconds / 60))} min`;
       });
     if (days.length && log.goal) days.unshift(`Goal ${log.goal} min a day`);
@@ -1619,15 +1689,19 @@
     let data = readJson(key, null) || { drills: {} };
     data.drills = data.drills || {};
     let admin = readJson(adminKey, false) === true;
+    data.bosses = data.bosses || {};
     const nodes = [];
     paths.forEach((p, pathIndex) => p.nodes.forEach((node, index) => {
-      if (node.type === 'song' && !songOk(node.id)) return;
+      if ((node.type === 'song' || node.type === 'boss') && !songOk(node.id)) return;
       nodes.push({ ...node, path: p.id, pathIndex, key: `${p.id}-${index}`, g: nodes.length });
     }));
-    const songNode = new Map(nodes.filter(node => node.type === 'song').map(node => [node.id, node]));
+    // A song can be on the path twice (a stop, and later its final trial): open if either is.
+    const songNodes = new Map();
+    nodes.filter(node => node.type === 'song' || node.type === 'boss').forEach(node => songNodes.set(node.id, [...(songNodes.get(node.id) || []), node]));
     const save = () => writeJson(key, data);
-    const starsOf = node => (node.type === 'song' ? bestStars(best.get(node.id)) : Number(data.drills[node.key]) || 0);
-    const unlocked = node => admin || node.g === 0 || starsOf(nodes[node.g - 1]) >= JOURNEY_NEED;
+    // A final trial counts as five stars once it is beaten.
+    const starsOf = node => (node.type === 'song' ? bestStars(best.get(node.id)) : node.type === 'boss' ? (data.bosses[node.key] ? STAR_COUNT : 0) : Number(data.drills[node.key]) || 0);
+    const unlocked = node => admin || nodes.slice(0, node.g).every(before => starsOf(before) >= JOURNEY_NEED);
     const j = {
       key,
       paths,
@@ -1638,8 +1712,16 @@
       unlocked,
       get admin() { return admin; },
       isSongOpen(id) {
-        const node = songNode.get(id);
-        return !node || unlocked(node);
+        const list = songNodes.get(id);
+        return !list || list.some(node => unlocked(node));
+      },
+      // A run in Practice: is it good enough for a final trial (its speed and stars)?
+      recordBoss(id, run) {
+        const beaten = nodes.filter(node => node.type === 'boss' && node.id === id && !data.bosses[node.key] && unlocked(node)
+          && Number(run.speed) >= node.speed - 1e-6 && starsFor(Number(run.accuracy), Number(run.speed)) >= node.stars);
+        beaten.forEach(node => { data.bosses[node.key] = Date.now(); });
+        if (beaten.length) save();
+        return beaten;
       },
       lockedSongCount(ids) { return ids.filter(id => !j.isSongOpen(id)).length; },
       // The furthest song you have reached (for a start, or after Start over).
@@ -1657,7 +1739,7 @@
         data.drills[j.activeDrill] = Math.max(Number(data.drills[j.activeDrill]) || 0, stars);
         save();
       },
-      reload() { data = readJson(key, null) || { drills: {} }; data.drills = data.drills || {}; },
+      reload() { data = readJson(key, null) || { drills: {} }; data.drills = data.drills || {}; data.bosses = data.bosses || {}; },
       tryAdmin(code) {
         if (codeHash(code) !== ADMIN_HASH) return false;
         admin = true;
@@ -1671,19 +1753,41 @@
 
   // A little planet for each node, its colours taken from the song.
   function nodeThumb(node) {
+    if (node.type === 'boss') return `<span class="j-thumb boss" aria-hidden="true">${achievementIcon('trial')}</span>`;
     if (node.type === 'drill') return '<span class="j-thumb drill" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>';
     let hash = 7;
     for (const ch of String(node.id)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-    const hue = hash % 360;
+    const hue = ([288,208,160,38,252,190,330,136][(node.g ?? (hash % 8)) % 8] + hash % 13) % 360;
     const ring = hash % 3 === 0 ? ' ring' : '';
     const moon = hash % 2 === 0 ? ' moon' : '';
-    return `<span class="j-thumb${ring}${moon}" style="--h:${hue};--x:${30 + (hash % 40)}%" aria-hidden="true"></span>`;
+    return `<span class="j-thumb${ring}${moon}" style="--h:${hue};--x:${30 + (hash % 40)}%" aria-hidden="true"><i class="planet-ring"></i><i class="planet-body"></i></span>`;
   }
 
   const LOCK_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
   const PLAY_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>';
 
   let journeyDialog = null;
+
+  // Draw the route through the actual waypoint positions, so it follows wrapped cards too.
+  function drawJourneyRoute(dialog) {
+    const list = dialog.querySelector('.journey-list');
+    if (!list) return;
+    const dots = [...list.querySelectorAll('.j-dot')];
+    if (dots.length < 2) return;
+    const box = list.getBoundingClientRect();
+    const points = dots.map(dot => { const r = dot.getBoundingClientRect(); return { x: r.left - box.left + r.width / 2, y: r.top - box.top + list.scrollTop + r.height / 2 }; });
+    const curve = points => points.map((p,i) => i ? `C${points[i-1].x},${(points[i-1].y + p.y)/2} ${p.x},${(points[i-1].y + p.y)/2} ${p.x},${p.y}` : `M${p.x},${p.y}`).join(' ');
+    const last = list.querySelector('.j-node:last-child');
+    const height = last.offsetTop + last.offsetHeight + 18;
+    let svg = list.querySelector('.journey-route');
+    if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.classList.add('journey-route'); svg.setAttribute('aria-hidden','true'); list.prepend(svg); }
+    svg.setAttribute('viewBox', `0 0 ${list.clientWidth} ${height}`);
+    svg.style.height = `${height}px`;
+    const nodes = [...list.querySelectorAll('.j-node')];
+    const current = nodes.findIndex(node => !node.classList.contains('done'));
+    const complete = current < 0 ? points : points.slice(0,current + 1);
+    svg.innerHTML = `<path class="route-haze" d="${curve(points)}"/><path class="route-base" d="${curve(points)}"/>${complete.length > 1 ? `<path class="route-done" d="${curve(complete)}"/>` : ''}`;
+  }
 
   function openJourney({ journey, onPlay, onStartOver, toast }) {
     if (!journeyDialog) {
@@ -1696,6 +1800,9 @@
     const current = journey.current();
     let tab = current ? current.pathIndex : 0;
     let showCode = false;
+    const mapStyles = [['constellation','Constellation'],['aurora','Nebula trail']];
+    let mapStyle = readJson('ethereal-journey-style-v1','constellation');
+    if (!mapStyles.some(([id]) => id === mapStyle)) mapStyle = 'constellation';
 
     const paint = () => {
       const now = journey.current();
@@ -1713,30 +1820,38 @@
         const next = pathNodes[index + 1];
         const lineDone = next && journey.unlocked(next) ? ' solid' : '';
         const dot = state === 'done' ? '✓' : state === 'current' ? PLAY_SVG : state === 'open' ? PLAY_SVG : LOCK_SVG;
-        const level = node.type === 'drill' ? `<em class="j-level" data-level="drill">${esc(node.levelName)} · ${node.bpm} BPM</em>` : `<em class="j-level" data-level="${esc(node.level)}">${esc(capitalise(node.level))}</em>`;
-        const badge = state === 'done' ? '<span class="j-badge done">✓ Completed</span>' : state === 'current' ? `<span class="j-badge go">${PLAY_SVG}Ready to play</span>` : '';
-        return `<li class="j-node ${state}${index === pathNodes.length - 1 ? ' last' : ''}${lineDone}">
+        const boss = node.type === 'boss';
+        const level = boss ? `<em class="j-level" data-level="boss">Final trial · ${esc(speedLabel(node.speed))} · ${'★'.repeat(node.stars)}</em>`
+          : node.type === 'drill' ? `<em class="j-level" data-level="drill">${esc(node.levelName)} · ${node.bpm} BPM</em>` : `<em class="j-level" data-level="${esc(node.level)}">${esc(capitalise(node.level))}</em>`;
+        const badge = state === 'done' ? `<span class="j-badge done">✓ ${boss ? 'Beaten' : 'Completed'}</span>` : state === 'current' ? `<span class="j-badge go">${PLAY_SVG}${boss ? 'Trial' : 'Ready to play'}</span>` : '';
+        const prize = boss && node.reward ? `<i class="j-prize"><span class="skin-swatch" data-skin="${esc(node.reward)}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>Prize: ${esc(node.rewardName || '')}</i>` : `<i class="j-stars">${starsHtml(stars)}</i>`;
+        return `<li class="j-node ${state} ${index % 2 ? 'way-left' : 'way-right'}${boss ? ' boss' : ''}${index === pathNodes.length - 1 ? ' last' : ''}${lineDone}" style="--drift:${Math.sin(index * 1.15).toFixed(3)}">
           <span class="j-rail"><i class="j-dot">${dot}</i></span>
           <button type="button" class="j-card" data-node="${node.g}">
             ${nodeThumb(node)}
-            <span class="j-copy">${here ? '<small class="j-here">You are here</small>' : ''}<b>${esc(node.title)}</b>${level}<i class="j-stars">${starsHtml(stars)}</i></span>
+            <span class="j-copy">${here ? '<small class="j-here">You are here</small>' : ''}<b>${esc(node.title)}</b>${level}${prize}</span>
             ${badge}
           </button>
         </li>`;
       }).join('');
       const footer = allDone
         ? `<div class="j-next"><span class="j-thumb win" aria-hidden="true"></span><div><small>Journey complete</small><b>You reached the stars!</b><span>Play any song you like, or start over.</span></div></div>`
-        : `<div class="j-next">${nodeThumb(now)}<div><small>Up next</small><b>${esc(now.title)}</b><span>Earn ${journey.need} stars on this ${now.type === 'drill' ? 'drill' : 'song'}</span></div></div>
+        : now.type === 'boss'
+          ? `<div class="j-next">${nodeThumb(now)}<div><small>Final trial</small><b>${esc(now.title)}</b><span>Play it at ${esc(speedLabel(now.speed))} in Practice and earn ${'★'.repeat(now.stars)}</span></div></div>
+           <button type="button" class="j-play boss" data-play="${now.g}">${PLAY_SVG}Take the trial</button>`
+          : `<div class="j-next">${nodeThumb(now)}<div><small>Up next</small><b>${esc(now.title)}</b><span>Earn ${journey.need} stars on this ${now.type === 'drill' ? 'drill' : 'song'}</span></div></div>
            <button type="button" class="j-play" data-play="${now.g}">${PLAY_SVG}${now.type === 'drill' ? 'Play drill' : 'Play song'}</button>`;
-      d.innerHTML = `<div class="journey">
+      d.innerHTML = `<div class="journey" data-map-style="${mapStyle}">
         <header class="journey-head">
           <p class="journey-eyebrow">Song journey · a constellation route</p>
           <h2 class="journey-title">Reach the stars</h2>
+          <span class="journey-planet" aria-hidden="true"><i></i></span>
           <p class="journey-count"><b>${journey.totalStars()}</b> / ${total} stars</p>
           <p class="journey-sub">Earn ${journey.need} stars to unlock the next song</p>
           <button type="button" class="journey-close" data-j="close" aria-label="Close">×</button>
         </header>
         <nav class="journey-tabs" role="tablist">${journey.paths.map((p, index) => `<button type="button" role="tab" class="${index === tab ? 'active' : ''}${pathOpen(index) ? '' : ' locked'}" data-tab="${index}"><small>Path ${index + 1}${pathDone(index) ? ' ✓' : pathOpen(index) ? '' : ' 🔒'}</small><b>${esc(p.name)}</b></button>`).join('')}</nav>
+        <nav class="journey-designs" aria-label="Journey appearance">${mapStyles.map(([id,label]) => `<button type="button" data-map="${id}" aria-pressed="${id === mapStyle}">${label}</button>`).join('')}</nav>
         ${journey.admin ? '<p class="journey-admin">Admin: everything is open. <button type="button" data-j="admin-off">Turn off</button></p>' : ''}
         <ol class="journey-list">${rows}</ol>
         <footer class="journey-foot">
@@ -1749,6 +1864,7 @@
           <p class="mini-note"></p>
         </footer>
       </div>`;
+      d.querySelectorAll('[data-map]').forEach(button => button.addEventListener('click', () => { mapStyle = button.dataset.map; writeJson('ethereal-journey-style-v1',mapStyle); paint(); }));
       const note = text => { const el = d.querySelector('.mini-note'); el.textContent = text; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); };
       d.querySelector('[data-j="close"]').addEventListener('click', () => d.close());
       d.querySelectorAll('[data-tab]').forEach(button => button.addEventListener('click', () => { tab = Number(button.dataset.tab); paint(); }));
@@ -1757,7 +1873,7 @@
         if (!node) return;
         if (!journey.unlocked(node)) {
           const before = journey.nodes[g - 1];
-          note(`Earn ${journey.need} stars on “${before?.title || ''}” first.`);
+          note(before?.type === 'boss' ? `Beat the final trial “${before.title}” first.` : `Earn ${journey.need} stars on “${before?.title || ''}” first.`);
           return;
         }
         d.close();
@@ -1780,7 +1896,9 @@
         else note('That code does not work.');
       });
       d.querySelector('[data-j="admin-off"]')?.addEventListener('click', () => { journey.adminOff(); paint(); toast('Admin is off: the journey locks are back.'); });
-      requestAnimationFrame(() => d.querySelector('.j-node.current')?.scrollIntoView({ block: 'center' }));
+      requestAnimationFrame(() => { centreAchievementIcons(d); drawJourneyRoute(d); d.querySelector('.j-node.current')?.scrollIntoView({ block: 'center' }); });
+      d.routeObserver?.disconnect();
+      if (typeof ResizeObserver === 'function') { d.routeObserver = new ResizeObserver(() => drawJourneyRoute(d)); d.routeObserver.observe(d.querySelector('.journey-list')); }
     };
     paint();
     if (!d.open) d.showModal();
@@ -1796,14 +1914,728 @@
     return row;
   }
 
+  /* ---------- Player game: XP and levels, combos, badges, milestones, daily challenges,
+     today's workout and rewards (drum colours and nebulas) ---------- */
+
+  const LEVEL_TITLES = [[1, 'Stardust'], [5, 'Comet'], [10, 'Moon'], [15, 'Planet'], [20, 'Nova'], [30, 'Star'], [40, 'Galaxy']];
+  const xpForLevel = level => 50 * level * (level - 1);
+  const fmt = n => Math.round(Number(n) || 0).toLocaleString(window.EtherealI18n?.language || 'en-GB');
+
+  function levelInfo(xp) {
+    xp = Math.max(0, Math.min(1e12, Number(xp) || 0));
+    const level = Math.floor((1 + Math.sqrt(1 + .08 * xp)) / 2);
+    const from = xpForLevel(level);
+    const to = xpForLevel(level + 1);
+    const title = LEVEL_TITLES.filter(([min]) => level >= min).pop()[1];
+    return { level, title, xp, from, to, into: xp - from, need: to - from, progress: Math.max(0, Math.min(1, (xp - from) / (to - from))) };
+  }
+
+  // Combo: 10 right notes in a row double the points, 25 triple them, 50 make them ×4.
+  const comboFor = streak => (streak >= 50 ? 4 : streak >= 25 ? 3 : streak >= 10 ? 2 : 1);
+
+  const COSMETICS = window.EtherealCosmetics;
+  const SKINS = COSMETICS.skins;
+  const NEBULAS = COSMETICS.nebulas;
+  const REWARD_KINDS = ['skin', 'rim', 'accent', 'pattern', 'nebula', 'shape'];
+
+  const ACHIEVEMENT_PATHS = {"runs": "M8 17V6l12-2v11M8 10l12-2 M8 17a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0 M20 15a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0", "notes": "M12 2v4M12 18v4M2 12h4M18 12h4 M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8 M12 11v2", "perfect": "M12 3l2.3 6.7L21 12l-6.7 2.3L12 21l-2.3-6.7L3 12l6.7-2.3Z", "stars": "M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z", "easy": "M5 20C3 10 10 3 20 4c0 9-5 16-15 16Z M5 20l10-10", "medium": "M17 3a9 9 0 1 0 4 14A9 9 0 0 1 17 3Z", "hard": "M13 2c1 6-4 6-2 11 2-1 4-3 4-5 6 7 4 14-3 14S1 15 7 8c0 3 1 4 2 4-1-5 2-7 4-10Z", "minutes": "M12 7v6l4 2 M9 2h6M12 2v3 M12 5a8 8 0 1 0 0 16a8 8 0 0 0 0-16", "streak": "M12 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10 M12 1v3M12 20v3M1 12h3M20 12h3M4 4l2 2M18 18l2 2M4 20l2-2M18 6l2-2", "daily": "M5 5h14v16H5Z M8 2v6M16 2v6M5 10h14 M8 15l3 3 5-5", "drills": "M3 8l9-5 9 5v11l-9 3-9-3Z M3 8l9 4 9-4 M12 12v10M7 10v9M17 10v9", "combo": "M14 2L4 14h7l-1 8 10-13h-7Z", "workouts": "M3 9v6M6 5v14M18 5v14M21 9v6M6 12h12", "flawless": "M3 8l5-5h8l5 5-9 14Z M3 8h18M8 3l4 19 4-19", "fullspeed": "M8 15L4 20l5-1 M9 15l-2-5C11 2 18 3 21 3c0 6-1 10-8 14Z M15 8h.01", "slow": "M3 15h18M5 15v4M18 15v4M7 15C4 7 17 4 18 15 M18 10l3-1v6", "patient": "M12 3v2M6 21l6-9 6 9M2 15l10-3 10 3M8 8a4 4 0 1 0 8 0", "comeback": "M3 21h18M4 17l6-6 4 3 7-10 M15 4h6v6", "encore": "M4 9a8 8 0 0 1 14-3l2 3 M20 3v6h-6 M20 15a8 8 0 0 1-14 3l-2-3 M4 21v-6h6", "explorer": "M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20 M16 8l-2 6-6 2 2-6Z", "night": "M4 5l8 3 8-3v10l-8 7-8-7Z M7 11h2M15 11h2M10 15l2 2 2-2", "early": "M3 17h18M6 14a6 6 0 0 1 12 0 M12 2v4M3 5l3 3M21 5l-3 3M1 12h3M20 12h3 M8 21h8", "weekend": "M3 21L9 4l11 11Z M9 4l3 11 8 0 M16 2l-1 3M22 5l-3 2M19 10l3 1", "mic": "M8 4a4 4 0 0 1 8 0v8a4 4 0 0 1-8 0Z M5 11v2a7 7 0 0 0 14 0v-2M12 20v3M8 23h8", "take": "M3 5h18v16H3Z M7 9h10M8 13h8M7 17h2M15 17h2", "composer": "M3 21l2-7L17 2l5 5-12 12Z M5 14l5 5M15 4l5 5", "trial": "M7 3h10v9a5 5 0 0 1-10 0Z M7 5H3v4a5 5 0 0 0 4 5M17 5h4v4a5 5 0 0 1-4 5M12 17v4M8 22h8"};
+  function achievementIcon(id, kind = 'milestone') {
+    const key = ({perfect100:'combo',week:'streak',beginner:'easy',first:'runs',five:'stars',trial0:'trial',trial1:'trial',trial2:'trial'})[id] || id;
+    const hue = ({perfect100:272,week:28,beginner:148,first:175,five:44,flawless:194,fullspeed:345,slow:116,patient:260,comeback:155,encore:202,explorer:35,night:245,early:36,weekend:315,mic:185,take:285,composer:338,trial0:27,trial1:205,trial2:46})[id] ?? 175;
+    const badge=kind==='badge';
+    const shell=badge?'<path class="badge-ribbons" d="M11 32L8 50l16-8 16 8-3-18Z"/><circle class="medal-shell" cx="24" cy="22" r="19"/><circle class="medal-frame" cx="24" cy="22" r="15.5"/><path class="badge-shine" d="M10 17A15 15 0 0 1 25 7"/>':'<path class="medal-shell" d="M24 2L43 13v22L24 46 5 35V13Z"/><path class="medal-frame" d="M24 6L39 15v18L24 42 9 33V15Z"/>';
+    return `<svg class="achievement-art ${badge?'badge-art':'milestone-art'}" data-glyph-cy="${badge?22:24}" style="--badge-hue:${hue}" viewBox="0 0 48 ${badge?52:48}" aria-hidden="true">${shell}<g class="achievement-glyph" transform="translate(12 ${badge?10:12})" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${ACHIEVEMENT_PATHS[key] || ACHIEVEMENT_PATHS.perfect}"/></g></svg>`;
+
+  }
+
+  function centreAchievementIcons(root) {
+    root.querySelectorAll('.achievement-art').forEach(svg=>{
+      const g=svg.querySelector('.achievement-glyph'),path=g?.querySelector('path');
+      if(!path?.getBBox)return;
+      const b=path.getBBox();if(!b.width || !b.height)return;
+      const scale=22/Math.max(b.width,b.height),cy=Number(svg.dataset.glyphCy)||24;
+      g.setAttribute('transform',`translate(${24-(b.x+b.width/2)*scale} ${cy-(b.y+b.height/2)*scale}) scale(${scale})`);
+    });
+  }
+  const MILESTONES = [
+    { id: 'runs', icon: achievementIcon('runs'), name: 'Songs played', tiers: [1, 10, 50, 100, 250] },
+    { id: 'notes', icon: achievementIcon('notes'), name: 'Notes hit', tiers: [500, 2000, 10000, 50000, 100000] },
+    { id: 'perfect', icon: achievementIcon('perfect'), name: 'Perfect notes', tiers: [100, 1000, 5000, 20000, 50000] },
+    { id: 'stars', icon: achievementIcon('stars'), name: 'Stars collected', tiers: [10, 25, 40, 60, 100] },
+    { id: 'easy', icon: achievementIcon('easy'), name: 'Easy songs cleared', tiers: [1, 3, 6, 10, 20] },
+    { id: 'medium', icon: achievementIcon('medium'), name: 'Medium songs cleared', tiers: [1, 3, 5, 10, 20] },
+    { id: 'hard', icon: achievementIcon('hard'), name: 'Hard songs cleared', tiers: [1, 2, 4, 8, 15] },
+    { id: 'minutes', icon: achievementIcon('minutes'), name: 'Practice time', tiers: [30, 120, 600, 3000, 6000], unit: 'min' },
+    { id: 'streak', icon: achievementIcon('streak'), name: 'Day streak', tiers: [3, 7, 30, 100, 365], unit: 'days' },
+    { id: 'daily', icon: achievementIcon('daily'), name: 'Daily challenges', tiers: [5, 25, 100, 250, 500] },
+    { id: 'drills', icon: achievementIcon('drills'), name: 'Practice studio', tiers: [1, 10, 50, 100, 250] },
+    { id: 'combo', icon: achievementIcon('combo'), name: 'Best combo', tiers: [25, 50, 100, 200, 500] },
+    { id: 'workouts', icon: achievementIcon('workouts'), name: "Today's workouts", tiers: [1, 7, 30, 100, 250] }
+  ];
+  const TIER_XP = [50, 100, 200, 400, 800];
+
+  const BADGES = [
+    { id: 'perfect100', icon: achievementIcon('perfect100','badge'), name: 'Perfect century', text: 'Play 100 Perfect notes in a row in one run.', xp: 250 },
+    { id: 'week', icon: achievementIcon('week','badge'), name: 'Seven-day flame', text: 'Reach a 7-day practice streak.', xp: 200 },
+    { id: 'beginner', icon: achievementIcon('beginner','badge'), name: 'First Light graduate', text: 'Complete every stop and the final trial of path 1.', xp: 250 },
+    { id: 'first', icon: achievementIcon('first','badge'), name: 'First notes', text: 'Finish your first song.', xp: 50 },
+    { id: 'five', icon: achievementIcon('five','badge'), name: 'Five stars', text: 'Earn ★★★★★ on a song.', xp: 150 },
+    { id: 'flawless', icon: achievementIcon('flawless','badge'), name: 'Flawless', text: 'Finish a song with no missed or wrong notes.', xp: 200 },
+    { id: 'fullspeed', icon: achievementIcon('fullspeed','badge'), name: 'Full speed', text: 'Earn ★★★★ at 1× or faster.', xp: 150 },
+    { id: 'slow', icon: achievementIcon('slow','badge'), name: 'Slow and steady', text: 'Finish a song at 0.5× or slower.', xp: 50 },
+    { id: 'patient', icon: achievementIcon('patient','badge'), name: 'Patience', text: 'Finish Wait for note without a wrong note.', xp: 75 },
+    { id: 'comeback', icon: achievementIcon('comeback','badge'), name: 'Comeback', text: 'Beat your best on a song by 20 points.', xp: 100 },
+    { id: 'encore', icon: achievementIcon('encore','badge'), name: 'Encore', text: 'Play the same song 3 times in a row.', xp: 50 },
+    { id: 'explorer', icon: achievementIcon('explorer','badge'), name: 'Explorer', text: 'Play 5 different songs in one day.', xp: 100 },
+    { id: 'night', icon: achievementIcon('night','badge'), name: 'Night owl', text: 'Play between 10 pm and 4 am.', xp: 75 },
+    { id: 'early', icon: achievementIcon('early','badge'), name: 'Early bird', text: 'Play between 5 and 7 am.', xp: 75 },
+    { id: 'weekend', icon: achievementIcon('weekend','badge'), name: 'Weekend warrior', text: 'Play on a Saturday and the Sunday after.', xp: 100 },
+    { id: 'mic', icon: achievementIcon('mic','badge'), name: 'Live on stage', text: 'Finish a song with the microphone on.', xp: 100 },
+    { id: 'take', icon: achievementIcon('take','badge'), name: 'Recording artist', text: 'Record a take with Rec.', xp: 75 },
+    { id: 'composer', icon: achievementIcon('composer','badge'), name: 'Composer', text: 'Save a song you made.', xp: 100 },
+    { id: 'trial0', icon: achievementIcon('trial0','badge'), name: 'First Light trial', text: 'Beat the final trial of path 1.', xp: 300 },
+    { id: 'trial1', icon: achievementIcon('trial1','badge'), name: 'Moonrise trial', text: 'Beat the final trial of path 2.', xp: 300 },
+    { id: 'trial2', icon: achievementIcon('trial2','badge'), name: 'Reach the Stars trial', text: 'Beat the final trial of path 3.', xp: 500 }
+  ];
+
+  const DAILY = [
+    { id: 'slow75', text: 'Play 2 whole songs at 0.75×', goal: 2, xp: 120, v: d => d.slow75 },
+    { id: 'runs2', text: 'Play 2 songs in Practice or Wait for note', goal: 2, xp: 100, v: d => d.runs },
+    { id: 'star3', text: 'Earn ★★★ or more on any song', goal: 1, xp: 120, v: d => d.star3 },
+    { id: 'notes150', text: 'Hit 150 notes', goal: 150, xp: 100, v: d => d.notes },
+    { id: 'combo25', text: 'Reach a 25-note combo (×3)', goal: 25, xp: 150, v: d => d.combo },
+    { id: 'full', text: 'Finish a song at 1× with ★★ or more', goal: 1, xp: 150, v: d => d.full },
+    { id: 'slow', text: 'Play a whole song at 0.5× or slower', goal: 1, xp: 80, v: d => d.slow },
+    { id: 'time15', text: 'Practise for 15 minutes', goal: 15, xp: 150, v: (d, g) => g.todayMinutes() },
+    { id: 'drill', text: 'Finish a Guided practice with ★★ or more', goal: 1, xp: 100, v: d => d.drill },
+    { id: 'perfect60', text: 'Get 60 Perfect notes', goal: 60, xp: 120, v: d => d.perfect },
+    { id: 'explore3', text: 'Play 3 different songs', goal: 3, xp: 120, v: d => (d.songs || []).length },
+    { id: 'clean', text: 'Finish a song without a missed or wrong note', goal: 1, xp: 150, v: d => d.clean },
+    { id: 'wait', text: 'Finish a song in Wait for note', goal: 1, xp: 80, v: d => d.wait },
+    { id: 'encore', text: 'Play the same song twice', goal: 2, xp: 100, v: d => Math.max(0, ...Object.values(d.count || {})) },
+    { id: 'easy4', text: 'Earn ★★★★ on an Easy song', goal: 1, xp: 120, v: d => d.easy4 },
+    { id: 'climb', text: 'Play a Medium or Hard song', goal: 1, xp: 100, v: d => d.climb },
+    { id: 'path', text: 'Play a song or drill from your Song path', goal: 1, xp: 120, v: d => d.path },
+    { id: 'acc90', text: 'Score 90% or more on a song', goal: 1, xp: 150, v: d => d.acc90 },
+    { id: 'mic', text: 'Finish a song with the microphone on', goal: 1, xp: 150, v: d => d.mic }
+  ];
+  const WORKOUT_BONUS = 200;
+
+  function seeded(seed) {
+    let h = 2166136261;
+    for (const ch of String(seed)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return () => { h += 0x6d2b79f5; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  function createGame({ app, keys, best, journey, titleOf = id => id, levelOf = () => 'easy', drillId = '', practice = null, songInfo = () => null }) {
+    const rewardKinds = REWARD_KINDS.filter(kind => kind !== 'shape' || app === 'ethereal-drum');
+    const key = `${app}-game-v1`;
+    const blank = () => ({ xp: 0, c: {}, badges: {}, tiers: {}, owned: [], skin: '', nebula: '', rim: '', accent: '', pattern: '', day: null, daily: null, workout: null, last: null });
+    let data = Object.assign(blank(), readJson(key, null) || {});
+    const save = () => { data.updatedAt = Date.now(); return writeJson(key, data); };
+    let run = null;
+    let workoutIndex = null;
+    const listeners = new Set();
+    const tell = () => listeners.forEach(fn => { try { if (fn() === false) listeners.delete(fn); } catch {} });
+    const combo = { mult: 1, chips: [], pop: null };
+
+    const c = name => Number(data.c[name]) || 0;
+    const bump = (name, by = 1) => { data.c[name] = c(name) + by; };
+    const peak = (name, value) => { data.c[name] = Math.max(c(name), Number(value) || 0); };
+
+    function practiceTotals() {
+      const log = readJson(keys.practice, null) || {};
+      let seconds = 0;
+      let today = 0;
+      const stamp = dayStamp();
+      Object.entries(log.days || {}).forEach(([day, devices]) => Object.values(devices || {}).forEach(value => {
+        seconds += Number(value) || 0;
+        if (day === stamp) today += Number(value) || 0;
+      }));
+      const liveToday = practice ? practice.todaySeconds() : today;
+      return { minutes: Math.floor((seconds - today + liveToday) / 60), today: Math.floor(liveToday / 60) };
+    }
+    function dayStreak() {
+      if (practice) return practice.streak();
+      const log = readJson(keys.practice, null) || {};
+      const goal = Number(log.goal) || 10;
+      const total = day => Object.values((log.days || {})[day] || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
+      let streak = 0;
+      const date = new Date();
+      if (total(dayStamp(date)) < goal * 60) date.setDate(date.getDate() - 1);
+      while (total(dayStamp(date)) >= goal * 60) { streak += 1; date.setDate(date.getDate() - 1); }
+      return streak;
+    }
+    function bestList() {
+      const store = readJson(keys.best, {}) || {};
+      return Object.entries(store).filter(([, item]) => item && Number(item.accuracy) > 0);
+    }
+    function cleared(levels) {
+      return bestList().filter(([id, item]) => id !== drillId && bestStars(item) >= 2 && levels.includes(levelOf(id))).length;
+    }
+    function bossNode(index) { return journey?.nodes.find(node => node.type === 'boss' && node.pathIndex === index) || null; }
+    function bossBeaten(index) {
+      if (data.badges[`trial${index}`]) return true;
+      const node = bossNode(index);
+      return Boolean(node && journey.starsOf(node) >= STAR_COUNT);
+    }
+
+    function value(id) {
+      switch (id) {
+        case 'runs': return c('runs');
+        case 'notes': return c('notes');
+        case 'perfect': return c('perfect');
+        case 'stars': return bestList().reduce((sum, [, item]) => sum + bestStars(item), 0);
+        case 'easy': return cleared(['easy']);
+        case 'medium': return cleared(['medium']);
+        case 'hard': return cleared(['hard', 'expert']);
+        case 'minutes': return practiceTotals().minutes;
+        case 'streak': peak('dayStreak', dayStreak()); return c('dayStreak');
+        case 'daily': return c('daily');
+        case 'drills': return c('drills');
+        case 'combo': return c('bestCombo');
+        case 'workouts': return c('workouts');
+        case 'level': return levelInfo(data.xp).level;
+        default: return 0;
+      }
+    }
+
+    function requirement(unlock) {
+      if (!unlock) return { done: true, text: 'Yours from the start', value: 1, goal: 1 };
+      if (unlock.all || unlock.any) {
+        const list = (unlock.all || unlock.any).map(requirement);
+        const done = unlock.all ? list.every(req => req.done) : list.some(req => req.done);
+        return { done, text: list.map(req => req.text).join(unlock.all ? ' · ' : ' or '), value: unlock.all ? list.reduce((sum, req) => sum + req.value / req.goal, 0) : Math.max(...list.map(req => req.value / req.goal)), goal: unlock.all ? list.length : 1 };
+      }
+      if (unlock.skin !== undefined) {
+        const item = SKINS.find(item => item.id === unlock.skin);
+        const done = Boolean(item && (data.owned.includes(`skin:${item.id}`) || requirement(item.unlock).done));
+        return { done, text: `Unlock ${item?.name || 'a masterwork finish'}`, value: done ? 1 : 0, goal: 1 };
+      }
+      const [kind, goal] = Object.entries(unlock)[0];
+      if (kind === 'boss') {
+        const name = journey?.paths[goal]?.name || `path ${goal + 1}`;
+        const done = bossBeaten(goal);
+        return { done, text: `Beat the ${name} final trial`, value: done ? 1 : 0, goal: 1 };
+      }
+      const map = { level: ['level', n => `Reach level ${n}`], streak: ['streak', n => `Keep a ${n}-day streak`], daily: ['daily', n => `Complete ${n} daily challenges`],
+        runs: ['runs', n => `Finish ${fmt(n)} songs`], notes: ['notes', n => `Hit ${fmt(n)} notes`], minutes: ['minutes', n => `Practise for ${fmt(n)} minutes`], perfect: ['perfect', n => `Hit ${fmt(n)} Perfect notes`], stars: ['stars', n => `Collect ${n} stars`], workouts: ['workouts', n => `Finish ${n} of Today's workouts`], combo: ['combo', n => `Reach a ${n}-note combo`] };
+      const [source, text] = map[kind];
+      const now = value(source);
+      return { done: now >= goal, text: text(goal), value: Math.min(now, goal), goal };
+    }
+
+    /* Today's numbers (reset at midnight). */
+    function today() {
+      const stamp = dayStamp();
+      if (!data.day || data.day.stamp !== stamp) data.day = { stamp, runs: 0, notes: 0, perfect: 0, combo: 0, songs: [], count: {} };
+      return data.day;
+    }
+
+    function dailySet() {
+      const stamp = dayStamp();
+      if (!data.daily || data.daily.day !== stamp) {
+        const rnd = seeded(`${app}:${stamp}:${readJson('ethereal-device-id', '') || ''}`);
+        const pool = DAILY.slice();
+        const ids = [];
+        while (ids.length < 3 && pool.length) ids.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0].id);
+        data.daily = { day: stamp, ids, swapped: false, done: {} };
+        save();
+      }
+      return data.daily;
+    }
+
+    function dailyList() {
+      const set = dailySet();
+      const d = today();
+      return set.ids.map(id => {
+        const def = DAILY.find(item => item.id === id);
+        if (!def) return null;
+        const now = Math.min(def.goal, Number(def.v(d, game)) || 0);
+        return { ...def, now, done: Boolean(set.done[id]) || now >= def.goal };
+      }).filter(Boolean);
+    }
+
+    function workoutPlan() {
+      const stamp = dayStamp();
+      if (data.workout && data.workout.day === stamp && data.workout.steps?.length === 3) return data.workout;
+      const lv = levelInfo(data.xp).level;
+      const drillLevel = lv < 6 ? 1 : lv < 14 ? 2 : 3;
+      const steps = [{ kind: 'drill', level: drillLevel, bpm: [0, 70, 80, 90][drillLevel], title: 'Warm up with a guided pattern', sub: `${['', 'Beginner', 'Steady', 'Advanced'][drillLevel]} · ${[0, 70, 80, 90][drillLevel]} BPM` }];
+      const current = journey?.current();
+      const next = current && journey.starsOf(current) < journey.need ? current : null;
+      if (next && next.type === 'drill') steps.push({ kind: 'drill', level: next.level, bpm: next.bpm, bars: next.bars, nodeKey: next.key, title: 'Next on your Song path', sub: `Guided practice · ${next.levelName} · ${next.bpm} BPM` });
+      else if (next) steps.push({ kind: 'song', id: next.id, title: next.type === 'boss' ? 'Take the final trial' : 'Next on your Song path', sub: titleOf(next.id) || next.title || '' });
+      if (steps.length < 2) {
+        const pick = journey?.nodes.find(node => node.type === 'song' && journey.isSongOpen(node.id));
+        if (pick) steps.push({ kind: 'song', id: pick.id, title: 'Revisit a favourite', sub: titleOf(pick.id) || pick.title });
+        else steps.push({ kind: 'drill', level: drillLevel, bpm: 80, bars: 2, title: 'Read a new rhythm', sub: 'An eight-bar musical pattern' });
+      }
+      const learning = steps[1];
+      if (learning.kind === 'song' && next?.type !== 'boss') {
+        const info = songInfo(learning.id);
+        if (info?.barSeconds && info.duration > 0) {
+          learning.section = { from: 0, to: Math.min(info.duration, info.barSeconds * 2), bar: 1 };
+          learning.title = 'Learn a piece of the next song';
+          learning.sub += ' · first two bars';
+        }
+      }
+      const played = bestList().filter(([id]) => id !== drillId && titleOf(id) && journey?.isSongOpen(id))
+        .sort((a, b) => Number(a[1].accuracy) - Number(b[1].accuracy));
+      const weak = data.weak && titleOf(data.weak.id) && journey?.isSongOpen(data.weak.id) ? data.weak : null;
+      const pickId = weak?.id || played[0]?.[0] || learning.id;
+      const info = pickId ? songInfo(pickId) : null;
+      if (info?.duration > 0 && info.barSeconds) {
+        const section = weak || { from: 0, to: Math.min(info.duration, info.barSeconds), bar: 1 };
+        steps.push({ kind: 'song', id: pickId, section: { from: section.from, to: section.to, bar: section.bar },
+          title: weak ? 'Your hardest bar' : 'Build confidence, one bar at a time', sub: `${titleOf(pickId)} · bar ${section.bar}` });
+      } else steps.push({ kind: 'drill', level: drillLevel, bpm: 80, bars: 2, title: 'Finish with a musical pattern', sub: 'An eight-bar musical pattern' });
+      data.workout = { day: stamp, steps, done: steps.map(() => false), bonus: false };
+      save();
+      return data.workout;
+    }
+
+    function addXp(amount, news, label) {
+      if (!amount) return;
+      data.xp += amount;
+      if (label) news.push({ kind: 'xp', text: label, xp: amount });
+    }
+
+    // Badges, milestone tiers, daily challenges, the workout and rewards after any change.
+    function check(news) {
+      if (dayStreak() >= 7) award('week', news);
+      const firstPath = journey?.nodes.filter(node => node.pathIndex === 0) || [];
+      if (firstPath.length && firstPath.every(node => journey.starsOf(node) >= journey.need)) award('beginner', news);
+      const set = dailySet();
+      dailyList().forEach(item => {
+        if (item.now >= item.goal && !set.done[item.id]) {
+          set.done[item.id] = Date.now();
+          bump('daily');
+          addXp(item.xp, [], '');
+          news.push({ kind: 'daily', icon: '📅', text: `Daily challenge: ${item.text}`, xp: item.xp });
+        }
+      });
+      const plan = workoutPlan();
+      if (!plan.bonus && plan.steps.length && plan.done.every(Boolean)) {
+        plan.bonus = true;
+        bump('workouts');
+        addXp(WORKOUT_BONUS, [], '');
+        news.push({ kind: 'workout', icon: '🏋️', text: "Today's workout complete", xp: WORKOUT_BONUS });
+      }
+      MILESTONES.forEach(m => {
+        const now = value(m.id);
+        const reached = m.tiers.filter(goal => now >= goal).length;
+        const had = Number(data.tiers[m.id]) || 0;
+        for (let tier = had; tier < reached; tier += 1) {
+          addXp(TIER_XP[tier] || 800, [], '');
+          news.push({ kind: 'tier', icon: m.icon, text: `${m.name} ${roman(tier + 1)}: ${fmt(m.tiers[tier])}${m.unit ? ` ${m.unit}` : ''}`, xp: TIER_XP[tier] || 800 });
+        }
+        if (reached > had) data.tiers[m.id] = reached;
+      });
+      rewardKinds.flatMap(kind => COSMETICS.catalog[kind].map(item => [kind, item])).forEach(([kind, item]) => {
+        const id = `${kind}:${item.id}`;
+        if (!item.id || !item.unlock || data.owned.includes(id) || !requirement(item.unlock).done) return;
+        data.owned.push(id);
+        news.push({ kind: 'reward', icon: '🎁', text: `New ${kind === 'skin' ? 'finish' : kind === 'nebula' ? 'nebula' : 'accessory'}: ${item.name}`, reward: { kind, id: item.id } });
+      });
+    }
+
+    function award(id, news) {
+      if (data.badges[id]) return;
+      const badge = BADGES.find(item => item.id === id);
+      if (!badge) return;
+      data.badges[id] = Date.now();
+      addXp(badge.xp, [], '');
+      news.push({ kind: 'badge', icon: badge.icon, text: `Badge: ${badge.name}`, xp: badge.xp });
+    }
+
+    const game = {
+      key,
+      levelInfo: () => levelInfo(data.xp),
+      todayMinutes: () => practiceTotals().today,
+      onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+      streak: () => ({ days: dayStreak(), ...(practice?.freezeStatus() || { tokens: 0, protected: false }) }),
+      beginWorkout(step) { workoutIndex = workoutPlan().steps.findIndex(item => item === step); },
+      sectionPass({ id, from, to, total, hits }) {
+        const plan = workoutPlan();
+        const step = plan.steps[workoutIndex];
+        if (!step?.section || plan.done[workoutIndex] || step.id !== id || Math.abs(step.section.from - from) > .05 || Math.abs(step.section.to - to) > .05 || total < 1 || hits / total < .75) return [];
+        plan.done[workoutIndex] = true;
+        const news = [{ icon: '✓', text: 'Workout step complete!' }];
+        check(news); save(); tell();
+        return news;
+      },
+      get skin() { return data.skin || ''; },
+      get nebula() { return data.nebula || ''; },
+
+      /* Combo during a run. */
+      runReset() { run = { points: 0, notes: 0, perfect: 0, maxCombo: 0, perfectCombo: 0, bestPerfect: 0, timings: [], started: false, invalid: false, minSpeed: Infinity }; game.combo(0); },
+      startRun({ id, speed, from = 0, mode }) {
+        if (!run) game.runReset();
+        if (!run.started) { run.started = true; run.id = id; run.mode = mode; if (from > .05) run.invalid = true; }
+        if (run.id !== id || run.mode !== mode) run.invalid = true;
+        game.speedChanged(speed);
+      },
+      invalidateRun() { if (!run) game.runReset(); run.invalid = true; },
+      speedChanged(speed) { if (run?.started && Number(speed) > 0) run.minSpeed = Math.min(run.minSpeed, Number(speed)); },
+      runSpeed(speed) { return run?.started && Number.isFinite(run.minSpeed) ? Math.min(speed, run.minSpeed) : speed; },
+      canRecordRun() { return Boolean(run?.started && !run.invalid && (run.mode === 'practice' || run.mode === 'wait')); },
+      noteTiming(delta) { if (run && Number.isFinite(delta)) run.timings.push(delta); },
+      judge(kind, streak, mode) {
+        if (mode !== 'practice' && mode !== 'wait') return;
+        if (!run) game.runReset();
+        if (kind === 'perfect' || kind === 'good' || kind === 'hit') {
+          run.notes += 1;
+          if (kind === 'perfect') { run.perfect += 1; run.perfectCombo += 1; run.bestPerfect = Math.max(run.bestPerfect, run.perfectCombo); } else run.perfectCombo = 0;
+          run.maxCombo = Math.max(run.maxCombo, streak);
+          run.points += (kind === 'perfect' ? 3 : 2) * comboFor(streak);
+        }
+        if (kind !== 'perfect') run.perfectCombo = 0;
+        game.combo(kind === 'perfect' || kind === 'good' || kind === 'hit' ? streak : 0);
+      },
+      attachCombo({ chips = [], stage = null }) {
+        combo.chips = chips.filter(Boolean).map(pill => {
+          let chip = pill.querySelector('.combo-x');
+          if (!chip) { chip = document.createElement('i'); chip.className = 'combo-x'; chip.hidden = true; pill.appendChild(chip); }
+          return chip;
+        });
+        if (stage && !stage.querySelector('.combo-pop')) {
+          combo.pop = document.createElement('div');
+          combo.pop.className = 'combo-pop';
+          combo.pop.setAttribute('aria-live', 'polite');
+          stage.appendChild(combo.pop);
+        } else if (stage) combo.pop = stage.querySelector('.combo-pop');
+      },
+      combo(streak) {
+        const mult = comboFor(streak);
+        if (mult === combo.mult) return;
+        const up = mult > combo.mult;
+        combo.mult = mult;
+        combo.chips.forEach(chip => { chip.hidden = mult < 2; chip.textContent = `×${mult}`; chip.dataset.x = String(mult); });
+        if (up && combo.pop) {
+          combo.pop.textContent = `Combo ×${mult}!`;
+          combo.pop.dataset.x = String(mult);
+          combo.pop.classList.remove('show');
+          void combo.pop.offsetWidth;
+          combo.pop.classList.add('show');
+        }
+      },
+
+      /* A finished run in Practice or Wait for note. */
+      recordRun({ id, accuracy, speed, mode, prev, wrong = 0, missed = 0, mic = false, weakBar = null }) {
+        // Nothing played (no notes heard): nothing to count.
+        if (!game.canRecordRun() || !run.notes || !['practice', 'wait'].includes(mode)) { run = null; game.combo(0); return null; }
+        speed = game.runSpeed(speed);
+        if (weakBar && !isNaN(weakBar.from) && weakBar.to > weakBar.from) data.weak = { id, ...weakBar };
+        const news = [];
+        const before = levelInfo(data.xp);
+        const isDrill = id === drillId;
+        const stars = starsFor(accuracy, speed);
+        const prevStars = bestStars(prev);
+        const prevAccuracy = Number(prev?.accuracy) || 0;
+        const level = isDrill ? 'drill' : levelOf(id);
+        const d = today();
+        const now = new Date();
+        const hour = now.getHours();
+        // XP: points from the notes (with combos), stars, and new stars on this song.
+        const points = Math.round(run.points);
+        const newStars = Math.max(0, stars - prevStars);
+        const runXp = points + stars * 10 + newStars * 20;
+        addXp(runXp, [], '');
+        if (!isDrill) bump('runs');
+        bump('notes', run.notes);
+        bump('perfect', run.perfect);
+        if (isDrill) bump('drills');
+        peak('bestCombo', run.maxCombo);
+        if (!isDrill) d.runs += 1;
+        d.notes += run.notes;
+        d.perfect += run.perfect;
+        d.combo = Math.max(d.combo, run.maxCombo);
+        if (!isDrill && !d.songs.includes(id)) d.songs.push(id);
+        d.count[id] = (d.count[id] || 0) + 1;
+        const clean = !missed && !wrong && run.notes > 0;
+        if (!isDrill && Math.abs(speed - .75) < .001) d.slow75 = (d.slow75 || 0) + 1;
+        if (stars >= 3) d.star3 = 1;
+        if (speed >= 0.999 && stars >= 2) d.full = 1;
+        if (speed <= 0.5001 && stars >= 1) d.slow = 1;
+        if (isDrill && stars >= 2) d.drill = 1;
+        if (clean) d.clean = 1;
+        if (mode === 'wait' && run.notes) d.wait = 1;
+        if (level === 'easy' && stars >= 4) d.easy4 = 1;
+        if (['medium', 'hard', 'expert'].includes(level)) d.climb = 1;
+        if (isDrill ? Boolean(journey?.activeDrill) : journey?.nodes.some(node => node.id === id)) d.path = 1;
+        if (accuracy >= 90) d.acc90 = 1;
+        if (mic) d.mic = 1;
+        // The final trial of a path: Practice, at its speed, with its stars.
+        if (mode === 'practice' && journey) {
+          (journey.recordBoss?.(id, { accuracy, speed }) || []).forEach(node => {
+            award(`trial${node.pathIndex}`, news);
+            news.unshift({ kind: 'boss', icon: '🏆', text: `Final trial beaten: ${journey.paths[node.pathIndex]?.name || ''}!` });
+          });
+        }
+        // Today's workout.
+        const plan = workoutPlan();
+        plan.steps.forEach((step, index) => {
+          if (plan.done[index]) return;
+          if (index !== workoutIndex || step.section) return;
+          if (step.kind === 'drill' ? isDrill && (!step.nodeKey || journey?.activeDrill === step.nodeKey) : step.id === id) plan.done[index] = true;
+        });
+        // Badges.
+        if (!isDrill && run.notes) award('first', news);
+        if (run.bestPerfect >= 100) award('perfect100', news);
+        if (stars >= 5) award('five', news);
+        if (clean && mode === 'practice') award('flawless', news);
+        if (speed >= 0.999 && stars >= 4) award('fullspeed', news);
+        if (speed <= 0.5001 && stars >= 1) award('slow', news);
+        if (mode === 'wait' && !wrong && run.notes) award('patient', news);
+        if (prevAccuracy > 0 && accuracy - prevAccuracy >= 20) award('comeback', news);
+        data.last = data.last && data.last.id === id ? { id, n: data.last.n + 1 } : { id, n: 1 };
+        if (data.last.n >= 3) award('encore', news);
+        if (d.songs.length >= 5) award('explorer', news);
+        if (hour >= 22 || hour < 4) award('night', news);
+        if (hour >= 5 && hour < 7) award('early', news);
+        if (now.getDay() === 6) data.c.saturday = dayStamp();
+        if (now.getDay() === 0) {
+          const saturday = new Date(now);
+          saturday.setDate(saturday.getDate() - 1);
+          if (data.c.saturday === dayStamp(saturday)) award('weekend', news);
+        }
+        if (mic && run.notes) award('mic', news);
+        check(news);
+        const after = levelInfo(data.xp);
+        const gained = data.xp - before.xp;
+        const timing = run.timings.length ? { early: run.timings.filter(n => n < -.04).length, late: run.timings.filter(n => n > .04).length, count: run.timings.length, mean: run.timings.reduce((a, b) => a + b, 0) / run.timings.length } : null;
+        const summary = { timing, gained, runXp, points, maxCombo: run.maxCombo, before, after, levelUp: after.level > before.level, news };
+        run = null;
+        save();
+        tell();
+        return summary;
+      },
+
+      event(name) {
+        const news = [];
+        if (name === 'take') award('take', news);
+        if (name === 'composer') award('composer', news);
+        if (!news.length) return news;
+        check(news);
+        save();
+        tell();
+        return news;
+      },
+
+      // Time-based challenges (minutes, streaks) are checked when the hub opens too.
+      refresh() { const news = []; check(news); if (news.length) { save(); tell(); } return news; },
+
+      daily: () => dailyList(),
+      canSwap: () => !dailySet().swapped,
+      swap(id) {
+        const set = dailySet();
+        if (!set.ids.includes(id) || set.swapped || dailyList().find(item => item.id === id)?.done) return false;
+        const pool = DAILY.filter(item => !set.ids.includes(item.id));
+        if (!pool.length) return false;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        set.ids = set.ids.map(item => (item === id ? pick.id : item));
+        set.swapped = true;
+        save();
+        tell();
+        return true;
+      },
+      workout: () => workoutPlan(),
+      milestones: () => MILESTONES.map(m => {
+        const now = value(m.id);
+        const tier = m.tiers.filter(goal => now >= goal).length;
+        const next = m.tiers[tier];
+        const prevGoal = tier ? m.tiers[tier - 1] : 0;
+        return { ...m, now, tier, next, progress: next ? Math.max(0, Math.min(1, (now - prevGoal) / (next - prevGoal))) : 1, xp: TIER_XP[tier] || 800 };
+      }),
+      badges: () => BADGES.map(b => ({ ...b, at: data.badges[b.id] || 0 })),
+      look(skin = data.skin) {
+        const preset = COSMETICS.skinOf(skin);
+        return Object.fromEntries(rewardKinds.map(kind => [kind, kind === 'skin' ? skin : ['accent','pattern'].includes(kind) && data[kind] === 'off' ? '' : data[kind] || (data.accessoryOverrides?.[kind] ? '' : preset[kind]) || '']));
+      },
+      lookFor(kind,id) { return kind === 'skin' ? game.look(id) : {...game.look(),[kind]:id}; },
+      isTongue: app === 'ethereal-drum',
+      rewards(kind) {
+        return (COSMETICS.catalog[kind] || []).map(item => {
+          let req = requirement(item.unlock);
+          const included = ['rim','accent','pattern'].includes(kind) && SKINS.find(skin => skin[kind] === item.id && (data.owned.includes(`skin:${skin.id}`) || requirement(skin.unlock).done));
+          if(included && !req.done) req = {done:true,value:1,goal:1,text:`Included with your ${included.name} finish`};
+          const owned = !item.id || data.owned.includes(`${kind}:${item.id}`) || req.done;
+          return { ...item, kind, owned, req, equipped: game.look()[kind] === item.id };
+        });
+      },
+      ownedCount() { return rewardKinds.flatMap(kind => game.rewards(kind).filter(item => (item.id || kind === 'skin' || kind === 'nebula') && item.owned)).length; },
+      rewardCount() { return rewardKinds.flatMap(kind => COSMETICS.catalog[kind].filter(item => item.id || kind === 'skin' || kind === 'nebula')).length; },
+      equip(kind, id) {
+        const item = game.rewards(kind).find(entry => entry.id === id);
+        if (!item || !item.owned) return false;
+        if (!rewardKinds.includes(kind)) return false;
+        if (id && !data.owned.includes(`${kind}:${id}`)) data.owned.push(`${kind}:${id}`);
+        data[kind] = id;
+        if(['rim','accent','pattern'].includes(kind)) { data.accessoryOverrides = data.accessoryOverrides || {}; data.accessoryOverrides[kind] = true; }
+        save();
+        game.applyLook();
+        tell();
+        return true;
+      },
+      applyLook() {
+        const body = document.body;
+        if (data.skin) body.dataset.skin = data.skin; else delete body.dataset.skin;
+        if (data.nebula) body.dataset.nebula = data.nebula; else delete body.dataset.nebula;
+        COSMETICS.apply(game.look());
+        const stage = document.getElementById('noteStage');
+        if (stage && !stage.querySelector(':scope > .nebula-layer')) {
+          const layer = document.createElement('div');
+          layer.className = 'nebula-layer';
+          layer.setAttribute('aria-hidden', 'true');
+          stage.prepend(layer);
+        }
+      },
+      reload() { data = Object.assign(blank(), readJson(key, null) || {}); game.applyLook(); tell(); }
+    };
+    if (typeof window !== 'undefined') window.addEventListener('ethereal:take', () => game.event('take'));
+    return game;
+  }
+
+  function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n] || String(n); }
+
+  const ICONS = {
+    target: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>',
+    gift: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="9" width="16" height="11" rx="1.5"/><path d="M3 9h18M12 9v11M12 9c-1.5-3.5-6-4-6-1.5S10 9 12 9zm0 0c1.5-3.5 6-4 6-1.5S14 9 12 9z"/></svg>',
+    swap: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
+  };
+
+  function levelRing(info, size = 44) {
+    return `<span class="lv-ring" style="--p:${(info.progress * 100).toFixed(1)}%;--s:${size}px"><b>${info.level}</b></span>`;
+  }
+
+  // The card at the top of the song list: level, XP and the doors to the hub.
+  function playerCard({ game, onOpen }) {
+    const card = document.createElement('section');
+    card.className = 'player-card';
+    const paint = () => {
+      const info = game.levelInfo();
+      const daily = game.daily();
+      const done = daily.filter(item => item.done).length;
+      card.innerHTML = `<button type="button" class="pc-level" data-hub="milestones">${levelRing(info)}<span class="pc-copy"><b>Level ${info.level} · ${esc(info.title)}</b><i class="xp-bar"><i style="width:${(info.progress * 100).toFixed(1)}%"></i></i><small>${fmt(info.to - info.xp)} XP to level ${info.level + 1}</small></span></button>
+        <div class="pc-actions"><button type="button" data-hub="today">${ICONS.target}Today<em>${done}/${daily.length}</em></button><button type="button" data-hub="rewards">${ICONS.gift}Rewards<em>${game.ownedCount()}/${game.rewardCount()}</em></button></div>`;
+      card.querySelectorAll('[data-hub]').forEach(button => button.addEventListener('click', () => onOpen(button.dataset.hub)));
+    };
+    paint();
+    game.onChange(() => { if (!card.isConnected) return false; paint(); });
+    return card;
+  }
+
+  // The look of a reward: a small drum in that colour, or a patch of nebula.
+  function rewardPreview(item) {
+    if (item.kind === 'nebula') return `<span class="nebula-swatch" data-nebula="${esc(item.id)}" aria-hidden="true"></span>`;
+    return `<span class="skin-swatch" data-skin="${esc(item.id)}" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>`;
+  }
+
+  let hubDialog = null;
+
+  function openHub({ game, tab = 'today', onWorkout, toast }) {
+    if (!hubDialog) hubDialog = makeDialog('hub-dialog');
+    const d = hubDialog;
+    let rewardKind = 'skin';
+    let previewLook = game.look();
+    let previewItem = null;
+    d.setAttribute('aria-label', 'Player progress');
+    game.refresh();
+    const paint = () => {
+      const info = game.levelInfo();
+      const tabs = [['today', 'Today'], ['milestones', 'Milestones'], ['badges', 'Badges'], ['rewards', 'Rewards']];
+      let body = '';
+      if (tab === 'today') {
+        const daily = game.daily();
+        const left = (() => { const now = new Date(); const end = new Date(now); end.setHours(24, 0, 0, 0); const m = Math.round((end - now) / 60000); return `${Math.floor(m / 60)} h ${m % 60} min`; })();
+        const plan = game.workout();
+        const streak = game.streak();
+        body = `<div class="streak-freeze"><b>🔆 ${streak.days}-day streak</b><span>❄ ${streak.tokens}/1 freeze ready${streak.protected ? ' · yesterday protected' : ''}</span><small>One missed day is protected automatically. Refill after 7 daily goals.</small></div><section class="hub-section"><div class="hub-section-head"><h3>Daily challenges</h3><small>New ones in ${left}</small></div>
+          <ul class="daily-list">${daily.map(item => `<li class="daily-item${item.done ? ' done' : ''}">
+            <span class="daily-check" aria-hidden="true">${item.done ? '✓' : ''}</span>
+            <span class="daily-copy"><b>${esc(item.text)}</b><i class="xp-bar small"><i style="width:${Math.round((item.now / item.goal) * 100)}%"></i></i><small>${fmt(item.now)} / ${fmt(item.goal)} · +${item.xp} XP</small></span>
+            ${!item.done && game.canSwap() ? `<button type="button" class="daily-swap" data-swap="${item.id}" title="Swap this challenge (once a day)">${ICONS.swap}Swap</button>` : ''}
+          </li>`).join('')}</ul></section>
+          <section class="hub-section"><div class="hub-section-head"><h3>Today's workout</h3><small>+${WORKOUT_BONUS} XP for all three</small></div>
+          <ol class="workout-list">${plan.steps.map((step, index) => `<li class="workout-step${plan.done[index] ? ' done' : ''}"><span class="workout-num">${plan.done[index] ? '✓' : index + 1}</span><span class="workout-copy"><b>${esc(step.title)}</b><small>${esc(step.sub || '')}</small></span>${plan.done[index] ? '' : `<button type="button" class="workout-go" data-step="${index}">Go</button>`}</li>`).join('')}</ol></section>`;
+      } else if (tab === 'milestones') {
+        body = `<ul class="milestone-list">${game.milestones().map(m => `<li class="milestone"><span class="ms-icon" aria-hidden="true">${m.icon}</span><span class="ms-copy"><b>${esc(m.name)} <em class="ms-tier">${m.tier ? roman(m.tier) : ''}</em></b>
+          <span class="ms-pips">${m.tiers.map((goal, i) => `<i class="${i < m.tier ? 'on' : ''}" title="${fmt(goal)}"></i>`).join('')}</span>
+          ${m.next ? `<i class="xp-bar small"><i style="width:${Math.round(m.progress * 100)}%"></i></i><small>${fmt(m.now)} / ${fmt(m.next)}${m.unit ? ` ${m.unit}` : ''} · next +${m.xp} XP</small>` : '<small class="ms-max">All tiers done</small>'}</span></li>`).join('')}</ul>`;
+      } else if (tab === 'badges') {
+        const list = game.badges();
+        body = `<p class="hub-note">${list.filter(b => b.at).length} of ${list.length} badges</p><ul class="badge-grid">${list.map(b => `<li class="badge${b.at ? ' got' : ''}"><span class="badge-icon" aria-hidden="true">${b.icon}</span><b>${esc(b.name)}</b><small>${esc(b.text)}</small><em>+${b.xp} XP</em></li>`).join('')}</ul>`;
+      } else {
+        const kinds = [['skin', 'Finishes'], ['rim', 'Rims & rattan'], ['accent', 'Note centres'], ['pattern', 'Engravings'], ['nebula', 'Nebulas'], ...(game.isTongue ? [['shape','Tongue shapes']] : [])];
+        const list = game.rewards(rewardKind);
+        const selected = previewItem && previewItem.kind === rewardKind ? previewItem : list.find(item => item.id === (previewLook[rewardKind] || '')) || list.find(item => item.equipped) || list[0];
+        const scene = previewLook.nebula ? `style="--atelier-scene:url('${COSMETICS.asset(`nebula-${previewLook.nebula}.webp`)}')"` : '';
+        const preview = COSMETICS.preview(previewLook, { large: true, tongue: game.isTongue });
+        const grid = list.map(item => `<li class="reward atelier-item${item.owned ? ' owned' : ' locked'}${item.equipped ? ' equipped' : ''}${selected.id === item.id ? ' previewing' : ''}">
+          <button type="button" class="reward-peek" data-peek="${rewardKind}:${esc(item.id)}" aria-label="Preview ${esc(item.name)}">${item.kind === 'nebula' ? rewardPreview(item) : COSMETICS.preview(rewardKind === 'skin' ? {skin:item.id} : { ...game.look(), [rewardKind]: item.id }, { tongue: game.isTongue })}<b>${esc(item.name)}</b>${item.tier ? `<em class="reward-tier" data-tier="${item.tier}">${item.tier}</em>` : ''}</button>
+          ${item.equipped ? '<span class="reward-state">In use ✓</span>' : item.owned ? `<button type="button" class="reward-use" data-use="${rewardKind}:${esc(item.id)}">Use</button>` : `<small>${ICONS.lock}${esc(item.req.text)}</small><i class="xp-bar small"><i style="width:${Math.round(item.req.value / item.req.goal * 100)}%"></i></i>`}
+        </li>`).join('');
+        body = `<div class="atelier-heading"><div><small>YOUR INSTRUMENT, YOUR STORY</small><h3>The drum atelier</h3></div><span>${game.ownedCount()} / ${game.rewardCount()} collected</span></div>
+          <section class="atelier-showcase" ${scene}><div class="atelier-drum">${preview}</div><div class="atelier-copy"><small>${selected.owned ? 'YOUR COLLECTION' : 'DISCOVER YOUR NEXT REWARD'}</small><h3>${esc(selected.name)}</h3><p>${esc(selected.req.text)}</p>${selected.equipped ? '<span class="reward-state">In use ✓</span>' : selected.owned ? `<button type="button" class="reward-use" data-use="${rewardKind}:${esc(selected.id)}">Use this ${rewardKind === 'skin' ? 'finish' : rewardKind === 'nebula' ? 'nebula' : rewardKind === 'shape' ? 'shape' : 'accessory'}</button>` : '<span class="atelier-locked">Locked · preview only</span>'}</div></section>
+          <nav class="atelier-tabs" aria-label="Reward categories">${kinds.map(([id,label]) => `<button type="button" data-kind="${id}" aria-pressed="${rewardKind === id}" class="${rewardKind === id ? 'active' : ''}">${label}</button>`).join('')}</nav>
+          <p class="atelier-note">${rewardKind === 'skin' ? 'Three starter finishes. Master Obsidian or Nebula to begin your collector journey.' : rewardKind === 'shape' ? 'Choose a wider cut: Round petals, Lotus petals at level 5, or Double-cut petals at level 10. Shapes work with every finish.' : rewardKind === 'nebula' ? 'Detailed nebula clouds behind your instrument. The rest of the app keeps its dark space theme.' : 'Mix accessories with any finish once you unlock Obsidian or Nebula. Original centres and No engraving remove that decoration; the black rim is a smooth protective edge.'} Tap any reward to preview it.</p>
+          <ul class="reward-grid atelier-grid">${grid}</ul>`;
+
+      }
+      d.innerHTML = `<div class="hub">
+        <header class="hub-head">${levelRing(info, 58)}<div class="hub-level"><small>Level ${info.level} · ${esc(info.title)}</small><b>${fmt(info.xp)} XP</b><i class="xp-bar"><i style="width:${(info.progress * 100).toFixed(1)}%"></i></i><span>${fmt(info.to - info.xp)} XP to level ${info.level + 1}</span></div><button type="button" class="icon-btn" data-mini-close aria-label="Close">×</button></header>
+        <nav class="hub-tabs" role="tablist">${tabs.map(([id, label]) => `<button type="button" role="tab" aria-selected="${id === tab}" tabindex="${id === tab ? 0 : -1}" data-tab="${id}" class="${id === tab ? 'active' : ''}">${label}</button>`).join('')}</nav>
+        <div class="hub-body${tab === 'rewards' ? ' atelier-body' : ''}">${body}</div>
+      </div>`;
+      requestAnimationFrame(() => centreAchievementIcons(d));
+      d.querySelectorAll('[data-tab]').forEach(button => button.addEventListener('click', () => { tab = button.dataset.tab; paint(); }));
+      d.querySelector('[role=tablist]').addEventListener('keydown', event => {
+        const index = tabs.findIndex(([id]) => id === tab);
+        const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
+        if (next < 0) return; event.preventDefault(); tab = tabs[next][0]; paint(); d.querySelector(`[data-tab="${tab}"]`).focus();
+      });
+      d.querySelectorAll('[data-swap]').forEach(button => button.addEventListener('click', () => { if (game.swap(button.dataset.swap)) { toast?.('New challenge! You can swap one a day.'); paint(); } }));
+      d.querySelectorAll('[data-step]').forEach(button => button.addEventListener('click', () => { const step = game.workout().steps[Number(button.dataset.step)]; d.close(); onWorkout?.(step); }));
+      d.querySelectorAll('[data-kind]').forEach(button => button.addEventListener('click', () => { rewardKind = button.dataset.kind; previewItem = null; paint(); }));
+      d.querySelectorAll('[data-peek]').forEach(button => button.addEventListener('click', () => { const [kind,id] = button.dataset.peek.split(':'); previewItem = game.rewards(kind).find(item => item.id === id); previewLook = kind === 'skin' ? game.lookFor(kind,id) : {...previewLook,[kind]:id}; paint(); d.querySelector('.hub-body').scrollTop = 0; }));
+      d.querySelectorAll('[data-use]').forEach(button => button.addEventListener('click', () => { const [kind, id] = button.dataset.use.split(':'); if (game.equip(kind, id)) { previewLook = game.look(); previewItem = game.rewards(kind).find(item => item.id === id); const scroll = d.querySelector('.hub-body').scrollTop; paint(); d.querySelector('.hub-body').scrollTop = scroll; } }));
+    };
+    paint();
+    if (!d.open) d.showModal();
+    clearInterval(d.gameTimer);
+    d.gameTimer = setInterval(() => { if (d.open) { game.refresh(); paint(); } }, 60000);
+    d.addEventListener('close', () => clearInterval(d.gameTimer), { once: true });
+  }
+
+  // On the results screen: the XP from this run and anything new.
+  function gameResultHtml(summary) {
+    if (!summary) return '';
+    const info = summary.after;
+    const news = summary.news.map(item => `<li class="gr-${item.kind}"><span aria-hidden="true">${item.icon || '✨'}</span><b>${esc(item.text)}</b>${item.xp ? `<em>+${item.xp} XP</em>` : ''}${item.reward ? `<button type="button" class="reward-use" data-use="${item.reward.kind}:${esc(item.reward.id)}">Use it</button>` : ''}</li>`).join('');
+    const timing = summary.timing;
+    const tip = timing ? `<p class="gr-timing"><b>Timing</b> · Early ${timing.early} · Late ${timing.late}<br>${Math.abs(timing.mean) <= .04 ? 'Nicely centred on the beat.' : timing.mean < 0 ? 'You tend to play early. Let the beat arrive before striking.' : 'You tend to play late. Prepare your hands a little sooner.'}</p>` : '';
+    return `<div class="gr-head${summary.levelUp ? ' level-up' : ''}">${levelRing(info, 46)}<div class="gr-copy"><b class="gr-xp">+${fmt(summary.gained)} XP</b><small>${summary.levelUp ? `<strong class="gr-up">Level up! Level ${info.level} · ${esc(info.title)}</strong>` : `Level ${info.level} · ${esc(info.title)} · ${fmt(info.to - info.xp)} XP to go`}</small><i class="xp-bar"><i style="width:${(info.progress * 100).toFixed(1)}%"></i></i></div>${summary.maxCombo >= 10 ? `<span class="gr-combo">Best combo ${summary.maxCombo}<em>×${comboFor(summary.maxCombo)}</em></span>` : ''}</div>${tip}${news ? `<ul class="gr-news">${news}</ul>` : ''}`;
+  }
+
+  function bindGameResult(root, game) {
+    requestAnimationFrame(() => centreAchievementIcons(root));
+    root.querySelectorAll('[data-use]').forEach(button => button.addEventListener('click', () => {
+      const [kind, id] = button.dataset.use.split(':');
+      if (game.equip(kind, id)) { button.textContent = 'In use ✓'; button.disabled = true; }
+    }));
+  }
+
   window.EtherealCommon = {
-    version: '6',
+    version: '31',
     esc, readJson, writeJson, capitalise, speedLabel,
     STAR_COUNT, scoreFor, starsForScore, starsFor, bestStars, starString, starsHtml, createBestStore, createHistoryStore, resultBestHtml, bestHtml, noStarsHtml, suggestSpeedUp,
     historySummary, historyChartHtml, resultHistoryHtml, openHistory, bindHistoryBadges, exportProgress, importProgress,
     mergeProgress, collectProgress, createPracticeLog, todayCard, todayLine, openSongPath, createTakeRecorder, takeHtml,
     generateRhythm, openDrills, nextDrill, createCloud, openSaveProgress, openDeleteProgress, bindRecChips, progressStats,
     createJourney, openJourney, journeyLockedRow, codeHash, progressReadable, openPrivacyPolicy, nudge,
+    createGame, playerCard, openHub, gameResultHtml, bindGameResult, levelInfo, comboFor,
     smartLoopSpeeds, createSmartLoop, worstSection, haptic, bindHapticsToggle, hapticsSupported,
     encodeShare, decodeShare, shareSongLink, readSharedSong, tabify,
     startHereCard,
@@ -1813,3 +2645,7 @@
     playChime
   };
 })();
+
+
+
+

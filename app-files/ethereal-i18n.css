@@ -1,0 +1,15 @@
+.language-control{display:flex;align-items:center;gap:5px;padding:7px 8px;border:1px solid #ffffff14;border-radius:11px;background:#ffffff06;color:#cdd6ed;min-width:0;}
+.language-control svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;flex-shrink:0;}
+.language-select{font:600 12px system-ui,sans-serif;color:inherit;background:#171e2d;border:0;border-radius:5px;padding:4px 1px;max-width:105px;cursor:pointer;}
+.language-select:focus-visible{outline:2px solid #5eead4;outline-offset:3px;}
+html:lang(ru),html:lang(zh-CN){font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;}
+html:lang(ru) body,html:lang(ru) button,html:lang(ru) input,html:lang(ru) select,html:lang(ru) textarea,html:lang(zh-CN) body,html:lang(zh-CN) button,html:lang(zh-CN) input,html:lang(zh-CN) select,html:lang(zh-CN) textarea{font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;}
+html:lang(ru) .topbar,html:lang(zh-CN) .topbar{flex-wrap:wrap;}
+html:lang(ru) .top-actions,html:lang(zh-CN) .top-actions{flex-wrap:wrap;justify-content:flex-end;}
+html:lang(ru) .toolbar-controls,html:lang(zh-CN) .toolbar-controls{flex-wrap:wrap;}
+html:lang(ru) .hub-tabs button,html:lang(ru) .atelier-tabs button{white-space:normal;}
+html:lang(ru) .j-badge{letter-spacing:.04em;white-space:normal;}
+html:lang(zh-CN) .eyebrow,html:lang(zh-CN) .j-eyebrow,html:lang(zh-CN) .j-badge{letter-spacing:.06em;}
+html:lang(ru) .speed-row-tail button{white-space:normal;line-height:1.12;font-size:12px;padding-left:4px;padding-right:4px;}
+html:lang(ru) #micBtn svg{flex-shrink:0;}
+@media(max-width:640px){.language-control{padding:4px 6px;gap:3px;}.language-select{max-width:90px;font-size:12px;}html:lang(ru) .top-actions{gap:5px;}html:lang(ru) .j-level{font-size:12px;}html:lang(ru) .j-badge{font-size:12px;}html:lang(ru) .j-paths button{padding:9px 7px;}}
